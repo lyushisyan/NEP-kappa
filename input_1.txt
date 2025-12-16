@@ -1,0 +1,15 @@
+# --- Basic Settings ---
+--poscar      Structure/POSCAR
+--nep_model   NEP/Si_2025_XuKe.txt
+--do_relax    false
+
+# --- Supercell Settings ---
+--dim         4 4 1
+
+# --- Calculation Settings ---
+--mesh        21 21 1
+--temps       100 1000 50
+
+# --- Method Selection ---
+--method      rta         # Options: 'lbte' or 'rta'
+--use_hiphive false        # false = Finite Disp; true = HiPhive

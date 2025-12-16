@@ -1,187 +1,253 @@
-#!/usr/bin/env python3
+# nep_workflow.py
 # -*- coding: utf-8 -*-
+# ==============================================================================
+# Author: Shixian Liu, Fei Yin
+# Date: 2025
+# Description: Core workflow logic for Thermal Conductivity calculations 
+#              using NEP (Neuroevolution Potential), HiPhive (optional), 
+#              and Phono3py.
+# ==============================================================================
 
 import os
 import subprocess
-
 import numpy as np
 import h5py
 
+# ASE & Calorine
 from ase.io import read, write
 from ase import Atoms
-
+from ase.calculators.singlepoint import SinglePointCalculator
 from calorine.calculators import CPUNEP
 from calorine.tools import relax_structure
 
+# HiPhive
+from hiphive import ClusterSpace, StructureContainer, ForceConstantPotential, ForceConstants
 from hiphive.structure_generation import generate_mc_rattled_structures
 from hiphive.utilities import prepare_structures
-from hiphive import ClusterSpace, StructureContainer, ForceConstantPotential
 from hiphive import enforce_rotational_sum_rules
-
 from trainstation import Optimizer
 
+# Phonopy / Phono3py
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
+from phono3py import Phono3py
+from phono3py.file_IO import write_fc2_to_hdf5, write_fc3_to_hdf5
 
-class PhononWorkflow:
+# --- Helper Functions ---
+def ase_to_phonopy(ase_atoms):
+    """Convert ASE Atoms object to PhonopyAtoms object."""
+    return PhonopyAtoms(
+        symbols=ase_atoms.get_chemical_symbols(),
+        scaled_positions=ase_atoms.get_scaled_positions(),
+        cell=ase_atoms.cell,
+    )
+
+def phonopy_to_ase(ph_atoms):
+    """Convert PhonopyAtoms object to ASE Atoms object."""
+    return Atoms(
+        symbols=ph_atoms.symbols,
+        positions=ph_atoms.positions,
+        cell=ph_atoms.cell,
+        pbc=True
+    )
+
+# --- Main Logic Class ---
+class NEPPhononWorkflow:
     """
-    使用 NEP + HiPhive + phono3py 的声子/热导率工作流。
-
-    参数从 argparse.Namespace 传入：
-      - poscar, nep_model
-      - dim (nx, ny, nz)  同时用于训练超胞和 phonopy 超胞
-      - n_structures, rattle_std, min_dist, seed, do_relax
-      - cutoffs
-      - mesh_x, mesh_y, mesh_z, temps
+    Handler for NEP + (HiPhive/FiniteDisp) + Phono3py Workflow.
     """
-    def __init__(self, args):
-        self.cfg = args   # argparse.Namespace
+    def __init__(self, config):
+        """
+        Initialize the workflow.
+        """
+        self.cfg = config
+        self.prim = None 
 
-    # ---------- Step 1: 生成训练结构 ----------
-    def build_training_set(self):
+    def prepare_structure(self):
+        """Step 0: Load and optionally relax the primitive cell."""
+        print("\n[Step 0] Prepare Structure")
+        print(f"  - Reading from {self.cfg.poscar}")
+        self.prim = read(self.cfg.poscar)
+
+        if self.cfg.do_relax:
+            print(f"  - Relaxing structure using NEP: {self.cfg.nep_model}")
+            self.prim.calc = CPUNEP(self.cfg.nep_model)
+            relax_structure(self.prim, fmax=1e-3)
+            relax_structure(self.prim, fmax=1e-5)
+            write("POSCAR_relaxed", self.prim)
+            print("  - Relaxed structure saved to POSCAR_relaxed")
+        else:
+            print("  - Skipping relaxation (using input structure as is)")
+
+    def run_hiphive_fitting(self):
+        """Step 1 (Path A): Fit Force Constants using HiPhive (Compressive Sensing)."""
+        print("\n[Step 1 - HiPhive] Generating Training Data & Fitting")
         cfg = self.cfg
-        np.random.seed(cfg.seed)
+        np.random.seed(42)
 
-        nx, ny, nz = cfg.dim  # nz 这里一般是 1（薄膜）
-
-        print("[Workflow] Step 1: build training set")
-        print(f"[Workflow]  - Read primitive cell from {cfg.poscar}")
-        prim = read(cfg.poscar)
-
-        # 可选 NEP 松弛
-        if cfg.do_relax:
-            print(f"[Workflow]  - Relax primitive cell with NEP: {cfg.nep_model}")
-            prim.calc = CPUNEP(cfg.nep_model)
-            relax_structure(prim, fmax=1e-3)
-            relax_structure(prim, fmax=1e-5)
-
-        # 面内扩胞（这里 dim 的 nx, ny 既用作训练超胞，也用作 phonopy 超胞）
-        print(f"[Workflow]  - Repeat in-plane: ({nx}, {ny}, 1)")
-        atoms_ideal = prim.repeat((nx, ny, 1))
-        atoms_ideal.calc = CPUNEP(cfg.nep_model)
-
-        # 生成扰动结构并打力
-        print(f"[Workflow]  - Generate {cfg.n_structures} rattled structures")
+        # 1. Create supercell
+        nx, ny, nz = cfg.dim
+        atoms_ideal = self.prim.repeat((nx, ny, nz))
+        
+        # 2. Generate rattled structures
+        print(f"  - Generating {cfg.n_structures} rattled structures (std={cfg.rattle_std}, min_dist={cfg.min_dist})")   
         structures = generate_mc_rattled_structures(
-            atoms_ideal,
-            cfg.n_structures,
-            cfg.rattle_std,
+            atoms_ideal, 
+            cfg.n_structures, 
+            cfg.rattle_std, 
             cfg.min_dist
         )
+
+        # 3. Compute forces with NEP
+        print(f"  - Computing forces with NEP for {len(structures)} structures...")
+        calc = CPUNEP(cfg.nep_model)
         for i, at in enumerate(structures):
-            at.calc = CPUNEP(cfg.nep_model)
-            _ = at.get_forces()
-            if (i + 1) % 50 == 0 or (i + 1) == cfg.n_structures:
-                print(f"[Workflow]    forces computed for {i+1}/{cfg.n_structures} structures")
+            at.calc = calc
+            f = at.get_forces()
+            at.calc = SinglePointCalculator(at, forces=f)
+            at.get_forces()
+            if (i+1) % 50 == 0:
+                print(f"    Processed {i+1}/{len(structures)}")
 
-        # 写出训练数据
-        prim.wrap()
-        write("prim.extxyz", prim)
-        write("supercell_ideal.extxyz", atoms_ideal)
-        write("supercells_rattled.extxyz", structures)
-
-        print("[Workflow] Step 1 done: prim.extxyz, supercell_ideal.extxyz, supercells_rattled.extxyz")
-
-    # ---------- Step 2: 拟合 FCP ----------
-    def fit_force_constants(self):
-        cfg = self.cfg
-        print("[Workflow] Step 2: fit force constants with HiPhive")
-
-        prim = read("prim.extxyz")
-        atoms_ideal = read("supercell_ideal.extxyz")
-        rattled = read("supercells_rattled.extxyz", index=":")
-
-        print(f"[Workflow]  - ClusterSpace cutoffs = {cfg.cutoffs}")
-        cs = ClusterSpace(prim, cfg.cutoffs)
-
+        # 4. Train HiPhive Potential
+        print(f"  - Fitting Force Constants (Cutoffs: {cfg.cutoffs})")
+        cs = ClusterSpace(self.prim, cfg.cutoffs)
         sc = StructureContainer(cs)
-        for s in prepare_structures(rattled, atoms_ideal):
+        for s in prepare_structures(structures, atoms_ideal):
             sc.add_structure(s)
-
-        print("[Workflow]  - Train Optimizer")
+            
         opt = Optimizer(sc.get_fit_data())
         opt.train()
+        print(f"    RMSE: {opt.rmse_train:.6f}")
 
-        parameters = opt.parameters
-        parameters_rot = enforce_rotational_sum_rules(cs, parameters, ['Huang', 'Born-Huang'])
+        # 5. Enforce sum rules and save
+        params = enforce_rotational_sum_rules(cs, opt.parameters, ['Huang', 'Born-Huang'])
+        fcp = ForceConstantPotential(cs, params)
+        fcp.write("hiphive_model.fcp")
+        print("  - HiPhive model saved to 'hiphive_model.fcp'")
 
-
-        fcp = ForceConstantPotential(cs, parameters_rot)
-        fcp.write("fcc-si-film.fcp")
-
-        print("[Workflow] Step 2 done: fcc-si-film.fcp")
-
-    # ---------- Step 3: 导出 FC2/FC3 + phono3py κ ----------
-    def compute_kappa(self):
-        cfg = self.cfg
-        print("[Workflow] Step 3: export FCs and compute kappa with phono3py")
-
-        prim = read("prim.extxyz")
-
-        # Phonopy 超胞
-        atoms_ph = PhonopyAtoms(
-            symbols=prim.get_chemical_symbols(),
-            scaled_positions=prim.get_scaled_positions(),
-            cell=prim.cell,
-        )
-
-        nx, ny, nz = cfg.dim
-        print(f"[Workflow]  - Phonopy supercell dim = ({nx}, {ny}, {nz})")
-        phonopy = Phonopy(
-            atoms_ph,
-            supercell_matrix=np.diag([nx, ny, nz])
-        )
-        supercell = phonopy.supercell
-        supercell_ase = Atoms(
-            cell=supercell.cell,
-            numbers=supercell.numbers,
-            pbc=True,
-            scaled_positions=supercell.scaled_positions
-        )
-
-        # 从 FCP 导出 FC2/FC3
-        print("[Workflow]  - Read fcc-si-film.fcp and export force constants")
-        fcp = ForceConstantPotential.read("fcc-si-film.fcp")
+        # 6. Export to Phono3py/ShengBTE formats
+        print("  - Exporting FC2 and FC3 from HiPhive model")
+        phonopy_obj = Phonopy(ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim))
+        supercell_ase = phonopy_to_ase(phonopy_obj.supercell)
         fcs = fcp.get_force_constants(supercell_ase)
-
+        
         fcs.write_to_phonopy("fc2.hdf5")
         fcs.write_to_phono3py("fc3.hdf5")
+        fcs.write_to_shengBTE("FORCE_CONSTANTS_3RD", self.prim)
         fcs.write_to_phonopy("FORCE_CONSTANTS", format="text")
-        fcs.write_to_shengBTE("FORCE_CONSTANTS_3RD", prim)
-        write("POSCAR", prim)   # 给 phono3py 用
+        print("  - Generated: fc2.hdf5, fc3.hdf5, FORCE_CONSTANTS_3RD")
 
-        print("[Workflow]  - Exported fc2.hdf5, fc3.hdf5, FORCE_CONSTANTS, FORCE_CONSTANTS_3RD")
-
-        # ===== 这里用统一的 mesh 参数 =====
-        mx, my, mz = cfg.mesh
-        cmd = (
-            f'phono3py --dim="{nx} {ny} {nz}" '
-            f'--fc2 --fc3 --br '
-            f'--mesh="{mx} {my} {mz}" '
-            f'--ts="{" ".join(map(str, cfg.temps))}"'
+    def run_finite_disp_fitting(self):
+        """Step 1 (Path B): Standard Finite Displacement Method using Phono3py."""
+        print("\n[Step 1 - FiniteDisp] Phono3py Finite Displacement Method")
+        cfg = self.cfg
+        
+        # 1. Initialize Phono3py
+        ph3 = Phono3py(
+            ase_to_phonopy(self.prim),
+            supercell_matrix=cfg.dim,
+            phonon_supercell_matrix=cfg.dim, # Assuming same size for FC2 and FC3
+            primitive_matrix="auto"
         )
-        print("[Workflow]  - Running:", cmd)
+        
+        # 2. Generate displacements
+        ph3.generate_displacements()
+        ph3.save("phono3py_disp.yaml")
+        
+        fc3_scs = ph3.supercells_with_displacements
+        fc2_scs = ph3.phonon_supercells_with_displacements
+        print(f"  - Generated {len(fc3_scs)} FC3 supercells and {len(fc2_scs)} FC2 supercells")
+
+        # 3. Compute forces for FC2
+        print("  - Computing forces for FC2...")
+        calc = CPUNEP(cfg.nep_model)
+        forces_fc2 = []
+        for sc in fc2_scs:
+            atoms = phonopy_to_ase(sc)
+            atoms.calc = calc
+            forces_fc2.append(atoms.get_forces())
+        ph3.phonon_forces = np.array(forces_fc2)
+
+        # 4. Compute forces for FC3
+        print("  - Computing forces for FC3...")
+        forces_fc3 = []
+        for sc in fc3_scs:
+            atoms = phonopy_to_ase(sc)
+            atoms.calc = calc
+            forces_fc3.append(atoms.get_forces())
+        ph3.forces = np.array(forces_fc3)
+
+        # 5. Produce and save FCs
+        print("  - Producing FC2 and FC3...")
+        ph3.produce_fc2()
+        write_fc2_to_hdf5(ph3.fc2)
+        ph3.produce_fc3()
+        write_fc3_to_hdf5(ph3.fc3)
+        
+        # 6. Convert formats
+        print("  - Converting to ShengBTE format via HiPhive interface...")
+        supercell_ase = phonopy_to_ase(ph3.supercell)
+        fcs = ForceConstants.from_arrays(
+            supercell=supercell_ase,
+            fc2_array=ph3.fc2,
+            fc3_array=ph3.fc3
+        )
+        fcs.write_to_shengBTE("FORCE_CONSTANTS_3RD", self.prim)
+        fcs.write_to_phonopy("FORCE_CONSTANTS", format="text")
+        print("  - Generated: fc2.hdf5, fc3.hdf5, FORCE_CONSTANTS_3RD, FORCE_CONSTANTS")
+
+    def compute_kappa(self):
+        """Step 2: Run phono3py CLI to compute thermal conductivity."""
+        print("\n[Step 2] Compute Kappa with Phono3py CLI")
+        cfg = self.cfg
+        
+        if cfg.do_relax:
+            poscar_name = "POSCAR_relaxed"
+        else:
+            poscar_name = cfg.poscar
+        
+        nx, ny, nz = cfg.dim
+        mx, my, mz = cfg.mesh
+        tmin, tmax, tstep = cfg.temps
+        
+        if cfg.method == 'lbte':
+            method_flag = "--lbte" 
+            print("  - Method: LBTE (Linearized Boltzmann Transport Equation)")
+        else:
+            method_flag = "--br"
+            print("  - Method: RTA (Relaxation Time Approximation)")
+
+        cmd = (
+            f"phono3py -c {poscar_name} "
+            f"--dim {nx} {ny} {nz} "
+            f"--fc2 --fc3 "
+            f"{method_flag} " 
+            f"--mesh {mx} {my} {mz} "
+            f"--tmin {tmin} "
+            f"--tmax {tmax} "
+            f"--tstep {tstep} "
+        )
+        
+        print(f"  - Running command: {cmd}")
         ret = subprocess.call(cmd, shell=True)
+        
+        if ret == 0:
+            print("\n[Done] Phono3py finished successfully.")
+            if cfg.method == 'lbte':
+                print(f"Check kappa-m{mx}{my}{mz}.hdf5 for results.")
+            else:
+                print(f"Check kappa-m{mx}{my}{mz}.hdf5 (RTA) for results.")
+        else:
+            print(f"\n[Error] Phono3py failed with return code {ret}")
 
-        if ret != 0:
-            print("[Workflow]  - phono3py exited with code", ret)
-            return
-
-        kappa_file = f'kappa-m{mx}{my}{mz}.hdf5'
-        if not os.path.isfile(kappa_file):
-            print(f"[Workflow]  - kappa file not found: {kappa_file}")
-            print("[Workflow]    maybe fc3 is incomplete, or phono3py failed.")
-            return
-
-        with h5py.File(kappa_file, "r") as hf:
-            temps = hf["temperature"][:]
-            print("[Workflow]  - κ(T) temperatures in file:", temps)
-
-        print("[Workflow] Step 3 done, kappa file =", kappa_file)
-
-
-    # ---------- 一键跑完 ----------
-    def run_all(self):
-        self.build_training_set()
-        self.fit_force_constants()
+    def run(self):
+        """Execute the full workflow."""
+        self.prepare_structure()
+        
+        if self.cfg.use_hiphive:
+            self.run_hiphive_fitting()
+        else:
+            self.run_finite_disp_fitting()
+            
         self.compute_kappa()

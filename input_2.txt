@@ -1,0 +1,21 @@
+# === Basic Settings ===
+--poscar      Structure/POSCAR
+--nep_model   NEP/Si_2025_XuKe.txt
+--do_relax    false         # Perform structure relaxation (true/false)
+
+# === Supercell Settings ===
+--dim         4 4 1         # Supercell dimensions (nx ny nz)
+
+# === HiPhive Settings ===
+--use_hiphive true          # Enable HiPhive mode (Compressive Sensing)
+--n_structures 500           # Number of rattled training structures
+--rattle_std   0.03         # Rattle standard deviation (Angstrom)
+--min_dist     2.2
+--cutoffs      5.0 4.0      # Cutoff radii for 2nd and 3rd order FCs
+
+# === Output / Calculation Settings ===
+--mesh        21 21 1       # Phono3py q-point mesh (mx my mz)
+--temps       100 1000 50   # Temperature range: T_min T_max T_step
+
+# === Method Selection (Optional) ===
+--method      rta          # Transport method: 'lbte' or 'rta' (Default: lbte)
