@@ -15,7 +15,8 @@
 
 # === Output / Calculation Settings ===
 --mesh        21 21 1       # Phono3py q-point mesh (mx my mz)
---temps       100 1000 50   # Temperature range: T_min T_max T_step
+--temps       100 1000 50   # Temperature range (T_min T_max T_step) or specific temperature (Ts)
 
 # === Method Selection (Optional) ===
 --method      rta          # Transport method: 'lbte' or 'rta' (Default: lbte)
+--wigner      true         # false = BTE; true = WTE

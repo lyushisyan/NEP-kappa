@@ -1,4 +1,4 @@
-# nep_workflow.py
+# workflow.py
 # -*- coding: utf-8 -*-
 # ==============================================================================
 # Author: Shixian Liu, Fei Yin
@@ -209,7 +209,6 @@ class NEPPhononWorkflow:
         
         nx, ny, nz = cfg.dim
         mx, my, mz = cfg.mesh
-        tmin, tmax, tstep = cfg.temps
         
         if cfg.method == 'lbte':
             method_flag = "--lbte" 
@@ -218,16 +217,24 @@ class NEPPhononWorkflow:
             method_flag = "--br"
             print("  - Method: RTA (Relaxation Time Approximation)")
 
-        cmd = (
+        wigner_str = "--wigner" if cfg.wigner else ""
+
+        base_cmd = (
             f"phono3py -c {poscar_name} "
             f"--dim {nx} {ny} {nz} "
             f"--fc2 --fc3 "
             f"{method_flag} " 
             f"--mesh {mx} {my} {mz} "
-            f"--tmin {tmin} "
-            f"--tmax {tmax} "
-            f"--tstep {tstep} "
+            f"{wigner_str} "
         )
+
+        if isinstance(cfg.temps, (list, tuple)) and len(cfg.temps) == 3:
+            tmin, tmax, tstep = cfg.temps
+            cmd = base_cmd + f"--tmin {tmin} --tmax {tmax} --tstep {tstep}"
+
+        else:
+            val = cfg.temps[0] if isinstance(cfg.temps, (list, tuple)) else cfg.temps            
+            cmd = base_cmd + f"--ts {val}"
         
         print(f"  - Running command: {cmd}")
         ret = subprocess.call(cmd, shell=True)

@@ -1,15 +1,16 @@
 # --- Basic Settings ---
 --poscar      Structure/POSCAR
 --nep_model   NEP/Si_2025_XuKe.txt
---do_relax    false
+--do_relax    false        # Perform structure relaxation (true/false)
 
 # --- Supercell Settings ---
---dim         4 4 1
+--dim         4 4 1        # Supercell dimensions (nx ny nz)
 
 # --- Calculation Settings ---
---mesh        21 21 1
---temps       100 1000 50
+--mesh        21 21 1      # Phono3py q-point mesh (mx my mz)
+--temps       100 1000 50  # Temperature range (T_min T_max T_step) or specific temperature (Ts)
 
 # --- Method Selection ---
 --method      rta         # Options: 'lbte' or 'rta'
---use_hiphive false        # false = Finite Disp; true = HiPhive
+--use_hiphive false       # false = Finite Disp; true = HiPhive
+--wigner      true        # false = BTE; true = WTE

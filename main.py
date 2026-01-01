@@ -44,6 +44,7 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mesh", type=int, nargs=3, default=[21, 21, 1], help="Phono3py mesh")
     parser.add_argument("--temps", type=float, nargs=3, default=[100, 1000, 100], help="Temperatures")
     parser.add_argument("--method", type=str, choices=["lbte", "rta"], default="lbte", help="Method")
+    parser.add_argument("--wigner", type=str2bool, nargs="?", const=True, default=False, help="Wave-like contribution")
 
     return parser
 
