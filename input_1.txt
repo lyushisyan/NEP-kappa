@@ -11,6 +11,7 @@
 --temps       100 1000 50  # Temperature range (T_min T_max T_step) or specific temperature (Ts)
 
 # --- Method Selection ---
+--fc2fc3      true        # true = Calculate FCs; false = Read existing FCs
 --method      rta         # Options: 'lbte' or 'rta'
 --use_hiphive false       # false = Finite Disp; true = HiPhive
 --wigner      true        # false = BTE; true = WTE

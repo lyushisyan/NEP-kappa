@@ -250,11 +250,13 @@ class NEPPhononWorkflow:
 
     def run(self):
         """Execute the full workflow."""
-        self.prepare_structure()
         
-        if self.cfg.use_hiphive:
-            self.run_hiphive_fitting()
-        else:
-            self.run_finite_disp_fitting()
+        if self.cfg.fc2fc3:
+            self.prepare_structure()
+            
+            if self.cfg.use_hiphive:
+                self.run_hiphive_fitting()
+            else:
+                self.run_finite_disp_fitting()
             
         self.compute_kappa()
