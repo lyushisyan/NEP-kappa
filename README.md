@@ -1,5 +1,7 @@
 # NEP-kappa
 
+[English](#english-version) | [中文](#中文版)
+
 ## English Version
 
 
@@ -96,7 +98,7 @@ Typical outputs:
 - `FORCE_CONSTANTS` / `FORCE_CONSTANTS_3RD`
 - `kappa-m{mesh}.hdf5`
 
-### Plotting (NEP only)
+### Plotting
 
 ```bash
 python plot.py \
@@ -236,7 +238,7 @@ python main.py \
 - `FORCE_CONSTANTS` / `FORCE_CONSTANTS_3RD`
 - `kappa-m{mesh}.hdf5`
 
-### 绘图（仅 NEP）
+### 绘图
 
 ```bash
 python plot.py \
