@@ -8,10 +8,9 @@
 #              and Phono3py.
 # ==============================================================================
 
-import os
 import subprocess
+import shlex
 import numpy as np
-import h5py
 
 # ASE & Calorine
 from ase.io import read, write
@@ -217,27 +216,26 @@ class NEPPhononWorkflow:
             method_flag = "--br"
             print("  - Method: RTA (Relaxation Time Approximation)")
 
-        wigner_str = "--wigner" if cfg.wigner else ""
+        cmd = [
+            "phono3py",
+            "-c", poscar_name,
+            "--dim", str(nx), str(ny), str(nz),
+            "--fc2", "--fc3",
+            method_flag,
+            "--mesh", str(mx), str(my), str(mz),
+        ]
 
-        base_cmd = (
-            f"phono3py -c {poscar_name} "
-            f"--dim {nx} {ny} {nz} "
-            f"--fc2 --fc3 "
-            f"{method_flag} " 
-            f"--mesh {mx} {my} {mz} "
-            f"{wigner_str} "
-        )
+        if cfg.wigner:
+            cmd.append("--wigner")
 
-        if isinstance(cfg.temps, (list, tuple)) and len(cfg.temps) == 3:
+        if len(cfg.temps) == 3:
             tmin, tmax, tstep = cfg.temps
-            cmd = base_cmd + f"--tmin {tmin} --tmax {tmax} --tstep {tstep}"
-
+            cmd.extend(["--tmin", str(tmin), "--tmax", str(tmax), "--tstep", str(tstep)])
         else:
-            val = cfg.temps[0] if isinstance(cfg.temps, (list, tuple)) else cfg.temps            
-            cmd = base_cmd + f"--ts {val}"
+            cmd.extend(["--ts", str(cfg.temps[0])])
         
-        print(f"  - Running command: {cmd}")
-        ret = subprocess.call(cmd, shell=True)
+        print(f"  - Running command: {shlex.join(cmd)}")
+        ret = subprocess.run(cmd, check=False).returncode
         
         if ret == 0:
             print("\n[Done] Phono3py finished successfully.")

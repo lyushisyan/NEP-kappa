@@ -61,6 +61,17 @@ def parse_input_file(filename):
         if content: clean_text += " " + content
     return shlex.split(clean_text)
 
+def validate_temps(temps):
+    if not isinstance(temps, (list, tuple)):
+        return "--temps must be a list of floats."
+    n = len(temps)
+    if n not in (1, 3):
+        return (
+            f"--temps expects 1 value (single temperature) or 3 values "
+            f"(tmin tmax tstep), got {n}: {temps}"
+        )
+    return None
+
 def main():
     start_time = time.time()
     
@@ -75,6 +86,10 @@ def main():
         if target_file != "input.txt":
             print(f"[Warning] '{target_file}' not found. Falling back to CLI.")
         args = parser.parse_args()
+
+    temps_error = validate_temps(args.temps)
+    if temps_error:
+        parser.error(temps_error)
 
     print("-" * 60)
     print("Running Workflow with configuration:")

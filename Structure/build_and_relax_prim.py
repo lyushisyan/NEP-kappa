@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 
 from ase import Atoms
-from ase.build import bulk, diamond100, graphene_nanoribbon
+from ase.build import bulk, diamond100
 from ase.io import write
 
 from calorine.calculators import CPUNEP
@@ -228,7 +228,7 @@ def main():
         default=None,
         help=(
             "NEP potential filename in NEP/. "
-            "If not set: film/wire → Si_2025_xuke.txt; "
+            "If not set: film/wire → Si_2025_Xuke.txt; "
             "agnr/zgnr → C_2024_liangting.txt."
         ),
     )
@@ -261,7 +261,7 @@ def main():
     # -------- 根据 model 选择 NEP 默认文件 --------
     if args.nep is None:
         if model in ("film", "wire"):
-            nep_name = "Si_2025_xuke.txt"
+            nep_name = "Si_2025_Xuke.txt"
         else:  # agnr / zgnr
             nep_name = "C_2024_liangting.txt"
     else:

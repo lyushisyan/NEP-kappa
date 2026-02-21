@@ -1,6 +1,6 @@
 # --- Basic Settings ---
 --poscar      Structure/POSCAR
---nep_model   NEP/Si_2025_XuKe.txt
+--nep_model   NEP/Si_2025_Xuke.txt
 --do_relax    false         # Perform structure relaxation (true/false)
 
 # --- Supercell Settings ---
