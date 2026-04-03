@@ -17,11 +17,12 @@ NEP-kappa is a workflow for lattice thermal conductivity calculations:
 - `workflow.py`: core workflow implementation
 - `input_1.txt`: example input (Finite Displacement)
 - `input_2.txt`: example input (HiPhive)
-- `Structure/build_and_relax_prim.py`: build and relax Si structure
+- `Structure/build_and_relax_prim.py`: example script to build and relax Si structure
 - `Structure/POSCAR`: output structure file (always overwritten by build script)
 - `NEP/Si_2025_Xuke.txt`: example Si NEP model
-- `Example-Resuts/Bulk/plot_bulk.py`: bulk plotting script (4 panels)
-- `Example-Resuts/Film-1nm/plot_film.py`: film plotting script (4 panels)
+- `Example-Resuts/`: example results and plotting scripts
+- `Example-Resuts/Bulk/plot_bulk.py`: example bulk plotting script (4 panels)
+- `Example-Resuts/Film-1nm/plot_film.py`: example film plotting script (4 panels)
 
 ### Requirements
 
@@ -60,6 +61,8 @@ Notes:
 
 - The script always writes output to `Structure/POSCAR`.
 - Default NEP model is `NEP/Si_2025_Xuke.txt`.
+- This build script is an example implementation for Si models.
+- If you have other structures, place them directly in `Structure/` and pass them via `--poscar`.
 
 ### 2) Run Workflow
 
@@ -123,6 +126,11 @@ Output:
 
 - `Example-Resuts/Film-1nm/Si_film_1nm_4panel.pdf`
 
+Notes:
+
+- These plotting scripts are examples.
+- You can copy/modify them for your own structures and result files.
+
 
 
 ---
@@ -142,11 +150,12 @@ NEP-kappa 是一个晶格热导率计算流程：
 - `workflow.py`：核心计算逻辑
 - `input_1.txt`：Finite Displacement 示例输入
 - `input_2.txt`：HiPhive 示例输入
-- `Structure/build_and_relax_prim.py`：构建并弛豫 Si 结构
+- `Structure/build_and_relax_prim.py`：构建并弛豫 Si 结构的示例脚本
 - `Structure/POSCAR`：结构输出文件（build 脚本会固定覆盖）
 - `NEP/Si_2025_Xuke.txt`：示例 Si 势函数
-- `Example-Resuts/Bulk/plot_bulk.py`：bulk 绘图脚本（4 图）
-- `Example-Resuts/Film-1nm/plot_film.py`：film 绘图脚本（4 图）
+- `Example-Resuts/`：示例结果和绘图代码
+- `Example-Resuts/Bulk/plot_bulk.py`：bulk 绘图示例脚本（4 图）
+- `Example-Resuts/Film-1nm/plot_film.py`：film 绘图示例脚本（4 图）
 
 ### 环境依赖
 
@@ -185,6 +194,8 @@ python Structure/build_and_relax_prim.py --model bulk
 
 - 结构固定输出到 `Structure/POSCAR`
 - 默认势函数为 `NEP/Si_2025_Xuke.txt`
+- 这个 build 脚本只是 Si 结构示例实现
+- 如果你有其他结构，直接放到 `Structure/` 目录，并通过 `--poscar` 指定
 
 ### 2) 运行主流程
 
@@ -248,3 +259,7 @@ python Example-Resuts/Film-1nm/plot_film.py
 
 - `Example-Resuts/Film-1nm/Si_film_1nm_4panel.pdf`
 
+说明：
+
+- 这些绘图脚本是示例脚本
+- 你可以按自己的结构和结果文件复制修改后使用
