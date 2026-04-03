@@ -184,17 +184,6 @@ class NEPPhononWorkflow:
         ph3.produce_fc3()
         write_fc3_to_hdf5(ph3.fc3)
         
-        # 6. Convert formats
-        print("  - Converting to ShengBTE format via HiPhive interface...")
-        supercell_ase = phonopy_to_ase(ph3.supercell)
-        fcs = ForceConstants.from_arrays(
-            supercell=supercell_ase,
-            fc2_array=ph3.fc2,
-            fc3_array=ph3.fc3
-        )
-        fcs.write_to_shengBTE("FORCE_CONSTANTS_3RD", self.prim)
-        fcs.write_to_phonopy("FORCE_CONSTANTS", format="text")
-        print("  - Generated: fc2.hdf5, fc3.hdf5, FORCE_CONSTANTS_3RD, FORCE_CONSTANTS")
 
     def compute_kappa(self):
         """Step 2: Run phono3py CLI to compute thermal conductivity."""

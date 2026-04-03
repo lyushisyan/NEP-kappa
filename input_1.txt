@@ -4,11 +4,11 @@
 --do_relax    false        # Perform structure relaxation (true/false)
 
 # --- Supercell Settings ---
---dim         4 4 1        # Supercell dimensions (nx ny nz)
+--dim         3 3 1        # Supercell dimensions (nx ny nz)
 
 # --- Calculation Settings ---
---mesh        21 21 1      # Phono3py q-point mesh (mx my mz)
---temps       100 1000 50  # Temperature range (T_min T_max T_step) or specific temperature (Ts)
+--mesh        11 11 1      # Phono3py q-point mesh (mx my mz)
+--temps       100 1000 100  # Temperature range (T_min T_max T_step) or specific temperature (Ts)
 
 # --- Method Selection ---
 --fc2fc3      true        # true = Calculate FCs; false = Read existing FCs
