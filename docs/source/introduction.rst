@@ -18,7 +18,6 @@ The standard workflow is:
 2. Relax the structure with NEP (optional)
 3. Generate force constants
 4. Run ``phono3py`` to compute thermal conductivity
-5. Plot example results
 
 Supported routes
 ----------------

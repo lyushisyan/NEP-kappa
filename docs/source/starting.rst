@@ -51,6 +51,10 @@ Using direct command-line arguments:
      --method rta \
      --wigner true
 
+.. note::
+
+   For input-file syntax and parameter details, see :doc:`input_files`.
+
 Typical outputs
 ---------------
 
@@ -62,22 +66,3 @@ Depending on the selected workflow, typical output files include:
 - ``fc2.hdf5``
 - ``fc3.hdf5``
 - ``kappa-mXXXXX.hdf5``
-
-Plot example results
---------------------
-
-Bulk example:
-
-.. code-block:: bash
-
-   python Example-Resuts/Bulk/plot_bulk.py
-
-Film example:
-
-.. code-block:: bash
-
-   python Example-Resuts/Film-1nm/plot_film.py
-
-.. note::
-
-   For input-file syntax and parameter details, see :doc:`input_files`.

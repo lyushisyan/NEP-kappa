@@ -25,7 +25,7 @@ Create `input.txt`:
    --nep_model   NEP/Si_2025_Xuke.txt
    --do_relax    false
    --dim         4 4 1
-   --mesh        21 21 21
+   --mesh        21 21 1
    --temps       100 1000 100
    --fc2fc3      true
    --use_hiphive false
@@ -43,18 +43,23 @@ Typical outputs:
 
 - `fc2.hdf5`
 - `fc3.hdf5`
-- `kappa-m11111.hdf5` (depends on mesh)
+- `kappa-m21211.hdf5`
+
+The exact ``kappa`` filename depends on the mesh.
+
+For details on reading ``kappa-m*.hdf5`` files, please refer to the
+`phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
 
 Step 4: Plot examples
 ---------------------
 
 .. code-block:: bash
 
-   python Example-Resuts/Film-1nm/plot_film.py
+   python path/plot_film.py
 
 This generates:
 
-- `Example-Resuts/Film-1nm/Si_film_1nm_4panel.pdf`
+- `path/Si_film_1nm_4panel.pdf`
 
 Notes
 -----

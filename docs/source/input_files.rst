@@ -13,6 +13,8 @@ Input file format
 
 Example:
 
+NEP + phono3py
+
 .. code-block:: text
 
    --poscar      Structure/POSCAR
@@ -25,6 +27,25 @@ Example:
    --temps       100 1000 50
    --method      rta
    --wigner      true
+
+NEP + HiPhive + phono3py
+
+.. code-block:: text
+
+   --poscar      Structure/POSCAR
+   --nep_model   NEP/Si_2025_Xuke.txt
+   --do_relax    false
+   --dim         4 4 1
+   --fc2fc3      true
+   --use_hiphive false
+   --mesh        21 21 1
+   --temps       100 1000 50
+   --method      rta
+   --wigner      true
+   --n_structures 500
+   --rattle_std   0.03
+   --min_dist     2.2
+   --cutoffs      5.0 4.0
 
 Rules
 -----
