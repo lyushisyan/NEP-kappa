@@ -1,0 +1,23 @@
+# Basic
+--poscar      Structure/POSCAR
+--nep_model   NEP/Si_2025_Xuke.txt
+--do_relax    false
+
+# Supercell
+--dim         4 4 1
+
+# Mode
+--fc2fc3      true
+--use_hiphive false
+
+# HiPhive options (used only when --use_hiphive true)
+--n_structures 200
+--rattle_std   0.03
+--min_dist     2.0
+--cutoffs      5.0 4.0
+
+# Transport
+--mesh        21 21 1
+--temps       100 1000 50
+--method      rta
+--wigner      true
