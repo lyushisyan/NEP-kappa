@@ -13,3 +13,38 @@ __pycache__/
 *.swp
 *.swo
 
+# ------------------------------
+# Virtual environments
+# ------------------------------
+.venv/
+venv/
+env/
+
+# ------------------------------
+# NEP / Phono3py workflow outputs
+# ------------------------------
+POSCAR_relaxed
+phono3py_disp.yaml
+fc2.hdf5
+fc3.hdf5
+kappa-m*.hdf5
+FORCE_CONSTANTS
+FORCE_CONSTANTS_3RD
+hiphive_model.fcp
+
+# ------------------------------
+# Plot outputs
+# ------------------------------
+*.pdf
+*.png
+*.svg
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+
+# ------------------------------
+# Sphinx / Read the Docs build
+# ------------------------------
+docs/build/

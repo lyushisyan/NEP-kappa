@@ -41,6 +41,21 @@ Recommended conda env (e.g. `ph3-env`) with:
 
 Also ensure `phono3py` is available in shell.
 
+### Documentation (Sphinx / Read the Docs)
+
+This repository includes a Sphinx docs project:
+
+- Read the Docs config: `.readthedocs.yaml`
+- Sphinx source: `docs/source/`
+- Local build command:
+
+```bash
+cd docs
+make html
+```
+
+Built HTML will be generated in `docs/build/html/`.
+
 ### 1) Build Structure
 
 Build script supports three Si models:
@@ -173,6 +188,21 @@ NEP-kappa 是一个晶格热导率计算流程：
 - `matplotlib`
 
 并确保终端可直接调用 `phono3py`。
+
+### 文档（Sphinx / Read the Docs）
+
+仓库已包含 Sphinx 文档工程：
+
+- Read the Docs 配置：`.readthedocs.yaml`
+- Sphinx 源文件：`docs/source/`
+- 本地构建命令：
+
+```bash
+cd docs
+make html
+```
+
+HTML 输出目录为 `docs/build/html/`。
 
 ### 1) 构建结构
 
