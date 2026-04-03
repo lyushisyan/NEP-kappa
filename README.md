@@ -26,7 +26,7 @@ NEP-kappa is a workflow for lattice thermal conductivity calculations:
 
 ### Requirements
 
-Recommended conda env (e.g. `ph3-env`) with:
+Recommended conda env (e.g. `nepkappa-env`) with:
 
 - `numpy`
 - `h5py`
@@ -158,7 +158,7 @@ NEP-kappa 是一个晶格热导率计算流程：
 
 ### 环境依赖
 
-建议使用 conda 环境（如 `ph3-env`），并安装：
+建议使用 conda 环境（如 `nepkappa-env`），并安装：
 
 - `numpy`
 - `h5py`
