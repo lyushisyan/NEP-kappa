@@ -13,8 +13,6 @@ from calorine.tools import get_force_constants, relax_structure
 from seekpath import get_explicit_k_path
 from phonopy import load
 
-# 忽略不必要的警告
-warnings.filterwarnings("ignore")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

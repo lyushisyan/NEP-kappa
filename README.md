@@ -31,9 +31,9 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 - `Structure/build_and_relax_prim.py`: example script to build and relax Si structure
 - `Structure/POSCAR`: output structure file (always overwritten by build script)
 - `NEP/Si_2025_Xuke.txt`: example Si NEP model
-- `Example-Resuts/`: example results and plotting scripts
-- `Example-Resuts/Bulk/plot_bulk.py`: example bulk plotting script (4 panels)
-- `Example-Resuts/Film-1nm/plot_film.py`: example film plotting script (4 panels)
+- `Example-Results/`: example results and plotting scripts
+- `Example-Results/Bulk/plot_bulk.py`: example bulk plotting script (4 panels)
+- `Example-Results/Film-1nm/plot_film.py`: example film plotting script (4 panels)
 
 ### Requirements
 
@@ -119,22 +119,22 @@ python nepkappa.py \
 Bulk (4 panels):
 
 ```bash
-python Example-Resuts/Bulk/plot_bulk.py
+python Example-Results/Bulk/plot_bulk.py
 ```
 
 Output:
 
-- `Example-Resuts/Bulk/Comparison_NEP_vs_DFT.pdf`
+- `Example-Results/Bulk/Comparison_NEP_vs_DFT.pdf`
 
 Film (4 panels):
 
 ```bash
-python Example-Resuts/Film-1nm/plot_film.py
+python Example-Results/Film-1nm/plot_film.py
 ```
 
 Output:
 
-- `Example-Resuts/Film-1nm/Si_film_1nm_4panel.pdf`
+- `Example-Results/Film-1nm/Si_film_1nm_4panel.pdf`
 
 Notes:
 
@@ -173,9 +173,9 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 - `Structure/build_and_relax_prim.py`：构建并弛豫 Si 结构的示例脚本
 - `Structure/POSCAR`：结构输出文件（build 脚本会固定覆盖）
 - `NEP/Si_2025_Xuke.txt`：示例 Si 势函数
-- `Example-Resuts/`：示例结果和绘图代码
-- `Example-Resuts/Bulk/plot_bulk.py`：bulk 绘图示例脚本（4 图）
-- `Example-Resuts/Film-1nm/plot_film.py`：film 绘图示例脚本（4 图）
+- `Example-Results/`：示例结果和绘图代码
+- `Example-Results/Bulk/plot_bulk.py`：bulk 绘图示例脚本（4 图）
+- `Example-Results/Film-1nm/plot_film.py`：film 绘图示例脚本（4 图）
 
 ### 环境依赖
 
@@ -262,22 +262,22 @@ python nepkappa.py \
 Bulk（4 图）：
 
 ```bash
-python Example-Resuts/Bulk/plot_bulk.py
+python Example-Results/Bulk/plot_bulk.py
 ```
 
 输出：
 
-- `Example-Resuts/Bulk/Comparison_NEP_vs_DFT.pdf`
+- `Example-Results/Bulk/Comparison_NEP_vs_DFT.pdf`
 
 Film（4 图）：
 
 ```bash
-python Example-Resuts/Film-1nm/plot_film.py
+python Example-Results/Film-1nm/plot_film.py
 ```
 
 输出：
 
-- `Example-Resuts/Film-1nm/Si_film_1nm_4panel.pdf`
+- `Example-Results/Film-1nm/Si_film_1nm_4panel.pdf`
 
 说明：
 
