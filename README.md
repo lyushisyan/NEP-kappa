@@ -1,6 +1,9 @@
 # NEP-kappa
 
+[![Docs](https://readthedocs.org/projects/nep-kappa/badge/?version=latest)](https://nep-kappa.readthedocs.io/en/latest/)
+
 [English](#english-version) | [中文](#中文版)
+
 
 ## English Version
 
@@ -10,6 +13,14 @@ NEP-kappa is a workflow for lattice thermal conductivity calculations:
 2. Generate force constants (Finite Displacement or HiPhive)
 3. Run `phono3py` for thermal conductivity (`kappa`)
 4. Plot example results for bulk and film
+
+### Publication
+If you use **NEP-kappa** in your research, please cite the following references.
+
+[1] F. Yin, et al.,
+*Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
+Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.0324012
+
 
 ### Repository Layout
 
@@ -130,7 +141,9 @@ Notes:
 - These plotting scripts are examples.
 - You can copy/modify them for your own structures and result files.
 
+### Contact info
 
+If you have any questions, please email sxliu98@gmail.com or yinfei0426@outlook.com
 
 ---
 
@@ -142,6 +155,14 @@ NEP-kappa 是一个晶格热导率计算流程：
 2. 生成力常数（Finite Displacement 或 HiPhive）
 3. 用 `phono3py` 计算热导率 `kappa`
 4. 绘制 bulk 和 film 示例结果
+
+### 论文引用
+
+如果你在科研工作中使用了 **NEP-kappa**，请引用以下文献：
+
+[1] F. Yin, et al.,
+*Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
+Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.0324012
 
 ### 仓库结构
 
@@ -262,3 +283,11 @@ python Example-Resuts/Film-1nm/plot_film.py
 
 - 这些绘图脚本是示例脚本
 - 你可以按自己的结构和结果文件复制修改后使用
+
+### 联系我们
+
+如果您有任何问题，请联系 sxliu98@gmail.com 或者 yinfei0426@outlook.com
+
+也可加入 QQ 群交流：
+
+![QQ Group](assets/qrcode.png)

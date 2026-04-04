@@ -3,6 +3,9 @@ NEP-kappa Documentation
 
 Welcome to the documentation of **NEP-kappa**.
 
+Source code repository:
+`GitHub <https://github.com/lyushisyan/NEP-kappa>`_
+
 **NEP-kappa** is a workflow for lattice thermal conductivity calculations based on
 **NEP**, **HiPhive**, and **phono3py**.
 
