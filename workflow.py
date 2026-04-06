@@ -125,7 +125,7 @@ class NEPPhononWorkflow:
         fcp.write("hiphive_model.fcp")
         print("  - HiPhive model saved to 'hiphive_model.fcp'")
 
-        # 6. Export to Phono3py/ShengBTE formats
+        # 6. Export to Phono3py FC2 and FC3
         print("  - Exporting FC2 and FC3 from HiPhive model")
         phonopy_obj = Phonopy(ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim))
         supercell_ase = phonopy_to_ase(phonopy_obj.supercell)
@@ -133,9 +133,7 @@ class NEPPhononWorkflow:
         
         fcs.write_to_phonopy("fc2.hdf5")
         fcs.write_to_phono3py("fc3.hdf5")
-        fcs.write_to_shengBTE("FORCE_CONSTANTS_3RD", self.prim)
-        fcs.write_to_phonopy("FORCE_CONSTANTS", format="text")
-        print("  - Generated: fc2.hdf5, fc3.hdf5, FORCE_CONSTANTS_3RD")
+        print("  - Generated: fc2.hdf5, fc3.hdf5")
 
     def run_finite_disp_fitting(self):
         """Step 1 (Path B): Standard Finite Displacement Method using Phono3py."""
