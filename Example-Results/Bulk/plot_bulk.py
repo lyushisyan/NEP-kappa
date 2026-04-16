@@ -41,7 +41,8 @@ plt.rcParams.update({
 
 # ================= 2. 参数配置 =================
 DOS_MESH = [50, 50, 50]
-FREQ_MAX = 16.0
+DEFAULT_FREQ_MAX = 16.0
+FREQ_SCALE = 1.1
 TARGET_TEMP = 300.0
 TRUNCATE_LABEL = 'L'  
 
@@ -78,6 +79,24 @@ def calculate_tau(gamma):
         t = 1.0 / (2.0 * gamma)
         t[gamma < 1e-10] = 0
     return t
+
+def compute_freq_limit(*arrays, scale=FREQ_SCALE, fallback=DEFAULT_FREQ_MAX):
+    maxima = []
+    for arr in arrays:
+        if arr is None:
+            continue
+        arr = np.asarray(arr)
+        if arr.size == 0:
+            continue
+        max_val = np.nanmax(arr)
+        if np.isfinite(max_val):
+            maxima.append(float(max_val))
+    if not maxima:
+        return int(np.ceil(fallback))
+    raw_max = max(maxima)
+    if raw_max <= 0:
+        return int(np.ceil(fallback))
+    return int(np.ceil(scale * raw_max))
 
 def load_hdf5_data(filename, target_temp=300.0):
     if not os.path.exists(filename): return None, None, None
@@ -121,18 +140,21 @@ def process_nep(conf):
         k_lin, k_lab, k_rel = get_kpath(structure, TRUNCATE_LABEL)
         phonon.run_band_structure([k_rel], with_eigenvectors=False, labels=k_lab)
         bs = phonon.get_band_structure_dict()
+
+        f, g, t = load_hdf5_data(conf['H5'], TARGET_TEMP)
+        freq_limit = compute_freq_limit(bs['frequencies'][0], f)
         
         phonon.run_mesh(DOS_MESH)
-        phonon.run_total_dos(freq_min=0, freq_max=FREQ_MAX*1.1, freq_pitch=0.05)
+        phonon.run_total_dos(freq_min=0, freq_max=freq_limit, freq_pitch=0.05)
         dos = phonon.get_total_dos_dict()
         
-        f, g, t = load_hdf5_data(conf['H5'], TARGET_TEMP)
-        mask = (f > 0.1) & (f < FREQ_MAX * 1.5) if f is not None else None
+        mask = (f > 0.1) & (f < freq_limit) if f is not None else None
         if mask is not None and t is not None: mask &= (t > 0) & (t < 1e5)
         
         return {
             'k_lin': k_lin, 'k_lab': k_lab, 'freq_disp': bs['frequencies'][0],
             'freq_dos': dos['frequency_points'], 'val_dos': dos['total_dos'],
+            'freq_limit': freq_limit,
             'f_part': f[mask] if mask is not None else None, 
             'gv': g[mask]*0.1 if g is not None and mask is not None else None, 
             'tau': t[mask] if t is not None and mask is not None else None
@@ -151,18 +173,21 @@ def process_dft(conf):
         k_lin, k_lab, k_rel = get_kpath(structure, TRUNCATE_LABEL)
         phonon.run_band_structure([k_rel], with_eigenvectors=False, labels=k_lab)
         bs = phonon.get_band_structure_dict()
+
+        f, g, t = load_hdf5_data(conf['H5'], TARGET_TEMP)
+        freq_limit = compute_freq_limit(bs['frequencies'][0], f)
         
         phonon.run_mesh(DOS_MESH)
-        phonon.run_total_dos(freq_min=0, freq_max=FREQ_MAX*1.1, freq_pitch=0.05)
+        phonon.run_total_dos(freq_min=0, freq_max=freq_limit, freq_pitch=0.05)
         dos = phonon.get_total_dos_dict()
         
-        f, g, t = load_hdf5_data(conf['H5'], TARGET_TEMP)
-        mask = (f > 0.1) & (f < FREQ_MAX * 1.5) if f is not None else None
+        mask = (f > 0.1) & (f < freq_limit) if f is not None else None
         if mask is not None and t is not None: mask &= (t > 0) & (t < 1e5)
         
         return {
             'k_lin': k_lin[:bs['frequencies'][0].shape[0]], 'k_lab': k_lab, 'freq_disp': bs['frequencies'][0],
             'freq_dos': dos['frequency_points'], 'val_dos': dos['total_dos'],
+            'freq_limit': freq_limit,
             'f_part': f[mask] if mask is not None else None, 
             'gv': g[mask]*0.1 if g is not None and mask is not None else None, 
             'tau': t[mask] if t is not None and mask is not None else None
@@ -175,6 +200,9 @@ def process_dft(conf):
 def main():
     nep_data = process_nep(NEP_CONFIG)
     dft_data = process_dft(DFT_CONFIG)
+    freq_limits = [d['freq_limit'] for d in (nep_data, dft_data) if d and d.get('freq_limit') is not None]
+    freq_plot_max = max(freq_limits) if freq_limits else int(np.ceil(DEFAULT_FREQ_MAX))
+    print(f"Auto FREQ_MAX = {freq_plot_max} THz")
 
     print("\n--- Plotting Comparison ---")
     fig, axes = plt.subplots(2, 2, figsize=(12, 10), constrained_layout=True)
@@ -199,7 +227,7 @@ def main():
         for i in range(dft_data['freq_disp'].shape[1]):
             ax_disp.plot(dft_data['k_lin'], dft_data['freq_disp'][:, i], color=DFT_CONFIG['COLOR'], ls='--', lw=1.5, label=DFT_CONFIG['LABEL'] if i==0 else None)
 
-    ax_disp.set_ylabel(r'$\omega,~\text{THz}$'); ax_disp.set_ylim(0, 16.5)
+    ax_disp.set_ylabel(r'$\omega,~\text{THz}$'); ax_disp.set_ylim(0, freq_plot_max)
     ax_disp.text(0.03, 0.92, '(a)', transform=ax_disp.transAxes, fontweight='bold', fontsize=20)
     ax_disp.legend(loc='upper right', frameon=True)
 
@@ -210,7 +238,7 @@ def main():
     if dft_data:
         ax_dos.plot(dft_data['val_dos'], dft_data['freq_dos'], color=DFT_CONFIG['COLOR'], ls='--', lw=1.5, label=DFT_CONFIG['LABEL'])
 
-    ax_dos.set_xlim(0, 4); ax_dos.set_ylim(0, 16.5)
+    ax_dos.set_xlim(0, 4); ax_dos.set_ylim(0, freq_plot_max)
     ax_dos.set_xlabel(r'$\text{DOS, a.u.}$'); ax_dos.set_xticks([])
     ax_dos.text(0.03, 0.92, '(b)', transform=ax_dos.transAxes, fontweight='bold', fontsize=20)
     ax_dos.legend(loc='lower right', frameon=True)
@@ -222,7 +250,7 @@ def main():
         ax_gv.scatter(dft_data['f_part'], dft_data['gv'], s=30, color=DFT_CONFIG['COLOR'], marker=DFT_CONFIG['MARKER'], alpha=0.6, label=DFT_CONFIG['LABEL'])
 
     ax_gv.set_xlabel(r'$\omega,~\text{THz}$'); ax_gv.set_ylabel(r'$v_g,~\text{km/s}$')
-    ax_gv.set_xlim(0, FREQ_MAX); ax_gv.set_ylim(0, 10)
+    ax_gv.set_xlim(0, freq_plot_max); ax_gv.set_ylim(0, 10)
     ax_gv.grid(True, linestyle='--', alpha=0.3)
     ax_gv.text(0.03, 0.92, '(c)', transform=ax_gv.transAxes, fontweight='bold', fontsize=20)
     handles, labels = ax_gv.get_legend_handles_labels()
@@ -235,7 +263,7 @@ def main():
         ax_tau.scatter(dft_data['f_part'], dft_data['tau'], s=30, color=DFT_CONFIG['COLOR'], marker=DFT_CONFIG['MARKER'], alpha=0.6, label=DFT_CONFIG['LABEL'])
 
     ax_tau.set_xlabel(r'$\omega,~\text{THz}$'); ax_tau.set_ylabel(r'$\tau,~\text{ps}$')
-    ax_tau.set_yscale('log'); ax_tau.set_xlim(0, FREQ_MAX); ax_tau.set_ylim(1, 1e5)
+    ax_tau.set_yscale('log'); ax_tau.set_xlim(0, freq_plot_max); ax_tau.set_ylim(1, 1e5)
     ax_tau.grid(True, which='both', linestyle='--', alpha=0.3)
     ax_tau.text(0.03, 0.92, '(d)', transform=ax_tau.transAxes, fontweight='bold', fontsize=20)
     ax_tau.legend(loc='lower left', frameon=True)

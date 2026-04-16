@@ -245,7 +245,6 @@ ax_gv.scatter(
 ax_gv.set_xlabel(r'$\omega~(\mathrm{THz})$')
 ax_gv.set_ylabel(r'$v_g~(\mathrm{km/s})$')
 ax_gv.set_xlim(0, FREQ_MAX)
-ax_gv.set_ylim(0, 5)
 ax_gv.grid(True, linestyle='--', alpha=0.3)
 ax_gv.text(0.03, 0.93, '(c)', transform=ax_gv.transAxes,
            fontweight='bold', fontsize=20)
