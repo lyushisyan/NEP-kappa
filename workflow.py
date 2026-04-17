@@ -197,10 +197,10 @@ class NEPPhononWorkflow:
         mx, my, mz = cfg.mesh
         
         if cfg.method == 'lbte':
-            method_flag = "--lbte" 
+            method_flags = ["--lbte"]
             print("  - Method: LBTE (Linearized Boltzmann Transport Equation)")
         else:
-            method_flag = "--br"
+            method_flags = ["--br", "--nu"]
             print("  - Method: RTA (Relaxation Time Approximation)")
 
         cmd = [
@@ -208,7 +208,7 @@ class NEPPhononWorkflow:
             "-c", poscar_name,
             "--dim", str(nx), str(ny), str(nz),
             "--fc2", "--fc3",
-            method_flag,
+            *method_flags,
             "--mesh", str(mx), str(my), str(mz),
         ]
 
