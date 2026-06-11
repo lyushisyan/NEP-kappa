@@ -7,12 +7,27 @@
 # ==============================================================================
 
 import argparse
+import contextlib
 import shlex
 import os
 import sys
 import time
 
 from workflow import NEPPhononWorkflow
+
+class Tee:
+    """Write text to multiple streams, e.g. terminal and run.log."""
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
 
 def str2bool(v):
     if isinstance(v, bool): return v
@@ -42,13 +57,14 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fc2fc3", type=str2bool, nargs="?", const=True, default=False, help="Fitting force constants")    
     parser.add_argument("--method", type=str, choices=["lbte", "rta"], default="lbte", help="Method")
     parser.add_argument("--wigner", type=str2bool, nargs="?", const=True, default=False, help="Wave-like contribution")
+    parser.add_argument("--progress", type=str2bool, nargs="?", const=True, default=True, help="Show progress bars and timing summaries")
+    parser.add_argument("--result_dir", default="result", help="Directory for generated outputs and run.log")
+    parser.add_argument("--output_name", default=None, help="Optional output name for the final kappa HDF5 file")
 
     return parser
 
 def parse_input_file(filename):
-    args_list = []
     if not os.path.exists(filename): return []
-    print(f"[main] Reading arguments from {filename}...")
     with open(filename, "r", encoding="utf-8") as f:
         lines = f.readlines()
     clean_text = ""
@@ -78,39 +94,59 @@ def main():
 
     if os.path.exists(target_file):
         args = parser.parse_args(parse_input_file(target_file))
+        input_source = target_file
+        missing_input_warning = None
     else:
+        input_source = None
+        missing_input_warning = None
         if target_file != "input.txt":
-            print(f"[Warning] '{target_file}' not found. Falling back to CLI.")
+            missing_input_warning = f"[Warning] '{target_file}' not found. Falling back to CLI."
         args = parser.parse_args()
 
     temps_error = validate_temps(args.temps)
     if temps_error:
         parser.error(temps_error)
 
-    print("-" * 60)
-    print("Running Workflow with configuration:")
-    for arg, value in vars(args).items():
-        print(f"  {arg:<15} : {value}")
-    print("-" * 60)
+    os.makedirs(args.result_dir, exist_ok=True)
+    log_path = os.path.join(args.result_dir, "run.log")
 
-    try:
-        wf = NEPPhononWorkflow(args)
-        wf.run()
-    except Exception as e:
-        print(f"\n[Error] Workflow execution failed: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        end_time = time.time()
-        elapsed_seconds = end_time - start_time
-        
-        hours = int(elapsed_seconds // 3600)
-        minutes = int((elapsed_seconds % 3600) // 60)
-        seconds = elapsed_seconds % 60
-        
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        stdout = Tee(sys.stdout, log_file)
+        stderr = Tee(sys.stderr, log_file)
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            if missing_input_warning is not None:
+                print(missing_input_warning)
+            if input_source is not None:
+                print(f"[main] Reading arguments from {input_source}...")
+            print(f"[main] Logging output to {log_path}")
+            print("-" * 60)
+            print("Running Workflow with configuration:")
+            for arg, value in vars(args).items():
+                print(f"  {arg:<15} : {value}")
+            print("-" * 60)
+
+            try:
+                wf = NEPPhononWorkflow(args)
+                wf.run()
+            except Exception as e:
+                print(f"\n[Error] Workflow execution failed: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                end_time = time.time()
+                elapsed_seconds = end_time - start_time
+
+                hours = int(elapsed_seconds // 3600)
+                minutes = int((elapsed_seconds % 3600) // 60)
+                seconds = elapsed_seconds % 60
+
+                print("-" * 60)
+                print(f"Total Execution Time: {hours}h {minutes}m {seconds:.2f}s")
+                print("-" * 60)
+
+    if os.path.exists(log_path):
         print("-" * 60)
-        print(f"Total Execution Time: {hours}h {minutes}m {seconds:.2f}s")
-        print("-" * 60)
+        print(f"Run log saved to: {log_path}")
 
 if __name__ == "__main__":
     main()

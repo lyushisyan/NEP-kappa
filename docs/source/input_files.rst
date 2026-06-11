@@ -27,6 +27,9 @@ NEP + phono3py
    --temps       100 1000 50
    --method      rta
    --wigner      true
+   --progress    true
+   --result_dir  result
+   --output_name kappa
 
 NEP + HiPhive + phono3py
 
@@ -42,6 +45,9 @@ NEP + HiPhive + phono3py
    --temps       100 1000 50
    --method      rta
    --wigner      true
+   --progress    true
+   --result_dir  result
+   --output_name kappa
    --n_structures 500
    --rattle_std   0.03
    --min_dist     2.2
@@ -62,7 +68,7 @@ Parameter reference
 
 Path to the input structure file.
 
-**Type:** string  
+**Type:** string
 **Default:** ``POSCAR``
 
 Example:
@@ -76,7 +82,7 @@ Example:
 
 Path to the NEP model file.
 
-**Type:** string  
+**Type:** string
 **Required:** yes
 
 Example:
@@ -90,7 +96,7 @@ Example:
 
 Whether to relax the structure before force-constant generation.
 
-**Type:** boolean  
+**Type:** boolean
 **Default:** ``false``
 
 Example:
@@ -104,7 +110,7 @@ Example:
 
 Supercell dimensions for force-constant calculations.
 
-**Type:** three integers  
+**Type:** three integers
 **Default:** ``4 4 1``
 
 Example:
@@ -118,7 +124,7 @@ Example:
 
 Select the force-constant generation route.
 
-**Type:** boolean  
+**Type:** boolean
 **Default:** ``false``
 
 - ``false``: finite displacement
@@ -129,7 +135,7 @@ Select the force-constant generation route.
 
 Number of rattled structures used in HiPhive fitting.
 
-**Type:** integer  
+**Type:** integer
 **Default:** ``50``
 
 Example:
@@ -143,7 +149,7 @@ Example:
 
 Standard deviation of random displacements in HiPhive.
 
-**Type:** float  
+**Type:** float
 **Default:** ``0.03``
 
 Example:
@@ -157,7 +163,7 @@ Example:
 
 Cutoff distances used in HiPhive cluster-space construction.
 
-**Type:** one or more floats  
+**Type:** one or more floats
 **Default:** ``5.0``
 
 Examples:
@@ -175,7 +181,7 @@ Examples:
 
 Minimum allowed interatomic distance for rattled structures.
 
-**Type:** float  
+**Type:** float
 **Default:** ``2.0``
 
 Example:
@@ -189,7 +195,7 @@ Example:
 
 q-point mesh used by phono3py.
 
-**Type:** three integers  
+**Type:** three integers
 **Default:** ``21 21 1``
 
 Example:
@@ -227,7 +233,7 @@ Rule:
 
 Whether to recompute force constants.
 
-**Type:** boolean  
+**Type:** boolean
 **Default:** ``false``
 
 - ``true``: recompute ``fc2.hdf5`` and ``fc3.hdf5``
@@ -238,8 +244,8 @@ Whether to recompute force constants.
 
 Thermal conductivity solution method.
 
-**Type:** string  
-**Choices:** ``lbte``, ``rta``  
+**Type:** string
+**Choices:** ``lbte``, ``rta``
 **Default:** ``lbte``
 
 ``--wigner``
@@ -247,5 +253,41 @@ Thermal conductivity solution method.
 
 Whether to enable the Wigner option in phono3py.
 
-**Type:** boolean  
+**Type:** boolean
 **Default:** ``false``
+
+``--progress``
+^^^^^^^^^^^^^^
+
+Whether to show progress bars, ETA, and stage-level timing summaries.
+
+**Type:** boolean
+**Default:** ``true``
+
+``--result_dir``
+^^^^^^^^^^^^^^^^
+
+Directory for generated outputs and ``run.log``.
+
+**Type:** string
+**Default:** ``result``
+
+Generated files such as ``fc2.hdf5``, ``fc3.hdf5``, ``phono3py_disp.yaml``, and
+the kappa HDF5 file are written under this directory.
+
+``--output_name``
+^^^^^^^^^^^^^^^^^
+
+Optional final filename for the kappa HDF5 file.
+
+**Type:** string
+**Default:** not set
+
+Example:
+
+.. code-block:: text
+
+   --output_name kappa
+
+This writes the final kappa result as ``result/kappa.hdf5``. If omitted,
+phono3py's default ``kappa-m{mesh}.hdf5`` filename is kept.

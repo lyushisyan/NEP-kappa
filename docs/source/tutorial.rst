@@ -31,6 +31,8 @@ Create `input.txt`:
    --use_hiphive false
    --method      rta
    --wigner      true
+   --result_dir  result
+   --output_name kappa
 
 Step 3: Run workflow
 --------------------
@@ -41,11 +43,12 @@ Step 3: Run workflow
 
 Typical outputs:
 
-- `fc2.hdf5`
-- `fc3.hdf5`
-- `kappa-m21211.hdf5`
+- `result/run.log`
+- `result/fc2.hdf5`
+- `result/fc3.hdf5`
+- `result/kappa.hdf5`
 
-The exact ``kappa`` filename depends on the mesh.
+If ``--output_name`` is omitted, the exact ``kappa`` filename depends on the mesh.
 
 For details on reading ``kappa-m*.hdf5`` files, please refer to the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
