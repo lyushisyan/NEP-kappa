@@ -49,6 +49,7 @@ Recommended conda env (e.g. `nepkappa-env`) with:
 - `phono3py`
 - `seekpath`
 - `matplotlib`
+- `tqdm`
 - `phono3py`
 
 ### 1) Build Structure
@@ -96,7 +97,10 @@ python nepkappa.py \
   --fc2fc3 true \
   --use_hiphive false \
   --method rta \
-  --wigner true
+  --wigner true \
+  --progress true \
+  --result_dir result \
+  --output_name kappa
 ```
 
 ### Key Arguments
@@ -106,13 +110,17 @@ python nepkappa.py \
 - `--temps`: must be either 1 value (`Ts`) or 3 values (`tmin tmax tstep`)
 - `--method`: `lbte` or `rta`
 - `--wigner`: pass `--wigner` to `phono3py`
+- `--progress`: show progress bars, ETA, and timing summaries
+- `--result_dir`: directory for generated files and `run.log`
+- `--output_name`: optional final name for the kappa HDF5 file
 
 ### Typical Outputs
 
-- `POSCAR_relaxed` (if `--do_relax true`)
-- `phono3py_disp.yaml`
-- `fc2.hdf5` / `fc3.hdf5`
-- `kappa-m{mesh}.hdf5`
+- `result/run.log`
+- `result/POSCAR_relaxed` (if `--do_relax true`)
+- `result/phono3py_disp.yaml`
+- `result/fc2.hdf5` / `result/fc3.hdf5`
+- `result/kappa.hdf5` (when `--output_name kappa`) or `result/kappa-m{mesh}.hdf5`
 
 ### 3) Example Results and Plot
 
@@ -191,6 +199,7 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 - `phono3py`
 - `seekpath`
 - `matplotlib`
+- `tqdm`
 - `phono3py`
 
 
@@ -239,7 +248,10 @@ python nepkappa.py \
   --fc2fc3 true \
   --use_hiphive false \
   --method rta \
-  --wigner true
+  --wigner true \
+  --progress true \
+  --result_dir result \
+  --output_name kappa
 ```
 
 ### 关键参数
@@ -249,13 +261,17 @@ python nepkappa.py \
 - `--temps`：只能传 1 个值（单温）或 3 个值（`tmin tmax tstep`）
 - `--method`：`lbte` 或 `rta`
 - `--wigner`：向 `phono3py` 传递 `--wigner`
+- `--progress`：显示进度条、预计剩余时间和阶段耗时
+- `--result_dir`：保存结果文件和 `run.log` 的目录
+- `--output_name`：最终 kappa HDF5 文件名，可带或不带 `.hdf5`
 
 ### 常见输出
 
-- `POSCAR_relaxed`（当 `--do_relax true`）
-- `phono3py_disp.yaml`
-- `fc2.hdf5` / `fc3.hdf5`
-- `kappa-m{mesh}.hdf5`
+- `result/run.log`
+- `result/POSCAR_relaxed`（当 `--do_relax true`）
+- `result/phono3py_disp.yaml`
+- `result/fc2.hdf5` / `result/fc3.hdf5`
+- `result/kappa.hdf5`（当 `--output_name kappa`）或 `result/kappa-m{mesh}.hdf5`
 
 ### 3) 示例结果与绘图
 

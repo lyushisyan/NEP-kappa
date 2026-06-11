@@ -49,7 +49,9 @@ Using direct command-line arguments:
      --fc2fc3 true \
      --use_hiphive false \
      --method rta \
-     --wigner true
+     --wigner true \
+     --result_dir result \
+     --output_name kappa
 
 .. note::
 
@@ -60,9 +62,13 @@ Typical outputs
 
 Depending on the selected workflow, typical output files include:
 
-- ``POSCAR_relaxed``
-- ``phono3py_disp.yaml``
-- ``hiphive_model.fcp``
-- ``fc2.hdf5``
-- ``fc3.hdf5``
-- ``kappa-mXXXXX.hdf5``
+- ``result/run.log``
+- ``result/POSCAR_relaxed``
+- ``result/phono3py_disp.yaml``
+- ``result/hiphive_model.fcp``
+- ``result/fc2.hdf5``
+- ``result/fc3.hdf5``
+- ``result/kappa.hdf5`` or ``result/kappa-mXXXXX.hdf5``
+
+By default, workflow outputs are written under ``result/``. The terminal output
+is also saved to ``result/run.log``.

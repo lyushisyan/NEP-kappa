@@ -14,6 +14,7 @@ Requirements
 - trainstation
 - seekpath
 - calorine
+- tqdm
 - phono3py
 
 Addition
