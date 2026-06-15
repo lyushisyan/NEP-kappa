@@ -186,9 +186,9 @@ class NEPPhononWorkflow:
         if executable:
             return [executable]
 
-        conda_script = Path(sys.executable).with_name("phono3py")
-        if conda_script.exists():
-            return [str(conda_script)]
+        sibling_script = Path(sys.executable).with_name("phono3py")
+        if sibling_script.exists():
+            return [str(sibling_script)]
 
         return ["phono3py"]
 
@@ -815,7 +815,7 @@ class NEPPhononWorkflow:
         self._print_timing_summary()
 
     def run(self):
-        """Execute the full workflow."""
+        """Execute relaxation, force-constant generation, and kappa."""
         self._run_timed_stage("Relax structure", self.relax_structure_stage)
         self.generate_force_constants()
         self.calculate_kappa()

@@ -7,7 +7,6 @@ import contextlib
 import os
 import sys
 import time
-from pathlib import Path
 
 from nepkappa import __version__
 from nepkappa.config import format_config, parse_workflow_args
@@ -31,33 +30,21 @@ class Tee:
 
 def main(argv: list[str] | None = None) -> int:
     """Run the NEP-kappa command-line interface."""
-    argv = normalize_argv(list(sys.argv[1:] if argv is None else argv))
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args, extra_args = parser.parse_known_args(argv)
+    args = parser.parse_args(argv)
 
     if args.command in {"run", "relax", "fc", "kappa"}:
-        return run_command(args.command, args.config, extra_args)
+        return run_command(args.command, args.config)
     if args.command == "info":
-        return info_command(args.config, extra_args)
+        return info_command(args.config)
 
     parser.error("missing command")
     return 2
 
 
-def normalize_argv(argv: list[str]) -> list[str]:
-    """Preserve the concise form ``nepkappa input.yaml``."""
-    commands = {"run", "relax", "fc", "kappa", "info", "-h", "--help", "--version"}
-    if not argv:
-        return ["run"]
-    if argv[0] in commands:
-        return argv
-    if Path(argv[0]).suffix.lower() in {".yaml", ".yml", ".txt"}:
-        return ["run"] + argv
-    return argv
-
-
 def build_parser() -> argparse.ArgumentParser:
-    """Build the top-level software-style CLI parser."""
+    """Build the top-level parser."""
     parser = argparse.ArgumentParser(
         prog="nepkappa",
         description="NEP-assisted lattice thermal conductivity workflow.",
@@ -65,36 +52,38 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"nepkappa {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run a NEP-kappa workflow.")
-    run_parser.add_argument("config", nargs="?", help="YAML or legacy text input file")
+    run_parser = subparsers.add_parser(
+        "run", help="Run relax, fc, and kappa in sequence."
+    )
+    run_parser.add_argument("config", help="YAML input file")
 
     relax_parser = subparsers.add_parser(
         "relax", help="Relax the input structure only."
     )
-    relax_parser.add_argument("config", nargs="?", help="YAML or legacy text input file")
+    relax_parser.add_argument("config", help="YAML input file")
 
     fc_parser = subparsers.add_parser(
-        "fc", help="Generate force constants only."
+        "fc", help="Generate fc2.hdf5, fc3.hdf5, and phono3py_disp.yaml."
     )
-    fc_parser.add_argument("config", nargs="?", help="YAML or legacy text input file")
+    fc_parser.add_argument("config", help="YAML input file")
 
     kappa_parser = subparsers.add_parser(
         "kappa", help="Compute thermal conductivity from existing force constants."
     )
-    kappa_parser.add_argument("config", nargs="?", help="YAML or legacy text input file")
+    kappa_parser.add_argument("config", help="YAML input file")
 
     info_parser = subparsers.add_parser(
         "info", help="Print parsed workflow settings without running."
     )
-    info_parser.add_argument("config", help="YAML or legacy text input file")
+    info_parser.add_argument("config", help="YAML input file")
 
     return parser
 
 
-def run_command(command, config_path=None, extra_args=None) -> int:
+def run_command(command, config_path) -> int:
     """Run one workflow command."""
     start_time = time.time()
-    args = parse_workflow_args(config_path, extra_args)
+    args = parse_workflow_args(config_path)
     os.makedirs(args.result_dir, exist_ok=True)
     log_path = os.path.join(args.result_dir, "run.log")
     log_mode = "w" if command == "run" else "a"
@@ -142,9 +131,9 @@ def run_command(command, config_path=None, extra_args=None) -> int:
     return exit_code
 
 
-def info_command(config_path, extra_args=None) -> int:
+def info_command(config_path) -> int:
     """Print parsed config values without running the workflow."""
-    args = parse_workflow_args(config_path, extra_args)
+    args = parse_workflow_args(config_path)
     print(format_config(args))
     return 0
 

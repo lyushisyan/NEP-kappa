@@ -1,21 +1,11 @@
 Installation
 ============
 
-It is recommended to install **NEP-kappa** in a dedicated Conda environment.
-
-Create a Conda environment
---------------------------
-
-.. code-block:: bash
-
-   conda create -n nepkappa-env python=3.10 -y
-   conda activate nepkappa-env
-
 Install dependencies
 --------------------
 
-Install the package from the repository root. This also installs the Python
-dependencies declared by NEP-kappa.
+Install NEP-kappa directly from the repository root. This also installs the
+Python dependencies declared by NEP-kappa.
 
 .. code-block:: bash
 
@@ -33,7 +23,7 @@ editable install:
 Verify installation
 -------------------
 
-Make sure the command-line entry point and ``phono3py`` are available:
+Make sure the entry point and ``phono3py`` are available:
 
 .. code-block:: bash
 

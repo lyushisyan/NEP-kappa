@@ -15,15 +15,17 @@ Commands
 
 .. code-block:: bash
 
-   nepkappa info input.yaml
    nepkappa relax input.yaml
    nepkappa fc input.yaml
    nepkappa kappa input.yaml
    nepkappa run input.yaml
+   nepkappa info input.yaml
 
-``run`` executes ``relax``, ``fc``, and ``kappa`` in sequence. The split commands
-are useful on clusters when force-constant generation and thermal-conductivity
-calculation should be submitted as separate jobs.
+- ``nepkappa relax`` prepares or relaxes the input structure.
+- ``nepkappa fc`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``.
+- ``nepkappa kappa`` computes thermal conductivity from existing force constants.
+- ``nepkappa run`` executes ``relax``, ``fc``, and ``kappa`` in sequence.
+- ``nepkappa info`` prints the parsed configuration without running.
 
 NEP finite-displacement example
 -------------------------------
@@ -253,10 +255,3 @@ saved in the same directory.
    output:
      progress: true
      result_dir: examples-output/1-bulk-nep-rta
-
-Compatibility aliases
----------------------
-
-The parser also accepts a few old aliases such as ``transport`` for ``kappa``
-and ``force_constants`` for ``force-constant``. New input files should use the
-v1.1 section names shown above.

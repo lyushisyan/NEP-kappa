@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import shlex
 from pathlib import Path
 
 try:
@@ -47,7 +45,7 @@ def json_mapping(value):
 
 
 def initialise_parser() -> argparse.ArgumentParser:
-    """Build the workflow argument parser used by files and direct CLI args."""
+    """Build the internal workflow argument parser used by YAML input files."""
     parser = argparse.ArgumentParser(
         prog="nepkappa run",
         description="NEP + HiPhive + phono3py workflow",
@@ -155,14 +153,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         default=[100, 1000, 100],
         help="One value or tmin tmax tstep",
     )
-    parser.add_argument(
-        "--fc2fc3",
-        type=str2bool,
-        nargs="?",
-        const=True,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument("--method", choices=["lbte", "rta"], default="lbte")
     parser.add_argument(
         "--wigner",
@@ -188,19 +178,13 @@ def initialise_parser() -> argparse.ArgumentParser:
 
 
 def parse_input_file(filename):
-    """Convert a YAML or legacy text input file to workflow CLI tokens."""
-    if not os.path.exists(filename):
+    """Convert a YAML input file to workflow CLI tokens."""
+    path = Path(filename)
+    if not path.exists():
         return []
-    suffix = os.path.splitext(filename)[1].lower()
-    if suffix in (".yaml", ".yml"):
-        return parse_yaml_input_file(filename)
-    with open(filename, "r", encoding="utf-8") as handle:
-        clean_text = ""
-        for line in handle:
-            content = line.split("#")[0].strip()
-            if content:
-                clean_text += " " + content
-    return shlex.split(clean_text)
+    if path.suffix.lower() not in (".yaml", ".yml"):
+        raise ValueError("NEP-kappa input files must be YAML files ending in .yaml or .yml.")
+    return parse_yaml_input_file(filename)
 
 
 def parse_yaml_input_file(filename):
@@ -215,7 +199,6 @@ def parse_yaml_input_file(filename):
         raise ValueError("YAML input must be a mapping of sections and options.")
 
     flat = {}
-    relax_stages = {}
     sections = yaml_input_sections()
     for section in sections:
         section_data = data.get(section, {})
@@ -225,46 +208,33 @@ def parse_yaml_input_file(filename):
             raise ValueError(f"YAML section '{section}' must be a mapping.")
         for key, value in section_data.items():
             normalized_key = normalize_yaml_key(key)
-            if section in ("relax", "relaxation", "vasp_relax"):
-                if normalized_key in ("enabled", "relax", "do_relax"):
+            if section == "relaxation":
+                if normalized_key == "enabled":
                     flat["do_relax"] = value
                 elif normalized_key == "workdir":
                     flat["vasp_relax_workdir"] = value
                 elif normalized_key == "stages":
                     flat["vasp_relax_stages"] = value
-                elif normalized_key in ("coarse", "fine"):
-                    relax_stages[normalized_key] = value
                 else:
                     flat[normalized_key] = value
                 continue
-            if section in ("fc", "force-constant", "force_constant", "force_constants"):
+            if section == "force-constant":
                 if normalized_key == "workdir":
                     flat["vasp_workdir"] = value
-                elif normalized_key in ("kwargs", "vasp_kwargs"):
+                elif normalized_key == "vasp_kwargs":
                     flat["vasp_kwargs"] = value
                 else:
                     flat[normalized_key] = value
                 continue
             flat[normalized_key] = value
 
-    if relax_stages and "vasp_relax_stages" not in flat:
-        flat["vasp_relax_stages"] = relax_stages
-
     for key, value in data.items():
         normalized = normalize_yaml_key(key)
-        if normalized not in sections:
+        if key not in sections and normalized not in sections:
             flat[normalized] = value
 
     aliases = {
-        "relax": "do_relax",
         "name": "calculator",
-        "force_calculator": "calculator",
-        "command": "vasp_command",
-        "path": "vasp_path",
-        "potcar": "potcar_path",
-        "pontcar_path": "potcar_path",
-        "workdir": "vasp_workdir",
-        "kwargs": "vasp_kwargs",
     }
     for alias, canonical in aliases.items():
         if alias in flat and canonical not in flat:
@@ -280,73 +250,19 @@ def parse_yaml_input_file(filename):
 def yaml_input_sections():
     """Return supported YAML sections and their documented keys."""
     return {
-        "structure": {"poscar", "nep_model", "do_relax", "relax"},
+        "structure": {"poscar"},
         "calculator": {
             "calculator",
             "name",
-            "force_calculator",
             "nep_model",
             "vasp_command",
             "vasp_path",
             "potcar_path",
-            "pontcar_path",
-            "vasp_workdir",
-            "vasp_kwargs",
-        },
-        "vasp": {
-            "command",
-            "path",
-            "potcar",
-            "potcar_path",
-            "pontcar_path",
-            "workdir",
-            "kwargs",
-            "vasp_command",
-            "vasp_path",
-            "vasp_workdir",
-            "vasp_kwargs",
-        },
-        "relax": {
-            "enabled",
-            "relax",
-            "do_relax",
-            "workdir",
-            "stages",
-            "coarse",
-            "fine",
         },
         "relaxation": {
             "enabled",
-            "relax",
-            "do_relax",
             "workdir",
             "stages",
-            "coarse",
-            "fine",
-        },
-        "vasp_relax": {
-            "enabled",
-            "relax",
-            "do_relax",
-            "workdir",
-            "stages",
-            "coarse",
-            "fine",
-        },
-        "supercell": {"dim"},
-        "fc": {
-            "dim",
-            "use_hiphive",
-            "n_structures",
-            "rattle_std",
-            "cutoffs",
-            "min_dist",
-            "fc_calculator",
-            "fc_calculator_options",
-            "workdir",
-            "vasp_workdir",
-            "kwargs",
-            "vasp_kwargs",
         },
         "force-constant": {
             "dim",
@@ -358,41 +274,9 @@ def yaml_input_sections():
             "fc_calculator",
             "fc_calculator_options",
             "workdir",
-            "vasp_workdir",
-            "kwargs",
             "vasp_kwargs",
         },
-        "force_constant": {
-            "dim",
-            "use_hiphive",
-            "n_structures",
-            "rattle_std",
-            "cutoffs",
-            "min_dist",
-            "fc_calculator",
-            "fc_calculator_options",
-            "workdir",
-            "vasp_workdir",
-            "kwargs",
-            "vasp_kwargs",
-        },
-        "force_constants": {
-            "dim",
-            "use_hiphive",
-            "n_structures",
-            "rattle_std",
-            "cutoffs",
-            "min_dist",
-            "fc_calculator",
-            "fc_calculator_options",
-            "workdir",
-            "vasp_workdir",
-            "kwargs",
-            "vasp_kwargs",
-        },
-        "hiphive": {"use_hiphive", "n_structures", "rattle_std", "cutoffs", "min_dist"},
         "kappa": {"mesh", "temps", "method", "wigner"},
-        "transport": {"mesh", "temps", "method", "wigner"},
         "output": {"progress", "result_dir"},
     }
 
@@ -448,16 +332,12 @@ def append_arg(args, key, value):
         args.append(str(value))
 
 
-def parse_workflow_args(config_path=None, extra_args=None):
-    """Parse workflow configuration from a file plus optional CLI overrides."""
+def parse_workflow_args(config_path):
+    """Parse workflow configuration from a YAML file."""
     parser = initialise_parser()
-    extra_args = list(extra_args or [])
-    if config_path is not None:
-        if not Path(config_path).exists():
-            parser.error(f"input file not found: {config_path}")
-        tokens = parse_input_file(config_path) + extra_args
-    else:
-        tokens = extra_args
+    if not Path(config_path).exists():
+        parser.error(f"input file not found: {config_path}")
+    tokens = parse_input_file(config_path)
     args = parser.parse_args(tokens)
     calculator_error = validate_calculator(args)
     if calculator_error:
@@ -486,10 +366,7 @@ def iter_display_args(args):
         "vasp_relax_workdir",
         "vasp_relax_stages",
     }
-    hidden = {"fc2fc3"}
     for arg, value in vars(args).items():
-        if arg in hidden:
-            continue
         if value is None:
             continue
         if args.calculator == "vasp" and arg == "nep_model" and value is None:

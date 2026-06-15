@@ -51,7 +51,7 @@ Create ``input.yaml``:
 Step 3: Run the workflow
 ------------------------
 
-Run everything:
+Run all stages:
 
 .. code-block:: bash
 

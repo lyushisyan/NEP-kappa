@@ -9,12 +9,12 @@ used in production runs:
 2. force-constant generation
 3. thermal conductivity calculation with ``phono3py``
 
-The command line exposes these stages directly:
+The commands are:
 
 - ``nepkappa relax input.yaml`` prepares or relaxes the structure
-- ``nepkappa fc input.yaml`` generates ``fc2.hdf5`` and ``fc3.hdf5``
-- ``nepkappa kappa input.yaml`` computes thermal conductivity
-- ``nepkappa run input.yaml`` runs all enabled stages in sequence
+- ``nepkappa fc input.yaml`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``
+- ``nepkappa kappa input.yaml`` computes thermal conductivity from existing force constants
+- ``nepkappa run input.yaml`` runs ``relax``, ``fc``, and ``kappa`` in sequence
 - ``nepkappa info input.yaml`` prints the parsed configuration without running
 
 Calculator backends
