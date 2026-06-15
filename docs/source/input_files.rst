@@ -1,64 +1,152 @@
 Input Files
 ===========
 
-**NEP-kappa** supports two input modes:
+**NEP-kappa** supports three input modes:
 
-- input-file mode
+- YAML input-file mode, recommended for new runs
+- legacy text input-file mode
 - command-line mode
 
-The option names are the same in both modes.
+The legacy text option names are the same as command-line options.
 
-Input file format
------------------
+Common commands:
+
+.. code-block:: bash
+
+   nepkappa info input.yaml
+   nepkappa fc input.yaml
+   nepkappa kappa input.yaml
+   nepkappa run input.yaml
+
+YAML input file format
+----------------------
+
+YAML input is recommended because it groups structure, force-constant, kappa,
+and output settings clearly.
+
+Example ``result_dir`` paths such as ``examples-output/...`` are local run
+artifacts and are not tracked by the repository.
+
+Bulk Si + finite displacement + phono3py
+
+.. code-block:: yaml
+
+   structure:
+     poscar: examples-input/POSCAR_bulk
+     nep_model: NEP/Si_Bulk_Fan.txt
+     relax: false
+
+   force_constants:
+     dim: [3, 3, 3]
+     use_hiphive: false
+
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+   output:
+     progress: true
+     result_dir: examples-output/bulk-fd-rta
+
+Film Si + HiPhive + phono3py
+
+.. code-block:: yaml
+
+   structure:
+     poscar: examples-input/POSCAR_film
+     nep_model: NEP/Si_NWs_XuKe.txt
+     relax: false
+
+   force_constants:
+     dim: [4, 4, 1]
+     use_hiphive: true
+     n_structures: 500
+     rattle_std: 0.03
+     min_dist: 2.2
+     cutoffs: [5.0, 4.0]
+
+   kappa:
+     mesh: [21, 21, 1]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+   output:
+     progress: true
+     result_dir: examples-output/film-hiphive-rta
+
+Bulk Si + VASP forces + finite displacement
+
+.. code-block:: yaml
+
+   structure:
+     poscar: examples-input/POSCAR_bulk
+     relax: false
+
+   calculator:
+     name: vasp
+     vasp_path: /root/software/vasp.6.4.3/bin/vasp_std
+     potcar_path: /root/software/potpaw_PBE.64
+     vasp_workdir: vasp-runs
+     vasp_kwargs:
+       encut: 650
+       kspacing: 0.2
+       kgamma: true
+       kpar: 2
+       ncore: 3
+
+   force_constants:
+     dim: [3, 3, 3]
+     use_hiphive: false
+
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+   output:
+     progress: true
+     result_dir: examples-output/bulk-vasp-rta
+
+YAML aliases
+------------
+
+- ``structure.relax`` maps to ``--do_relax``
+- ``calculator.name`` maps to ``--calculator``
+- ``kappa`` and ``transport`` are both accepted for transport settings
+
+Legacy text input format
+------------------------
+
+Text input files remain supported for compatibility with existing runs.
 
 Example:
 
-NEP + phono3py
-
 .. code-block:: text
 
-   --poscar      Structure/POSCAR
-   --nep_model   NEP/Si_2025_Xuke.txt
+   --poscar      examples-input/POSCAR_film
+   --nep_model   NEP/Si_NWs_XuKe.txt
+   --calculator  nep
    --do_relax    false
    --dim         4 4 1
-   --fc2fc3      true
    --use_hiphive false
    --mesh        21 21 1
    --temps       100 1000 50
    --method      rta
-   --wigner      true
+   --wigner      false
    --progress    true
    --result_dir  result
-   --output_name kappa
-
-NEP + HiPhive + phono3py
-
-.. code-block:: text
-
-   --poscar      Structure/POSCAR
-   --nep_model   NEP/Si_2025_Xuke.txt
-   --do_relax    false
-   --dim         4 4 1
-   --fc2fc3      true
-   --use_hiphive false
-   --mesh        21 21 1
-   --temps       100 1000 50
-   --method      rta
-   --wigner      true
-   --progress    true
-   --result_dir  result
-   --output_name kappa
-   --n_structures 500
-   --rattle_std   0.03
-   --min_dist     2.2
-   --cutoffs      5.0 4.0
 
 Rules
 -----
 
-- One option per line is recommended
-- Values are separated by spaces
-- ``#`` starts a comment
+- In YAML input files, use ``.yaml`` or ``.yml`` extensions.
+- In legacy text input files, one option per line is recommended.
+- Legacy text values are separated by spaces.
+- In legacy text files, ``#`` starts a comment.
 
 Parameter reference
 -------------------
@@ -83,13 +171,96 @@ Example:
 Path to the NEP model file.
 
 **Type:** string
-**Required:** yes
+**Required:** yes when ``--calculator nep``
 
 Example:
 
 .. code-block:: text
 
-   --nep_model NEP/Si_2025_Xuke.txt
+   --nep_model NEP/Si_NWs_XuKe.txt
+
+``--calculator``
+^^^^^^^^^^^^^^^^
+
+Force backend used by ``nepkappa fc``.
+
+**Type:** string
+**Choices:** ``nep``, ``vasp``
+**Default:** ``nep``
+
+- ``nep``: use ``calorine.calculators.CPUNEP``
+- ``vasp``: write VASP input files, run VASP, and read forces from
+  ``vasprun.xml`` or ``OUTCAR`` in one directory per structure
+
+``--vasp_path``
+^^^^^^^^^^^^^^^
+
+Path to the VASP executable.
+
+**Type:** string
+**Default:** auto-detect common paths such as
+``/root/software/vasp.6.4.3/bin/vasp_std``
+
+Example:
+
+.. code-block:: text
+
+   --vasp_path /root/software/vasp.6.4.3/bin/vasp_std
+
+``--potcar_path``
+^^^^^^^^^^^^^^^^^
+
+Path to a POTCAR file or a potential-library directory.
+
+**Type:** string
+**Default:** auto-detect common paths such as
+``/root/software/potpaw_PBE.64``
+
+If a directory is given, NEP-kappa tries to assemble a POTCAR using the ordered
+elements in the POSCAR. For multi-element POSCAR files, element POTCAR chunks
+are concatenated in POSCAR element order.
+
+``--vasp_command``
+^^^^^^^^^^^^^^^^^^
+
+Optional full command used to run VASP. This takes precedence over
+``--vasp_path`` and is useful for MPI launchers.
+
+**Type:** string
+**Default:** use ``--vasp_path`` or auto-detection
+
+Example:
+
+.. code-block:: text
+
+   --vasp_command "mpirun -np 64 /root/software/vasp.6.4.3/bin/vasp_std"
+
+``--vasp_workdir``
+^^^^^^^^^^^^^^^^^^
+
+Subdirectory under ``result_dir`` for VASP force calculations.
+
+**Type:** string
+**Default:** ``vasp-runs``
+
+NEP-kappa writes force calculations to paths such as
+``result/vasp-runs/fc2/00001`` and ``result/vasp-runs/fc3/00001``.
+
+``--vasp_kwargs``
+^^^^^^^^^^^^^^^^^
+
+JSON object with INCAR/KPOINTS options. Common VASP single-point defaults are
+filled by NEP-kappa, so the YAML usually only needs project-specific settings
+such as cutoff, k-point spacing, and parallel parameters.
+
+**Type:** JSON object
+**Default:** ``{}``
+
+Example:
+
+.. code-block:: text
+
+   --vasp_kwargs '{"encut": 650, "kspacing": 0.2, "kgamma": true, "kpar": 2, "ncore": 3}'
 
 ``--do_relax``
 ^^^^^^^^^^^^^^
@@ -228,17 +399,6 @@ Rule:
 - one value: single temperature
 - three values: ``tmin tmax tstep``
 
-``--fc2fc3``
-^^^^^^^^^^^^
-
-Whether to recompute force constants.
-
-**Type:** boolean
-**Default:** ``false``
-
-- ``true``: recompute ``fc2.hdf5`` and ``fc3.hdf5``
-- ``false``: reuse existing force constants
-
 ``--method``
 ^^^^^^^^^^^^
 
@@ -251,7 +411,8 @@ Thermal conductivity solution method.
 ``--wigner``
 ^^^^^^^^^^^^
 
-Whether to enable the Wigner option in phono3py.
+Whether to enable Wigner transport through the ``phono3py-wte`` plugin.
+When this is ``true``, NEP-kappa passes ``--tt wte`` to phono3py.
 
 **Type:** boolean
 **Default:** ``false``
@@ -273,21 +434,4 @@ Directory for generated outputs and ``run.log``.
 **Default:** ``result``
 
 Generated files such as ``fc2.hdf5``, ``fc3.hdf5``, ``phono3py_disp.yaml``, and
-the kappa HDF5 file are written under this directory.
-
-``--output_name``
-^^^^^^^^^^^^^^^^^
-
-Optional final filename for the kappa HDF5 file.
-
-**Type:** string
-**Default:** not set
-
-Example:
-
-.. code-block:: text
-
-   --output_name kappa
-
-This writes the final kappa result as ``result/kappa.hdf5``. If omitted,
-phono3py's default ``kappa-m{mesh}.hdf5`` filename is kept.
+the default ``kappa-m{mesh}.hdf5`` file are written under this directory.

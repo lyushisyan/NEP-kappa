@@ -14,7 +14,7 @@ It supports:
 - structure preparation and optional relaxation
 - force-constant generation by finite displacement or HiPhive
 - thermal conductivity calculations with phono3py
-- example plotting scripts for bulk and film systems
+- packaged YAML examples for bulk and film systems
 
 .. toctree::
    :maxdepth: 1

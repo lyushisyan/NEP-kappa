@@ -1,0 +1,28 @@
+# Bulk Si example using NEP reference forces, HiPhive, and RTA.
+structure:
+  poscar: examples-input/POSCAR_bulk
+
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: true
+
+force-constant:
+  dim: [3, 3, 3]
+  use_hiphive: true
+  n_structures: 50
+  rattle_std: 0.03
+  min_dist: 2.0
+  cutoffs: [5.0, 4.0]
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: rta
+  wigner: false
+
+output:
+  progress: true
+  result_dir: examples-output/2-bulk-nep-hiphive-rta

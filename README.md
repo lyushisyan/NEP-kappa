@@ -12,7 +12,6 @@ NEP-kappa is a workflow for lattice thermal conductivity calculations:
 1. Build/relax a structure with NEP
 2. Generate force constants (Finite Displacement or HiPhive)
 3. Run `phono3py` for thermal conductivity (`kappa`)
-4. Plot example results for bulk and film
 
 ### Publication
 If you use **NEP-kappa** in your research, please cite the following references.
@@ -24,16 +23,17 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 ### Repository Layout
 
-- `nepkappa.py`: workflow entry point (CLI args or input file)
-- `workflow.py`: core workflow implementation
-- `input_1.txt`: example input (Finite Displacement)
-- `input_2.txt`: example input (HiPhive)
+- `pyproject.toml`: package metadata and install configuration
+- `src/nepkappa/`: installable Python package
+- `examples-input/input_bulk-rta.yaml`: bulk Si example using finite displacement
+- `examples-input/input_film-rta.yaml`: film Si example using HiPhive
+- `examples-input/input_bulk-vasp-rta.yaml`: bulk Si example using VASP forces
+- `examples-input/`: structures used by packaged YAML inputs
+- `tests/`: basic parser and CLI tests
 - `Structure/build_and_relax_prim.py`: example script to build and relax Si structure
 - `Structure/POSCAR`: output structure file (always overwritten by build script)
-- `NEP/Si_2025_Xuke.txt`: example Si NEP model
-- `Example-Results/`: example results and plotting scripts
-- `Example-Results/Bulk/plot_bulk.py`: example bulk plotting script (4 panels)
-- `Example-Results/Film-1nm/plot_film.py`: example film plotting script (4 panels)
+- `NEP/Si_Bulk_Fan.txt`: example bulk Si NEP model
+- `NEP/Si_NWs_XuKe.txt`: example film/nanowire Si NEP model
 
 ### Requirements
 
@@ -46,11 +46,18 @@ Recommended conda env (e.g. `nepkappa-env`) with:
 - `hiphive`
 - `trainstation`
 - `phonopy`
-- `phono3py`
+- `phono3py>=4.0.1`
 - `seekpath`
 - `matplotlib`
 - `tqdm`
-- `phono3py`
+- `PyYAML`
+
+Install from the repository root:
+
+```bash
+python -m pip install -e .
+nepkappa --help
+```
 
 ### 1) Build Structure
 
@@ -71,83 +78,101 @@ python Structure/build_and_relax_prim.py --model bulk
 Notes:
 
 - The script always writes output to `Structure/POSCAR`.
-- Default NEP model is `NEP/Si_2025_Xuke.txt`.
+- Example NEP models are provided in `NEP/`.
 - This build script is an example implementation for Si models.
 - If you have other structures, place them directly in `Structure/` and pass them via `--poscar`.
 
 ### 2) Run Workflow
 
-Run with input files:
+Run the full workflow with recommended YAML input files:
 
 ```bash
-python nepkappa.py input_1.txt   # Finite Displacement
-python nepkappa.py input_2.txt   # HiPhive
+nepkappa run examples-input/input_bulk-rta.yaml   # Bulk, finite displacement
+nepkappa run examples-input/input_film-rta.yaml   # Film, HiPhive
+nepkappa run examples-input/input_bulk-vasp-rta.yaml   # Bulk, VASP forces
 ```
 
-Or run with CLI arguments:
+For step-by-step runs, first generate force constants and then compute kappa:
 
 ```bash
-python nepkappa.py \
-  --poscar Structure/POSCAR \
-  --nep_model NEP/Si_2025_Xuke.txt \
+nepkappa fc examples-input/input_bulk-rta.yaml
+nepkappa kappa examples-input/input_bulk-rta.yaml
+```
+
+For VASP force calculations, edit `examples-input/input_bulk-vasp-rta.yaml` to match
+your VASP executable, POTCAR path, and key INCAR/KPOINTS settings. Common static
+single-point defaults are filled by NEP-kappa, then run:
+
+```bash
+nepkappa fc examples-input/input_bulk-vasp-rta.yaml
+nepkappa kappa examples-input/input_bulk-vasp-rta.yaml
+```
+
+You can also run with CLI arguments:
+
+```bash
+nepkappa run \
+  --poscar examples-input/POSCAR_film \
+  --nep_model NEP/Si_NWs_XuKe.txt \
   --do_relax false \
   --dim 4 4 1 \
   --mesh 21 21 1 \
   --temps 100 1000 50 \
-  --fc2fc3 true \
   --use_hiphive false \
   --method rta \
-  --wigner true \
+  --wigner false \
   --progress true \
-  --result_dir result \
-  --output_name kappa
+  --result_dir result
+```
+
+Useful software-style commands:
+
+```bash
+nepkappa run examples-input/input_bulk-rta.yaml
+nepkappa fc examples-input/input_bulk-rta.yaml
+nepkappa kappa examples-input/input_bulk-rta.yaml
+nepkappa info examples-input/input_bulk-rta.yaml
 ```
 
 ### Key Arguments
 
-- `--fc2fc3`: `true` recomputes FC2/FC3; `false` reuses existing FCs
+- `--calculator`: `nep` or `vasp`; controls the force backend used by `nepkappa fc`
+- `--nep_model`: NEP model path; required when `--calculator nep`
+- `--vasp_path`: path to the VASP executable, e.g. `/root/software/vasp.6.4.3/bin/vasp_std`
+- `--potcar_path`: path to a POTCAR file or a potential-library directory
+- `--vasp_command`: optional full VASP command, e.g. `mpirun -np 64 /path/to/vasp_std`
+- `--vasp_workdir`: subdirectory under `result_dir` for per-structure VASP runs
+- `--vasp_kwargs`: JSON object with INCAR/KPOINTS options
+
+When `--potcar_path` is a directory, NEP-kappa assembles `POTCAR` by
+concatenating element POTCAR files in the element order of the POSCAR.
+
 - `--use_hiphive`: `false` for finite displacement, `true` for HiPhive
 - `--temps`: must be either 1 value (`Ts`) or 3 values (`tmin tmax tstep`)
 - `--method`: `lbte` or `rta`
-- `--wigner`: pass `--wigner` to `phono3py`
+- `--wigner`: enable Wigner transport through `phono3py-wte` (`--tt wte`); requires the plugin
 - `--progress`: show progress bars, ETA, and timing summaries
 - `--result_dir`: directory for generated files and `run.log`
-- `--output_name`: optional final name for the kappa HDF5 file
+
+Command behavior:
+
+- `nepkappa fc`: generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`
+- `nepkappa kappa`: compute thermal conductivity from existing force constants
+- `nepkappa run`: run both stages, equivalent to `nepkappa fc` followed by `nepkappa kappa`
+- `nepkappa info`: print parsed settings without running
 
 ### Typical Outputs
+
+Generated example outputs are local run artifacts. They are written to the
+configured `result_dir` such as `examples-output/...` and are not tracked by
+the repository.
 
 - `result/run.log`
 - `result/POSCAR_relaxed` (if `--do_relax true`)
 - `result/phono3py_disp.yaml`
 - `result/fc2.hdf5` / `result/fc3.hdf5`
-- `result/kappa.hdf5` (when `--output_name kappa`) or `result/kappa-m{mesh}.hdf5`
-
-### 3) Example Results and Plot
-
-Bulk (4 panels):
-
-```bash
-python Example-Results/Bulk/plot_bulk.py
-```
-
-Output:
-
-- `Example-Results/Bulk/Comparison_NEP_vs_DFT.pdf`
-
-Film (4 panels):
-
-```bash
-python Example-Results/Film-1nm/plot_film.py
-```
-
-Output:
-
-- `Example-Results/Film-1nm/Si_film_1nm_4panel.pdf`
-
-Notes:
-
-- These plotting scripts are examples.
-- You can copy/modify them for your own structures and result files.
+- `result/vasp-runs/` (when `--calculator vasp`)
+- `result/kappa-m{mesh}.hdf5`
 
 ### Contact info
 
@@ -162,7 +187,6 @@ NEP-kappa 是一个晶格热导率计算流程：
 1. 用 NEP 构建/弛豫结构
 2. 生成力常数（Finite Displacement 或 HiPhive）
 3. 用 `phono3py` 计算热导率 `kappa`
-4. 绘制 bulk 和 film 示例结果
 
 ### 论文引用
 
@@ -174,16 +198,17 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 ### 仓库结构
 
-- `nepkappa.py`：流程入口（支持命令行参数或输入文件）
-- `workflow.py`：核心计算逻辑
-- `input_1.txt`：Finite Displacement 示例输入
-- `input_2.txt`：HiPhive 示例输入
+- `pyproject.toml`：软件包元数据和安装配置
+- `src/nepkappa/`：可安装的 Python 软件包
+- `examples-input/input_bulk-rta.yaml`：bulk Si 有限位移示例输入
+- `examples-input/input_film-rta.yaml`：film Si HiPhive 示例输入
+- `examples-input/input_bulk-vasp-rta.yaml`：使用 VASP 力的 bulk Si 示例输入
+- `examples-input/`：YAML 示例使用的结构文件
+- `tests/`：基础解析和命令行测试
 - `Structure/build_and_relax_prim.py`：构建并弛豫 Si 结构的示例脚本
 - `Structure/POSCAR`：结构输出文件（build 脚本会固定覆盖）
-- `NEP/Si_2025_Xuke.txt`：示例 Si 势函数
-- `Example-Results/`：示例结果和绘图代码
-- `Example-Results/Bulk/plot_bulk.py`：bulk 绘图示例脚本（4 图）
-- `Example-Results/Film-1nm/plot_film.py`：film 绘图示例脚本（4 图）
+- `NEP/Si_Bulk_Fan.txt`：bulk Si 示例势函数
+- `NEP/Si_NWs_XuKe.txt`：film/nanowire Si 示例势函数
 
 ### 环境依赖
 
@@ -196,12 +221,18 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 - `hiphive`
 - `trainstation`
 - `phonopy`
-- `phono3py`
+- `phono3py>=4.0.1`
 - `seekpath`
 - `matplotlib`
 - `tqdm`
-- `phono3py`
+- `PyYAML`
 
+在仓库根目录安装：
+
+```bash
+python -m pip install -e .
+nepkappa --help
+```
 
 ### 1) 构建结构
 
@@ -222,83 +253,98 @@ python Structure/build_and_relax_prim.py --model bulk
 说明：
 
 - 结构固定输出到 `Structure/POSCAR`
-- 默认势函数为 `NEP/Si_2025_Xuke.txt`
+- 示例势函数位于 `NEP/` 目录
 - 这个 build 脚本只是 Si 结构示例实现
 - 如果你有其他结构，直接放到 `Structure/` 目录，并通过 `--poscar` 指定
 
 ### 2) 运行主流程
 
-使用输入文件：
+使用推荐的 YAML 输入文件运行完整流程：
 
 ```bash
-python nepkappa.py input_1.txt   # Finite Displacement
-python nepkappa.py input_2.txt   # HiPhive
+nepkappa run examples-input/input_bulk-rta.yaml   # Bulk，有限位移
+nepkappa run examples-input/input_film-rta.yaml   # Film，HiPhive
+nepkappa run examples-input/input_bulk-vasp-rta.yaml   # Bulk，VASP 力
+```
+
+如果想分步运行，可以先生成力常数，再计算热导率：
+
+```bash
+nepkappa fc examples-input/input_bulk-rta.yaml
+nepkappa kappa examples-input/input_bulk-rta.yaml
+```
+
+如果使用 VASP 计算力，请先按你的 VASP 可执行文件、POTCAR 路径和关键
+INCAR/KPOINTS 参数修改 `examples-input/input_bulk-vasp-rta.yaml`。常用静态计算参数会由程序默认补齐，然后运行：
+
+```bash
+nepkappa fc examples-input/input_bulk-vasp-rta.yaml
+nepkappa kappa examples-input/input_bulk-vasp-rta.yaml
 ```
 
 或直接命令行：
 
 ```bash
-python nepkappa.py \
-  --poscar Structure/POSCAR \
-  --nep_model NEP/Si_2025_Xuke.txt \
+nepkappa run \
+  --poscar examples-input/POSCAR_film \
+  --nep_model NEP/Si_NWs_XuKe.txt \
   --do_relax false \
   --dim 4 4 1 \
   --mesh 21 21 1 \
   --temps 100 1000 50 \
-  --fc2fc3 true \
   --use_hiphive false \
   --method rta \
-  --wigner true \
+  --wigner false \
   --progress true \
-  --result_dir result \
-  --output_name kappa
+  --result_dir result
+```
+
+常用软件式命令：
+
+```bash
+nepkappa run examples-input/input_bulk-rta.yaml
+nepkappa fc examples-input/input_bulk-rta.yaml
+nepkappa kappa examples-input/input_bulk-rta.yaml
+nepkappa info examples-input/input_bulk-rta.yaml
 ```
 
 ### 关键参数
 
-- `--fc2fc3`：`true` 重新计算 FC2/FC3；`false` 复用已有力常数
+- `--calculator`：`nep` 或 `vasp`，控制 `nepkappa fc` 使用的力计算后端
+- `--nep_model`：NEP 势函数路径；当 `--calculator nep` 时必需
+- `--vasp_path`：VASP 可执行文件路径，例如 `/root/software/vasp.6.4.3/bin/vasp_std`
+- `--potcar_path`：POTCAR 文件或势函数库目录路径
+- `--vasp_command`：可选的完整 VASP 命令，例如 `mpirun -np 64 /path/to/vasp_std`
+- `--vasp_workdir`：`result_dir` 下保存各个 VASP 计算目录的子目录
+- `--vasp_kwargs`：INCAR/KPOINTS 相关 JSON 参数
+
+当 `--potcar_path` 是目录时，NEP-kappa 会按照 POSCAR 中的元素顺序自动拼接多元素 `POTCAR`。
+
 - `--use_hiphive`：`false` 为有限位移；`true` 为 HiPhive
 - `--temps`：只能传 1 个值（单温）或 3 个值（`tmin tmax tstep`）
 - `--method`：`lbte` 或 `rta`
-- `--wigner`：向 `phono3py` 传递 `--wigner`
+- `--wigner`：通过 `phono3py-wte` 插件启用 Wigner 输运（`--tt wte`）；需要额外安装插件
 - `--progress`：显示进度条、预计剩余时间和阶段耗时
 - `--result_dir`：保存结果文件和 `run.log` 的目录
-- `--output_name`：最终 kappa HDF5 文件名，可带或不带 `.hdf5`
+
+命令行为：
+
+- `nepkappa fc`：生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`
+- `nepkappa kappa`：使用已有力常数计算热导率
+- `nepkappa run`：连续运行两步，等价于先 `nepkappa fc` 再 `nepkappa kappa`
+- `nepkappa info`：只打印解析后的配置，不运行计算
 
 ### 常见输出
+
+示例计算结果是本地运行产物，会写入配置中的 `result_dir`，例如
+`examples-output/...`，仓库不会跟踪这些结果文件。
 
 - `result/run.log`
 - `result/POSCAR_relaxed`（当 `--do_relax true`）
 - `result/phono3py_disp.yaml`
 - `result/fc2.hdf5` / `result/fc3.hdf5`
-- `result/kappa.hdf5`（当 `--output_name kappa`）或 `result/kappa-m{mesh}.hdf5`
-
-### 3) 示例结果与绘图
-
-Bulk（4 图）：
-
-```bash
-python Example-Results/Bulk/plot_bulk.py
-```
-
-输出：
-
-- `Example-Results/Bulk/Comparison_NEP_vs_DFT.pdf`
-
-Film（4 图）：
-
-```bash
-python Example-Results/Film-1nm/plot_film.py
-```
-
-输出：
-
-- `Example-Results/Film-1nm/Si_film_1nm_4panel.pdf`
-
-说明：
-
-- 这些绘图脚本是示例脚本
-- 你可以按自己的结构和结果文件复制修改后使用
+- `result/vasp-runs/`（当 `--calculator vasp`）
+- `result/kappa-m{mesh}.hdf5`
 
 ### 联系我们
 

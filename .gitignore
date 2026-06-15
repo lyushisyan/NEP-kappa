@@ -25,3 +25,9 @@ env/
 # Sphinx / Read the Docs build
 # ------------------------------
 docs/build/
+
+# ------------------------------
+# Generated examples and local scripts
+# ------------------------------
+examples-output/
+*.sh

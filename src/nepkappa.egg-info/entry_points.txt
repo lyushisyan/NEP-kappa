@@ -1,0 +1,2 @@
+[console_scripts]
+nepkappa = nepkappa.cli:main

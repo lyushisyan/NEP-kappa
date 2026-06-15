@@ -17,55 +17,63 @@ This writes:
 Step 2: Create an input file
 ----------------------------
 
-Create `input.txt`:
+Create `input.yaml`:
 
-.. code-block:: text
+.. code-block:: yaml
 
-   --poscar      Structure/POSCAR
-   --nep_model   NEP/Si_2025_Xuke.txt
-   --do_relax    false
-   --dim         4 4 1
-   --mesh        21 21 1
-   --temps       100 1000 100
-   --fc2fc3      true
-   --use_hiphive false
-   --method      rta
-   --wigner      true
-   --result_dir  result
-   --output_name kappa
+   structure:
+     poscar: examples-input/POSCAR_film
+     nep_model: NEP/Si_NWs_XuKe.txt
+     relax: false
 
-Step 3: Run workflow
---------------------
+   force_constants:
+     dim: [4, 4, 1]
+     use_hiphive: false
+
+   kappa:
+     mesh: [21, 21, 1]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+   output:
+     result_dir: result
+
+Step 3: Run force constants and kappa
+-------------------------------------
 
 .. code-block:: bash
 
-   python nepkappa.py input.txt
+   nepkappa fc input.yaml
+   nepkappa kappa input.yaml
+
+For a one-command run, use:
+
+.. code-block:: bash
+
+   nepkappa run input.yaml
+
+You can check the parsed settings first:
+
+.. code-block:: bash
+
+   nepkappa info input.yaml
 
 Typical outputs:
+
+Generated outputs are local run artifacts and are not tracked by the
+repository.
 
 - `result/run.log`
 - `result/fc2.hdf5`
 - `result/fc3.hdf5`
-- `result/kappa.hdf5`
-
-If ``--output_name`` is omitted, the exact ``kappa`` filename depends on the mesh.
+- `result/kappa-m*.hdf5`
 
 For details on reading ``kappa-m*.hdf5`` files, please refer to the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
 
-Step 4: Plot examples
----------------------
-
-.. code-block:: bash
-
-   python path/plot_film.py
-
-This generates:
-
-- `path/Si_film_1nm_4panel.pdf`
-
 Notes
 -----
 
-- Example plotting scripts are templates for your own data.
-- For your own results, copy and edit script paths accordingly.
+- For your own results, place input structures where convenient and update
+  ``structure.poscar`` accordingly.

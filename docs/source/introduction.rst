@@ -30,22 +30,22 @@ Two force-constant routes are supported:
 Repository layout
 -----------------
 
-- ``nepkappa.py``:
-  workflow entry point
-- ``workflow.py``:
-  core workflow implementation
+- ``pyproject.toml``:
+  package metadata and install configuration
+- ``src/nepkappa/``:
+  installable Python package
 - ``Structure/build_and_relax_prim.py``:
   example structure builder for Si systems
-- ``input_1.txt``:
-  example input for finite displacement
-- ``input_2.txt``:
-  example input for HiPhive
-- ``Example-Resuts/``:
-  example results and plotting scripts
+- ``examples-input/input_bulk-rta.yaml``:
+  bulk Si example using finite displacement
+- ``examples-input/input_film-rta.yaml``:
+  film Si example using HiPhive
+- ``examples-input/``:
+  structures used by the packaged YAML examples
 
 Notes
 -----
 
 - The structure builder is an example script for Si systems.
 - For other materials, prepare your own structure file and pass it with ``--poscar``.
-- Plotting scripts in ``Example-Resuts/`` are examples only.
+- Example inputs are kept under ``examples-input/`` so the package root stays clean.

@@ -1,0 +1,55 @@
+# Bulk Si example using VASP reference forces, HiPhive, and RTA.
+structure:
+  poscar: examples-input/POSCAR_bulk
+
+calculator:
+  name: vasp
+  vasp_command: env -u DISPLAY -u XAUTHORITY mpirun -np 24 /mnt/DATA/home/sxliu98/vasp/vasp.6.4.3/bin/vasp_std
+  vasp_path: /mnt/DATA/home/sxliu98/vasp/vasp.6.4.3/bin/vasp_std
+  potcar_path: /mnt/DATA/home/sxliu98/vasp/potpaw_PBE.64
+
+relaxation:
+  enabled: true
+  workdir: vasp-relax
+  stages:
+    coarse:
+      nsw: 80
+      ibrion: 2
+      isif: 3
+      ediff: 1.0e-5
+      ediffg: -0.05
+      prec: Normal
+    fine:
+      nsw: 150
+      ibrion: 2
+      isif: 3
+      ediff: 1.0e-6
+      ediffg: -0.01
+      prec: Accurate
+
+force-constant:
+  workdir: vasp-runs
+  vasp_kwargs:
+    encut: 650
+    kspacing: 0.2
+    kgamma: true
+    kpar: 2
+    ncore: 3
+    lreal: false
+    addgrid: true
+  dim: [3, 3, 3]
+  use_hiphive: true
+  n_structures: 100
+  rattle_std: 0.03
+  min_dist: 2.0
+  cutoffs: [5.0, 4.0]
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: rta
+  wigner: false
+
+output:
+  progress: true
+  result_dir: examples-output/6-bulk-vasp-hiphive-rta
