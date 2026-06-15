@@ -45,6 +45,7 @@ The same workflow can be split into stages:
    nepkappa relax examples/1-bulk-nep-rta.yaml
    nepkappa fc examples/1-bulk-nep-rta.yaml
    nepkappa kappa examples/1-bulk-nep-rta.yaml
+   nepkappa plot examples/1-bulk-nep-rta.yaml
 
 If ``relaxation.enabled`` is ``false``, the ``relax`` stage copies the input
 structure to ``POSCAR_relaxed``.
@@ -66,3 +67,4 @@ Typical outputs include:
 - ``hiphive_model.fcp`` for HiPhive runs
 - ``vasp-runs/`` and ``vasp-relax/`` for VASP runs
 - ``kappa-mXXXXX.hdf5`` from ``phono3py``
+- ``plots/`` with dispersion, DOS, volume heat capacity, group velocity in km/s, relaxation time, and kappa figures

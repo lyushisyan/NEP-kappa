@@ -54,6 +54,15 @@ def format_duration(seconds):
         return f"{minutes}m {secs:.2f}s"
     return f"{secs:.2f}s"
 
+def format_activity_elapsed(seconds):
+    """Format elapsed seconds like tqdm's compact clock."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
 def progress_iter(iterable, enabled=True, **kwargs):
     """Return a tqdm iterator when available and enabled."""
     if enabled and tqdm is not None:
@@ -76,6 +85,7 @@ def run_activity_task(label, func, enabled=True, update_interval=1.0, log_interv
     thread = threading.Thread(target=worker)
     thread.start()
     start = time.time()
+    progress_stream = getattr(sys.stderr, "terminal_stream", sys.stderr)
 
     if tqdm is not None:
         with tqdm(
@@ -83,6 +93,8 @@ def run_activity_task(label, func, enabled=True, update_interval=1.0, log_interv
             desc=label,
             unit="s",
             bar_format="{desc}: {elapsed} elapsed",
+            file=progress_stream,
+            leave=False,
         ) as bar:
             while thread.is_alive():
                 thread.join(update_interval)
@@ -93,12 +105,18 @@ def run_activity_task(label, func, enabled=True, update_interval=1.0, log_interv
             thread.join(update_interval)
             now = time.time()
             if now - last_log >= log_interval:
-                print(f"    {label} still running ({format_duration(now - start)})")
+                print(
+                    f"\r{label}: {format_activity_elapsed(now - start)} elapsed",
+                    end="",
+                    file=progress_stream,
+                    flush=True,
+                )
                 last_log = now
 
     thread.join()
     if "error" in result:
         raise result["error"]
+    print(f"{label}: {format_activity_elapsed(time.time() - start)} elapsed")
     return result.get("value")
 
 def ase_to_phonopy(ase_atoms):

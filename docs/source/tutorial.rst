@@ -44,6 +44,14 @@ Create ``input.yaml``:
      method: rta
      wigner: false
 
+   plot:
+     layout: separate
+     path: seekpath
+     tau: total
+     kappa: all
+     temperature: 300
+     dpi: 300
+
    output:
      progress: true
      result_dir: results/bulk-nep-rta
@@ -64,6 +72,7 @@ Or run the stages separately:
    nepkappa relax input.yaml
    nepkappa fc input.yaml
    nepkappa kappa input.yaml
+   nepkappa plot input.yaml
 
 You can inspect the parsed settings first:
 
@@ -82,6 +91,7 @@ The calculation writes all generated files to ``results/bulk-nep-rta``:
 - ``fc2.hdf5``
 - ``fc3.hdf5``
 - ``kappa-m*.hdf5``
+- ``plots/`` with dispersion, DOS, volume heat capacity, group velocity, relaxation time, and kappa figures
 
 For details on reading ``kappa-m*.hdf5`` files, see the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.

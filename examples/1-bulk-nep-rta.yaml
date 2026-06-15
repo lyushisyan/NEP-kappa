@@ -11,7 +11,7 @@ relaxation:
 
 force-constant:
   dim: [3, 3, 3]
-  fc_calculator: symfc
+  fc_calculator: traditional
   use_hiphive: false
 
 kappa:
@@ -19,6 +19,14 @@ kappa:
   temps: [100, 1000, 50]
   method: rta
   wigner: false
+
+plot:
+  layout: both
+  path: seekpath
+  tau: total
+  temperature: 300
+  kappa: all
+  dpi: 300
 
 output:
   progress: true

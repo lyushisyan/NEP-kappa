@@ -9,6 +9,7 @@ grouping settings into the same stages used by the command line:
 - ``relaxation``: structure relaxation settings
 - ``force-constant``: force-constant generation settings
 - ``kappa``: thermal-conductivity settings passed to ``phono3py``
+- ``plot``: plot layout, band path, relaxation-time channel, and kappa component
 - ``output``: progress display and result directory
 
 Command behavior
@@ -19,12 +20,14 @@ Command behavior
    nepkappa relax input.yaml
    nepkappa fc input.yaml
    nepkappa kappa input.yaml
+   nepkappa plot input.yaml
    nepkappa run input.yaml
    nepkappa info input.yaml
 
 - ``nepkappa relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
 - ``nepkappa fc`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa plot`` creates standard plots from ``fc2.hdf5`` and ``kappa-m*.hdf5``.
 - ``nepkappa run`` executes ``relax``, ``fc``, and ``kappa`` in sequence.
 - ``nepkappa info`` prints the parsed configuration without running a calculation.
 
@@ -74,6 +77,14 @@ Minimal NEP example
      temps: [100, 1000, 50]
      method: rta
      wigner: false
+
+   plot:
+     layout: separate
+     path: seekpath
+     tau: total
+     kappa: all
+     temperature: 300
+     dpi: 300
 
    output:
      progress: true
@@ -284,6 +295,73 @@ settings:
 ``method`` can be ``rta`` or ``lbte``. ``wigner: true`` enables Wigner transport
 through ``phono3py-wte``.
 
+``plot``
+--------
+
+.. code-block:: yaml
+
+   plot:
+     layout: separate
+     path: seekpath
+     tau: total
+     kappa: all
+     temperature: 300
+     dpi: 300
+
+``layout`` controls how figures are written:
+
+- ``separate``: write one PNG per requested figure
+- ``combined``: write one 2-by-3 multi-panel ``combined.png`` figure
+- ``both``: write separate PNG files and ``combined.png``
+
+NEP-kappa always generates the six standard plots: ``dispersion``, ``dos``,
+``heat_capacity``, ``group_velocity``, ``relaxation_time``, and ``kappa``.
+
+``path`` controls the high-symmetry path used for phonon dispersion:
+
+- ``seekpath``: determine the path automatically with seekpath
+- ``custom``: use the user-defined points and segments below
+
+.. code-block:: yaml
+
+   plot:
+     path: custom
+     path_points:
+       G: [0.0, 0.0, 0.0]
+       X: [0.5, 0.0, 0.5]
+       U: [0.625, 0.25, 0.625]
+       K: [0.375, 0.375, 0.75]
+       L: [0.5, 0.5, 0.5]
+       W: [0.5, 0.25, 0.75]
+     path_segments:
+       - [G, X]
+       - [X, U]
+       - [K, G]
+       - [G, L]
+       - [L, W]
+       - [W, X]
+
+When two adjacent segments are disconnected, NEP-kappa combines the labels at
+the break point, e.g. ``[X, U]`` followed by ``[K, G]`` is shown as ``U|K``.
+
+``tau`` controls the relaxation-time channel:
+
+- ``total``: total scattering rate from ``gamma``
+- ``normal``: normal-process scattering rate from ``gamma_N``
+- ``umklapp``: Umklapp-process scattering rate from ``gamma_U``
+- ``all``: plot total, N, and U channels together when available
+
+``kappa`` controls the thermal-conductivity components shown in the kappa
+figure:
+
+- ``x``: plot only ``kappa_xx``
+- ``y``: plot only ``kappa_yy``
+- ``z``: plot only ``kappa_zz``
+- ``all``: plot ``kappa_xx``, ``kappa_yy``, ``kappa_zz``, and their average
+
+``temperature`` selects the target temperature for the relaxation-time plot.
+NEP-kappa uses the closest temperature available in ``kappa-m*.hdf5``.
+
 ``output``
 ----------
 
@@ -295,3 +373,20 @@ through ``phono3py-wte``.
 
 All generated files are written inside ``result_dir``. The terminal output is
 also saved to ``run.log`` in that directory.
+
+``plot`` output
+---------------
+
+``nepkappa plot`` reads ``phono3py_disp.yaml``, ``fc2.hdf5``, and
+``kappa-m*.hdf5`` from ``output.result_dir`` and writes figures under
+``output.result_dir/plots``. The figures follow a publication-oriented style
+with larger axis labels, tick labels, line widths, and marker sizes. Subplot
+titles are intentionally omitted so the figures are easier to compose in papers.
+
+- ``dispersion.png``: phonon dispersion along seekpath high-symmetry lines
+- ``dos.png``: phonon density of states
+- ``heat_capacity.png``: volume heat capacity
+- ``group_velocity.png``: group velocity magnitude in km/s
+- ``relaxation_time.png``: relaxation time near 300 K
+- ``kappa.png``: selected thermal conductivity component or all diagonal components plus average
+- ``combined.png``: 2-by-3 combined multi-panel figure when ``layout`` is ``combined`` or ``both``

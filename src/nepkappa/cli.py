@@ -13,19 +13,44 @@ from nepkappa.config import format_config, parse_workflow_args
 
 
 class Tee:
-    """Write text to multiple streams, e.g. terminal and run.log."""
+    """Write text to terminal and run.log, compacting dynamic terminal updates."""
 
-    def __init__(self, *streams):
-        self.streams = streams
+    def __init__(self, terminal_stream, log_stream):
+        self.terminal_stream = terminal_stream
+        self.log_stream = log_stream
+        self._rewrite_buffer = ""
+        self._in_rewrite = False
 
     def write(self, data):
-        for stream in self.streams:
-            stream.write(data)
-            stream.flush()
+        self.terminal_stream.write(data)
+        self.terminal_stream.flush()
+        self._write_log(data)
+        self.log_stream.flush()
 
     def flush(self):
-        for stream in self.streams:
-            stream.flush()
+        self.terminal_stream.flush()
+        self.log_stream.flush()
+
+    def isatty(self):
+        return self.terminal_stream.isatty()
+
+    def _write_log(self, data):
+        for char in data:
+            if char == "\r":
+                self._rewrite_buffer = ""
+                self._in_rewrite = True
+                continue
+            if self._in_rewrite:
+                if char == "\n":
+                    line = self._rewrite_buffer.rstrip()
+                    if line:
+                        self.log_stream.write(line + "\n")
+                    self._rewrite_buffer = ""
+                    self._in_rewrite = False
+                else:
+                    self._rewrite_buffer += char
+                continue
+            self.log_stream.write(char)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command in {"run", "relax", "fc", "kappa"}:
+    if args.command in {"run", "relax", "fc", "kappa", "plot"}:
         return run_command(args.command, args.config)
     if args.command == "info":
         return info_command(args.config)
@@ -71,6 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
         "kappa", help="Compute thermal conductivity from existing force constants."
     )
     kappa_parser.add_argument("config", help="YAML input file")
+
+    plot_parser = subparsers.add_parser(
+        "plot", help="Plot phonon and thermal-transport results."
+    )
+    plot_parser.add_argument("config", help="YAML input file")
 
     info_parser = subparsers.add_parser(
         "info", help="Print parsed workflow settings without running."
@@ -113,6 +143,10 @@ def run_command(command, config_path) -> int:
                     workflow.run_force_constants()
                 elif command == "kappa":
                     workflow.run_kappa()
+                elif command == "plot":
+                    from nepkappa.plot import plot_results
+
+                    plot_results(args)
                 else:
                     workflow.run()
             except Exception as exc:

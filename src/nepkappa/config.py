@@ -44,6 +44,21 @@ def json_mapping(value):
     return json_dict(value)
 
 
+def json_list(value):
+    """Parse a JSON list used for nested YAML list options."""
+    if isinstance(value, list):
+        return value
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(
+            f"Expected a JSON list, got: {value}"
+        ) from exc
+    if not isinstance(data, list):
+        raise argparse.ArgumentTypeError("Expected a JSON list.")
+    return data
+
+
 def initialise_parser() -> argparse.ArgumentParser:
     """Build the internal workflow argument parser used by YAML input files."""
     parser = argparse.ArgumentParser(
@@ -173,6 +188,49 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--result_dir", default="result", help="Directory for outputs and run.log"
     )
+    parser.add_argument(
+        "--plot_layout",
+        choices=["separate", "combined", "both"],
+        default="separate",
+        help="[Plot] Write separate figures, a combined figure, or both",
+    )
+    parser.add_argument(
+        "--plot_path",
+        choices=["seekpath", "custom"],
+        default="seekpath",
+        help="[Plot] High-symmetry path source for dispersion",
+    )
+    parser.add_argument(
+        "--plot_path_points",
+        type=json_dict,
+        default=None,
+        help="[Plot] Custom high-symmetry q-points",
+    )
+    parser.add_argument(
+        "--plot_path_segments",
+        type=json_list,
+        default=None,
+        help="[Plot] Custom high-symmetry path segments",
+    )
+    parser.add_argument(
+        "--plot_tau",
+        choices=["total", "normal", "umklapp", "all"],
+        default="total",
+        help="[Plot] Relaxation-time channel",
+    )
+    parser.add_argument(
+        "--plot_kappa",
+        choices=["x", "y", "z", "all"],
+        default="all",
+        help="[Plot] Thermal-conductivity tensor component",
+    )
+    parser.add_argument(
+        "--plot_temperature",
+        type=float,
+        default=300.0,
+        help="[Plot] Temperature used for relaxation-time plots",
+    )
+    parser.add_argument("--plot_dpi", type=int, default=300, help="[Plot] Figure DPI")
 
     return parser
 
@@ -226,6 +284,9 @@ def parse_yaml_input_file(filename):
                 else:
                     flat[normalized_key] = value
                 continue
+            if section == "plot":
+                flat[f"plot_{normalized_key}"] = value
+                continue
             flat[normalized_key] = value
 
     for key, value in data.items():
@@ -277,6 +338,16 @@ def yaml_input_sections():
             "vasp_kwargs",
         },
         "kappa": {"mesh", "temps", "method", "wigner"},
+        "plot": {
+            "layout",
+            "path",
+            "path_points",
+            "path_segments",
+            "tau",
+            "kappa",
+            "temperature",
+            "dpi",
+        },
         "output": {"progress", "result_dir"},
     }
 
@@ -309,6 +380,14 @@ def yaml_arg_order():
         "wigner",
         "progress",
         "result_dir",
+        "plot_layout",
+        "plot_path",
+        "plot_path_points",
+        "plot_path_segments",
+        "plot_tau",
+        "plot_kappa",
+        "plot_temperature",
+        "plot_dpi",
     ]
 
 
@@ -325,6 +404,8 @@ def append_arg(args, key, value):
     if isinstance(value, bool):
         args.append(str(value).lower())
     elif isinstance(value, dict):
+        args.append(json.dumps(value))
+    elif key in {"plot_path_segments"}:
         args.append(json.dumps(value))
     elif isinstance(value, (list, tuple)):
         args.extend(str(item) for item in value)

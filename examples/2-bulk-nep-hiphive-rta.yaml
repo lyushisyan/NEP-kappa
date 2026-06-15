@@ -23,6 +23,28 @@ kappa:
   method: rta
   wigner: false
 
+plot:
+  layout: combined
+  path: custom
+  path_points:
+    G: [0.0, 0.0, 0.0]
+    X: [0.5, 0.0, 0.5]
+    U: [0.625, 0.25, 0.625]
+    K: [0.375, 0.375, 0.75]
+    L: [0.5, 0.5, 0.5]
+    W: [0.5, 0.25, 0.75]
+  path_segments:
+    - [G, X]
+    - [X, U]
+    - [K, G]
+    - [G, L]
+    - [L, W]
+    - [W, X]
+  tau: all
+  kappa: x
+  temperature: 300
+  dpi: 300
+
 output:
   progress: true
   result_dir: results/2-bulk-nep-hiphive-rta

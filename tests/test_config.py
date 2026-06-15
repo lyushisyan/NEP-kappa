@@ -15,8 +15,13 @@ def test_bulk_yaml_uses_finite_displacement():
     assert args.do_relax is True
     assert args.dim == [3, 3, 3]
     assert args.mesh == [21, 21, 21]
-    assert args.fc_calculator == "symfc"
+    assert args.fc_calculator == "traditional"
     assert args.use_hiphive is False
+    assert args.plot_layout == "separate"
+    assert args.plot_path == "seekpath"
+    assert args.plot_tau == "total"
+    assert args.plot_kappa == "all"
+    assert args.plot_temperature == 300
 
 
 def test_film_yaml_uses_hiphive():
