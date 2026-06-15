@@ -1,51 +1,48 @@
 Introduction
 ============
 
-**NEP-kappa** is a workflow for lattice thermal conductivity calculations.
+**NEP-kappa** is an installable workflow package for lattice thermal
+conductivity calculations. It is designed around the same calculation stages
+used in production runs:
 
-It combines:
+1. optional structure relaxation
+2. force-constant generation
+3. thermal conductivity calculation with ``phono3py``
 
-- **NEP** for structure relaxation and force evaluation
-- **Finite Displacement** or **HiPhive** for force-constant generation
-- **phono3py** for thermal conductivity calculations
+The command line exposes these stages directly:
 
-Workflow
---------
+- ``nepkappa relax input.yaml`` prepares or relaxes the structure
+- ``nepkappa fc input.yaml`` generates ``fc2.hdf5`` and ``fc3.hdf5``
+- ``nepkappa kappa input.yaml`` computes thermal conductivity
+- ``nepkappa run input.yaml`` runs all enabled stages in sequence
+- ``nepkappa info input.yaml`` prints the parsed configuration without running
 
-The standard workflow is:
+Calculator backends
+-------------------
 
-1. Prepare a structure
-2. Relax the structure with NEP (optional)
-3. Generate force constants
-4. Run ``phono3py`` to compute thermal conductivity
+Two force backends are supported:
 
-Supported routes
-----------------
+- ``nep``: use a NEP model through ``calorine.calculators.CPUNEP``
+- ``vasp``: write VASP inputs, run VASP, and read forces from VASP outputs
 
-Two force-constant routes are supported:
+Force-constant routes
+---------------------
 
-- **Finite Displacement**
-- **HiPhive fitting**
+NEP-kappa can generate force constants by:
+
+- finite displacement with ``phono3py``
+- random structure generation and fitting with ``HiPhive``
 
 Repository layout
 -----------------
 
-- ``pyproject.toml``:
-  package metadata and install configuration
-- ``src/nepkappa/``:
-  installable Python package
-- ``Structure/build_and_relax_prim.py``:
-  example structure builder for Si systems
-- ``examples-input/input_bulk-rta.yaml``:
-  bulk Si example using finite displacement
-- ``examples-input/input_film-rta.yaml``:
-  film Si example using HiPhive
-- ``examples-input/``:
-  structures used by the packaged YAML examples
+- ``pyproject.toml``: package metadata and dependencies
+- ``src/nepkappa/``: Python package and command-line implementation
+- ``examples-input/``: packaged POSCAR and YAML examples
+- ``potentials/``: example NEP model files
+- ``docs/``: Sphinx documentation
+- ``tests/``: lightweight configuration and CLI tests
 
-Notes
------
-
-- The structure builder is an example script for Si systems.
-- For other materials, prepare your own structure file and pass it with ``--poscar``.
-- Example inputs are kept under ``examples-input/`` so the package root stays clean.
+Run outputs are written to the YAML ``output.result_dir`` value, commonly
+``examples-output/...``. These generated files are local artifacts and are not
+tracked by the repository.

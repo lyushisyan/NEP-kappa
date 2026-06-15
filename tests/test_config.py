@@ -7,19 +7,20 @@ from nepkappa.config import format_config, parse_workflow_args
 
 
 def test_bulk_yaml_uses_finite_displacement():
-    args = parse_workflow_args("examples-input/input_bulk-nep-rta.yaml")
+    args = parse_workflow_args("examples-input/input_1-bulk-nep-rta.yaml")
 
     assert args.poscar == "examples-input/POSCAR_bulk"
     assert args.nep_model == "potentials/Si_Bulk_Fan.txt"
     assert args.calculator == "nep"
-    assert args.do_relax is False
-    assert args.dim == [4, 4, 4]
-    assert args.mesh == [16, 16, 16]
+    assert args.do_relax is True
+    assert args.dim == [3, 3, 3]
+    assert args.mesh == [21, 21, 21]
+    assert args.fc_calculator == "symfc"
     assert args.use_hiphive is False
 
 
 def test_film_yaml_uses_hiphive():
-    args = parse_workflow_args("examples-input/input_film-nep-rta.yaml")
+    args = parse_workflow_args("examples-input/input_7-film-nep-hiphive-rta.yaml")
 
     assert args.poscar == "examples-input/POSCAR_film"
     assert args.nep_model == "potentials/Si_NWs_XuKe.txt"
@@ -31,7 +32,7 @@ def test_film_yaml_uses_hiphive():
 
 
 def test_vasp_yaml_uses_vasp_calculator():
-    args = parse_workflow_args("examples-input/input_bulk-vasp-rta.yaml")
+    args = parse_workflow_args("examples-input/input_5-bulk-vasp-rta.yaml")
 
     assert args.calculator == "vasp"
     assert args.nep_model is None
@@ -55,7 +56,7 @@ def test_vasp_yaml_uses_vasp_calculator():
 
 
 def test_finite_displacement_display_hides_hiphive_defaults():
-    args = parse_workflow_args("examples-input/input_bulk-nep-rta.yaml")
+    args = parse_workflow_args("examples-input/input_1-bulk-nep-rta.yaml")
     summary = format_config(args)
 
     assert "use_hiphive" in summary

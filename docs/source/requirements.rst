@@ -17,9 +17,10 @@ Requirements
 - tqdm
 - PyYAML
 
-Addition
+Additional requirements
 -----------------------
 
 - a valid NEP model file is required when using the ``nep`` force backend
 - VASP force calculations require a working VASP executable and POTCAR file or potential library
+- VASP examples contain machine-specific paths that should be edited before running elsewhere
 - calculations should be run from the repository root directory

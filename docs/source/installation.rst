@@ -38,7 +38,7 @@ Make sure the command-line entry point and ``phono3py`` are available:
 .. code-block:: bash
 
    nepkappa --help
-   phono3py --version
+   python -c "import phono3py; print(phono3py.__version__)"
 
 If the command runs successfully, the environment is ready for NEP-kappa.
 

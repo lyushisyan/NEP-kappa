@@ -1,98 +1,79 @@
 Quick Start
 ===========
 
-This page shows the minimal steps required to run **NEP-kappa**.
-
-Prepare a structure
+Install the package
 -------------------
 
-Use the example structure builder:
+From the repository root:
 
 .. code-block:: bash
 
-   python Structure/build_and_relax_prim.py --model film --thick 8 --vac 15
-   python Structure/build_and_relax_prim.py --model wire --thick 8 --vac 15
-   python Structure/build_and_relax_prim.py --model bulk
+   python -m pip install -e .
 
-This writes:
-
-- ``Structure/POSCAR``
-
-You may also use your own structure file and pass it later with ``--poscar``.
-
-Run the workflow
-----------------
-
-Using a recommended YAML input file for the full workflow:
+Check that the command is available:
 
 .. code-block:: bash
 
-   nepkappa run examples-input/input_bulk-rta.yaml
+   nepkappa --help
 
-or
+Inspect an example
+------------------
 
-.. code-block:: bash
-
-   nepkappa run examples-input/input_film-rta.yaml
-
-You can also run the two stages separately:
+The example inputs are in ``examples-input/``. Before starting a calculation,
+inspect the parsed settings:
 
 .. code-block:: bash
 
-   nepkappa fc examples-input/input_bulk-rta.yaml
-   nepkappa kappa examples-input/input_bulk-rta.yaml
+   nepkappa info examples-input/input_1-bulk-nep-rta.yaml
 
-For VASP forces, edit ``examples-input/input_bulk-vasp-rta.yaml`` for your VASP
-executable path, POTCAR path, and calculator settings, then run:
+Run a complete workflow
+-----------------------
 
-.. code-block:: bash
-
-   nepkappa fc examples-input/input_bulk-vasp-rta.yaml
-   nepkappa kappa examples-input/input_bulk-vasp-rta.yaml
-
-You can inspect an input before running an expensive calculation:
+For the default bulk NEP finite-displacement RTA example:
 
 .. code-block:: bash
 
-   nepkappa info examples-input/input_bulk-rta.yaml
+   nepkappa run examples-input/input_1-bulk-nep-rta.yaml
 
-Using direct command-line arguments:
+Run stages separately
+---------------------
+
+The same workflow can be split into stages:
 
 .. code-block:: bash
 
-   nepkappa run \
-     --poscar examples-input/POSCAR_film \
-     --nep_model NEP/Si_NWs_XuKe.txt \
-     --do_relax false \
-     --dim 4 4 1 \
-     --mesh 21 21 1 \
-     --temps 100 1000 50 \
-     --use_hiphive false \
-     --method rta \
-     --wigner false \
-     --result_dir result
+   nepkappa relax examples-input/input_1-bulk-nep-rta.yaml
+   nepkappa fc examples-input/input_1-bulk-nep-rta.yaml
+   nepkappa kappa examples-input/input_1-bulk-nep-rta.yaml
 
-.. note::
+If ``relaxation.enabled`` is ``false``, the ``relax`` stage just keeps the input
+structure and records the preparation step.
 
-   For input-file syntax and parameter details, see :doc:`input_files`.
+Available examples
+------------------
+
+- ``examples-input/input_1-bulk-nep-rta.yaml``: bulk, NEP forces, finite displacement, RTA
+- ``examples-input/input_2-bulk-nep-hiphive-rta.yaml``: bulk, NEP forces, HiPhive, RTA
+- ``examples-input/input_3-bulk-nep-lbte.yaml``: bulk, NEP forces, finite displacement, LBTE
+- ``examples-input/input_4-bulk-nep-rta-wigner.yaml``: bulk, NEP forces, finite displacement, Wigner transport
+- ``examples-input/input_5-bulk-vasp-rta.yaml``: bulk, VASP relaxation and VASP forces, finite displacement, RTA
+- ``examples-input/input_6-bulk-vasp-hiphive-rta.yaml``: bulk, VASP relaxation and VASP forces, HiPhive, RTA
+- ``examples-input/input_7-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
+
+For VASP examples, edit the VASP executable, MPI command, and POTCAR path before
+running on your own machine or cluster.
 
 Typical outputs
 ---------------
 
-Generated example outputs are local run artifacts. They are written to the
-configured ``result_dir`` such as ``examples-output/...`` and are not tracked
-by the repository.
+Generated files are written under ``output.result_dir`` from the YAML file.
+Typical outputs include:
 
-Depending on the selected workflow, typical output files include:
-
-- ``result/run.log``
-- ``result/POSCAR_relaxed``
-- ``result/phono3py_disp.yaml``
-- ``result/hiphive_model.fcp``
-- ``result/fc2.hdf5``
-- ``result/fc3.hdf5``
-- ``result/vasp-runs/`` when using the VASP force backend
-- ``result/kappa.hdf5`` or ``result/kappa-mXXXXX.hdf5``
-
-By default, workflow outputs are written under ``result/``. The terminal output
-is also saved to ``result/run.log``.
+- ``run.log``
+- ``POSCAR_relaxed`` when relaxation is enabled
+- ``phono3py_disp.yaml``
+- ``fc2.hdf5``
+- ``fc3.hdf5``
+- ``hiphive_model.fcp`` for HiPhive runs
+- ``vasp-runs/`` and ``vasp-relax/`` for VASP runs
+- ``kappa-mXXXXX.hdf5`` from ``phono3py``

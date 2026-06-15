@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 project = "NEP-kappa"
 copyright = "2026, Shixian Liu, Fei Yin"
 author = "Shixian Liu, Fei Yin"
-release = "0.1.0"
+release = "v1.1"
 
 # -- General configuration ---------------------------------------------------
 

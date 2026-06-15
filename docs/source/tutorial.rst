@@ -1,79 +1,87 @@
 Tutorial
 ========
 
-This is a minimal end-to-end example (film, finite displacement, RTA).
+This tutorial shows a minimal bulk Si calculation using the current YAML
+framework.
 
-Step 1: Build a film structure
-------------------------------
+Step 1: Choose the input structure
+----------------------------------
 
-.. code-block:: bash
+Use the packaged bulk POSCAR:
 
-   python Structure/build_and_relax_prim.py --model film --thick 8 --vac 15
+.. code-block:: text
 
-This writes:
+   examples-input/POSCAR_bulk
 
-- `Structure/POSCAR`
+For your own calculation, replace this with any POSCAR path in the YAML
+``structure.poscar`` field.
 
-Step 2: Create an input file
-----------------------------
+Step 2: Create a YAML input
+---------------------------
 
-Create `input.yaml`:
+Create ``input.yaml``:
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_film
-     nep_model: NEP/Si_NWs_XuKe.txt
-     relax: false
+     poscar: examples-input/POSCAR_bulk
 
-   force_constants:
-     dim: [4, 4, 1]
+   calculator:
+     name: nep
+     nep_model: potentials/Si_Bulk_Fan.txt
+
+   relaxation:
+     enabled: true
+
+   force-constant:
+     dim: [3, 3, 3]
+     fc_calculator: symfc
      use_hiphive: false
 
    kappa:
-     mesh: [21, 21, 1]
+     mesh: [21, 21, 21]
      temps: [100, 1000, 50]
      method: rta
      wigner: false
 
    output:
-     result_dir: result
+     progress: true
+     result_dir: result/bulk-nep-rta
 
-Step 3: Run force constants and kappa
--------------------------------------
+Step 3: Run the workflow
+------------------------
 
-.. code-block:: bash
-
-   nepkappa fc input.yaml
-   nepkappa kappa input.yaml
-
-For a one-command run, use:
+Run everything:
 
 .. code-block:: bash
 
    nepkappa run input.yaml
 
-You can check the parsed settings first:
+Or run the stages separately:
+
+.. code-block:: bash
+
+   nepkappa relax input.yaml
+   nepkappa fc input.yaml
+   nepkappa kappa input.yaml
+
+You can inspect the parsed settings first:
 
 .. code-block:: bash
 
    nepkappa info input.yaml
 
-Typical outputs:
+Step 4: Check outputs
+---------------------
 
-Generated outputs are local run artifacts and are not tracked by the
-repository.
+The calculation writes all generated files to ``result/bulk-nep-rta``:
 
-- `result/run.log`
-- `result/fc2.hdf5`
-- `result/fc3.hdf5`
-- `result/kappa-m*.hdf5`
+- ``run.log``
+- ``POSCAR_relaxed``
+- ``phono3py_disp.yaml``
+- ``fc2.hdf5``
+- ``fc3.hdf5``
+- ``kappa-m*.hdf5``
 
-For details on reading ``kappa-m*.hdf5`` files, please refer to the
+For details on reading ``kappa-m*.hdf5`` files, see the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
-
-Notes
------
-
-- For your own results, place input structures where convenient and update
-  ``structure.poscar`` accordingly.
