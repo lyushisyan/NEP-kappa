@@ -11,7 +11,7 @@ Use the packaged bulk POSCAR:
 
 .. code-block:: text
 
-   examples-input/POSCAR_bulk
+   examples/POSCAR_bulk
 
 For your own calculation, replace this with any POSCAR path in the YAML
 ``structure.poscar`` field.
@@ -24,7 +24,7 @@ Create ``input.yaml``:
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_bulk
+     poscar: examples/POSCAR_bulk
 
    calculator:
      name: nep
@@ -46,7 +46,7 @@ Create ``input.yaml``:
 
    output:
      progress: true
-     result_dir: result/bulk-nep-rta
+     result_dir: results/bulk-nep-rta
 
 Step 3: Run the workflow
 ------------------------
@@ -74,7 +74,7 @@ You can inspect the parsed settings first:
 Step 4: Check outputs
 ---------------------
 
-The calculation writes all generated files to ``result/bulk-nep-rta``:
+The calculation writes all generated files to ``results/bulk-nep-rta``:
 
 - ``run.log``
 - ``POSCAR_relaxed``

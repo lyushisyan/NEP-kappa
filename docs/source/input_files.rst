@@ -1,17 +1,18 @@
 Input Files
 ===========
 
-NEP-kappa v1.1 uses YAML input files. The YAML is organized by workflow stage:
+NEP-kappa v1.1 uses YAML input files. Each YAML file describes one workflow by
+grouping settings into the same stages used by the command line:
 
-- ``structure``: input structure
-- ``calculator``: NEP or VASP force backend
-- ``relaxation``: optional structure relaxation
-- ``force-constant``: finite-displacement or HiPhive force constants
-- ``kappa``: phono3py thermal-conductivity settings
+- ``structure``: input POSCAR
+- ``calculator``: force backend, either NEP or VASP
+- ``relaxation``: structure relaxation settings
+- ``force-constant``: force-constant generation settings
+- ``kappa``: thermal-conductivity settings passed to ``phono3py``
 - ``output``: progress display and result directory
 
-Commands
---------
+Command behavior
+----------------
 
 .. code-block:: bash
 
@@ -21,19 +22,40 @@ Commands
    nepkappa run input.yaml
    nepkappa info input.yaml
 
-- ``nepkappa relax`` prepares or relaxes the input structure.
-- ``nepkappa fc`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``.
-- ``nepkappa kappa`` computes thermal conductivity from existing force constants.
+- ``nepkappa relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
+- ``nepkappa fc`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa run`` executes ``relax``, ``fc``, and ``kappa`` in sequence.
-- ``nepkappa info`` prints the parsed configuration without running.
+- ``nepkappa info`` prints the parsed configuration without running a calculation.
 
-NEP finite-displacement example
--------------------------------
+When ``relaxation.enabled`` is ``true``, ``nepkappa fc`` reads
+``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa relax`` first, or
+use ``nepkappa run``.
+
+Packaged examples
+-----------------
+
+The repository provides example POSCAR files and YAML files in ``examples/``:
+
+- ``examples/POSCAR_bulk``: bulk Si structure
+- ``examples/POSCAR_film``: Si film structure
+- ``examples/1-bulk-nep-rta.yaml``: bulk, NEP forces, finite displacement, RTA
+- ``examples/2-bulk-nep-hiphive-rta.yaml``: bulk, NEP forces, HiPhive, RTA
+- ``examples/3-bulk-nep-lbte.yaml``: bulk, NEP forces, finite displacement, LBTE
+- ``examples/4-bulk-nep-rta-wigner.yaml``: bulk, NEP forces, finite displacement, Wigner transport
+- ``examples/5-bulk-vasp-rta.yaml``: bulk, VASP relaxation and VASP forces, finite displacement, RTA
+- ``examples/6-bulk-vasp-hiphive-rta.yaml``: bulk, VASP relaxation and VASP forces, HiPhive, RTA
+- ``examples/7-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
+
+Example outputs are written to ``results/...`` and are not tracked by Git.
+
+Minimal NEP example
+-------------------
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_bulk
+     poscar: examples/POSCAR_bulk
 
    calculator:
      name: nep
@@ -55,15 +77,15 @@ NEP finite-displacement example
 
    output:
      progress: true
-     result_dir: examples-output/1-bulk-nep-rta
+     result_dir: results/1-bulk-nep-rta
 
-NEP HiPhive example
--------------------
+HiPhive example
+---------------
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_film
+     poscar: examples/POSCAR_film
 
    calculator:
      name: nep
@@ -88,15 +110,15 @@ NEP HiPhive example
 
    output:
      progress: true
-     result_dir: examples-output/7-film-nep-hiphive-rta
+     result_dir: results/7-film-nep-hiphive-rta
 
-VASP finite-displacement example
---------------------------------
+VASP example
+------------
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_bulk
+     poscar: examples/POSCAR_bulk
 
    calculator:
      name: vasp
@@ -144,36 +166,23 @@ VASP finite-displacement example
 
    output:
      progress: true
-     result_dir: examples-output/5-bulk-vasp-rta
-
-Packaged examples
------------------
-
-- ``input_1-bulk-nep-rta.yaml``: bulk, NEP forces, finite displacement, RTA
-- ``input_2-bulk-nep-hiphive-rta.yaml``: bulk, NEP forces, HiPhive, RTA
-- ``input_3-bulk-nep-lbte.yaml``: bulk, NEP forces, finite displacement, LBTE
-- ``input_4-bulk-nep-rta-wigner.yaml``: bulk, NEP forces, finite displacement, Wigner transport
-- ``input_5-bulk-vasp-rta.yaml``: bulk, VASP relaxation and VASP forces, finite displacement, RTA
-- ``input_6-bulk-vasp-hiphive-rta.yaml``: bulk, VASP relaxation and VASP forces, HiPhive, RTA
-- ``input_7-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
-
-Section reference
------------------
+     result_dir: results/5-bulk-vasp-rta
 
 ``structure``
-^^^^^^^^^^^^^
+-------------
 
-``poscar`` is the POSCAR-style structure file.
+``poscar`` is the input POSCAR path. Relative paths are interpreted from the
+directory where ``nepkappa`` is launched, usually the repository root.
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples-input/POSCAR_bulk
+     poscar: examples/POSCAR_bulk
 
 ``calculator``
-^^^^^^^^^^^^^^
+--------------
 
-Use ``name: nep`` for NEP forces:
+For NEP calculations:
 
 .. code-block:: yaml
 
@@ -181,7 +190,7 @@ Use ``name: nep`` for NEP forces:
      name: nep
      nep_model: potentials/Si_Bulk_Fan.txt
 
-Use ``name: vasp`` for VASP forces:
+For VASP calculations:
 
 .. code-block:: yaml
 
@@ -191,16 +200,20 @@ Use ``name: vasp`` for VASP forces:
      vasp_path: /path/to/vasp_std
      potcar_path: /path/to/potpaw_PBE.64
 
-``potcar_path`` may point to a ready POTCAR file or to a POTCAR library
-directory. For multi-element POSCAR files, NEP-kappa concatenates POTCAR chunks
-in POSCAR element order.
+``vasp_command`` is used when a full launcher command is needed. If it is not
+set, NEP-kappa uses ``vasp_path``. ``potcar_path`` may point to a ready POTCAR
+file or a potential-library directory. For multi-element POSCAR files, NEP-kappa
+concatenates POTCAR chunks in POSCAR element order.
 
 ``relaxation``
-^^^^^^^^^^^^^^
+--------------
 
-For NEP runs, relaxation uses the NEP calculator. For VASP runs, NEP-kappa can
-run staged VASP relaxation and pass each stage's relaxed structure to the next
-stage.
+.. code-block:: yaml
+
+   relaxation:
+     enabled: true
+
+For VASP relaxation, optional staged settings can be provided:
 
 .. code-block:: yaml
 
@@ -215,43 +228,70 @@ stage.
          ediffg: -0.01
          prec: Accurate
 
+``enabled: false`` means the input POSCAR is copied to ``POSCAR_relaxed`` during
+the relax stage.
+
 ``force-constant``
-^^^^^^^^^^^^^^^^^^
+------------------
 
-Common options:
+Finite-displacement route:
 
-- ``dim``: supercell dimensions
-- ``fc_calculator``: finite-displacement solver, normally ``symfc``
-- ``use_hiphive``: use HiPhive instead of direct finite displacement
-- ``n_structures``: number of rattled structures for HiPhive
-- ``rattle_std``: random-displacement standard deviation for HiPhive
-- ``min_dist``: minimum allowed distance in rattled structures
-- ``cutoffs``: HiPhive cluster-space cutoffs
-- ``workdir``: VASP force-calculation subdirectory
-- ``vasp_kwargs``: important VASP single-point INCAR settings
+.. code-block:: yaml
 
-NEP-kappa supplies default VASP single-point settings, so YAML files usually
-only need calculation-specific values such as ``encut``, ``kspacing``, ``kpar``,
-``ncore``, and ``lreal``.
+   force-constant:
+     dim: [3, 3, 3]
+     fc_calculator: symfc
+     use_hiphive: false
+
+HiPhive route:
+
+.. code-block:: yaml
+
+   force-constant:
+     dim: [3, 3, 3]
+     use_hiphive: true
+     n_structures: 100
+     rattle_std: 0.03
+     min_dist: 2.0
+     cutoffs: [5.0, 4.0]
+
+For VASP force calculations, ``workdir`` controls the subdirectory under
+``output.result_dir`` and ``vasp_kwargs`` supplies important INCAR/KPOINTS
+settings:
+
+.. code-block:: yaml
+
+   force-constant:
+     workdir: vasp-runs
+     vasp_kwargs:
+       encut: 650
+       kspacing: 0.2
+       kgamma: true
+       lreal: false
 
 ``kappa``
-^^^^^^^^^
+---------
 
-Common options:
+.. code-block:: yaml
 
-- ``mesh``: q-point mesh
-- ``temps``: one temperature or ``[tmin, tmax, tstep]``
-- ``method``: ``rta`` or ``lbte``
-- ``wigner``: enable Wigner transport through ``phono3py-wte``
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+``temps`` accepts either one temperature or ``[tmin, tmax, tstep]``.
+``method`` can be ``rta`` or ``lbte``. ``wigner: true`` enables Wigner transport
+through ``phono3py-wte``.
 
 ``output``
-^^^^^^^^^^
-
-``result_dir`` controls where all generated files are written. ``run.log`` is
-saved in the same directory.
+----------
 
 .. code-block:: yaml
 
    output:
      progress: true
-     result_dir: examples-output/1-bulk-nep-rta
+     result_dir: results/1-bulk-nep-rta
+
+All generated files are written inside ``result_dir``. The terminal output is
+also saved to ``run.log`` in that directory.

@@ -1,6 +1,6 @@
 # Bulk Si example using VASP reference forces, HiPhive, and RTA.
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: vasp
@@ -52,4 +52,4 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/6-bulk-vasp-hiphive-rta
+  result_dir: results/6-bulk-vasp-hiphive-rta

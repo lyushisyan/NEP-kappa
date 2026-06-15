@@ -1,6 +1,6 @@
 # Film Si example using HiPhive.
 structure:
-  poscar: examples-input/POSCAR_film
+  poscar: examples/POSCAR_film
 
 calculator:
   name: nep
@@ -25,4 +25,4 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/7-film-nep-hiphive-rta
+  result_dir: results/7-film-nep-hiphive-rta

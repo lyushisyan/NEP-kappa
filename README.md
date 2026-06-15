@@ -9,7 +9,7 @@
 NEP-kappa is an installable workflow package for lattice thermal conductivity
 calculations. It can:
 
-1. Prepare or relax an input structure.
+1. Relax an input structure.
 2. Generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`.
 3. Compute thermal conductivity with `phono3py`.
 
@@ -23,7 +23,7 @@ nepkappa run input.yaml
 nepkappa info input.yaml
 ```
 
-- `nepkappa relax`: prepare or relax the input structure
+- `nepkappa relax`: relax the input structure
 - `nepkappa fc`: generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`
 - `nepkappa kappa`: compute thermal conductivity from existing force constants
 - `nepkappa run`: run `relax`, `fc`, and `kappa` in sequence
@@ -41,13 +41,13 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 - `pyproject.toml`: package metadata and install configuration
 - `src/nepkappa/`: installable Python package
-- `examples-input/`: packaged POSCAR and YAML examples
+- `examples/`: packaged POSCAR and YAML examples
 - `potentials/`: packaged Si NEP model files
 - `tests/`: parser and CLI smoke tests
 - `docs/`: Sphinx documentation
 
 Generated outputs are written to the configured `result_dir`, commonly
-`examples-output/...`, and are not tracked by the repository.
+`results/...`, and are not tracked by the repository.
 
 ### Requirements
 
@@ -84,32 +84,32 @@ python -m pip install --upgrade -e .
 
 The packaged examples are:
 
-- `examples-input/input_1-bulk-nep-rta.yaml`: bulk, NEP forces, finite displacement, RTA
-- `examples-input/input_2-bulk-nep-hiphive-rta.yaml`: bulk, NEP forces, HiPhive, RTA
-- `examples-input/input_3-bulk-nep-lbte.yaml`: bulk, NEP forces, finite displacement, LBTE
-- `examples-input/input_4-bulk-nep-rta-wigner.yaml`: bulk, NEP forces, finite displacement, Wigner transport
-- `examples-input/input_5-bulk-vasp-rta.yaml`: bulk, VASP relaxation and VASP forces, finite displacement, RTA
-- `examples-input/input_6-bulk-vasp-hiphive-rta.yaml`: bulk, VASP relaxation and VASP forces, HiPhive, RTA
-- `examples-input/input_7-film-nep-hiphive-rta.yaml`: film, NEP forces, HiPhive, RTA
+- `examples/1-bulk-nep-rta.yaml`: bulk, NEP forces, finite displacement, RTA
+- `examples/2-bulk-nep-hiphive-rta.yaml`: bulk, NEP forces, HiPhive, RTA
+- `examples/3-bulk-nep-lbte.yaml`: bulk, NEP forces, finite displacement, LBTE
+- `examples/4-bulk-nep-rta-wigner.yaml`: bulk, NEP forces, finite displacement, Wigner transport
+- `examples/5-bulk-vasp-rta.yaml`: bulk, VASP relaxation and VASP forces, finite displacement, RTA
+- `examples/6-bulk-vasp-hiphive-rta.yaml`: bulk, VASP relaxation and VASP forces, HiPhive, RTA
+- `examples/7-film-nep-hiphive-rta.yaml`: film, NEP forces, HiPhive, RTA
 
 Use `info` before running an expensive calculation:
 
 ```bash
-nepkappa info examples-input/input_1-bulk-nep-rta.yaml
+nepkappa info examples/1-bulk-nep-rta.yaml
 ```
 
 Run the complete workflow:
 
 ```bash
-nepkappa run examples-input/input_1-bulk-nep-rta.yaml
+nepkappa run examples/1-bulk-nep-rta.yaml
 ```
 
 Or run the stages separately:
 
 ```bash
-nepkappa relax examples-input/input_1-bulk-nep-rta.yaml
-nepkappa fc examples-input/input_1-bulk-nep-rta.yaml
-nepkappa kappa examples-input/input_1-bulk-nep-rta.yaml
+nepkappa relax examples/1-bulk-nep-rta.yaml
+nepkappa fc examples/1-bulk-nep-rta.yaml
+nepkappa kappa examples/1-bulk-nep-rta.yaml
 ```
 
 When `relaxation.enabled: true`, `nepkappa fc` expects
@@ -122,7 +122,7 @@ The recommended YAML structure is:
 
 ```yaml
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: nep
@@ -144,7 +144,7 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/1-bulk-nep-rta
+  result_dir: results/1-bulk-nep-rta
 ```
 
 For VASP calculations, use `calculator.name: vasp` and set
@@ -188,7 +188,7 @@ For questions, please email sxliu98@gmail.com or yinfei0426@outlook.com.
 
 NEP-kappa 是一个可安装的软件包，用于晶格热导率计算。它可以：
 
-1. 准备或弛豫输入结构。
+1. 弛豫输入结构。
 2. 生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`。
 3. 调用 `phono3py` 计算热导率。
 
@@ -202,7 +202,7 @@ nepkappa run input.yaml
 nepkappa info input.yaml
 ```
 
-- `nepkappa relax`：准备或弛豫输入结构
+- `nepkappa relax`：弛豫输入结构
 - `nepkappa fc`：生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`
 - `nepkappa kappa`：使用已有力常数计算热导率
 - `nepkappa run`：连续执行 `relax`、`fc` 和 `kappa`
@@ -220,15 +220,13 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 - `pyproject.toml`：软件包元数据和安装配置
 - `src/nepkappa/`：可安装的 Python 软件包
-- `examples-input/`：打包的 POSCAR 和 YAML 示例
+- `examples/`：打包的 POSCAR 和 YAML 示例
 - `potentials/`：打包的 Si NEP 势函数
 - `tests/`：解析器和 CLI 基础测试
 - `docs/`：Sphinx 文档
 
-计算输出会写入 YAML 中的 `result_dir`，通常为 `examples-output/...`，
+计算输出会写入 YAML 中的 `result_dir`，通常为 `results/...`，
 仓库不会跟踪这些本地运行产物。
-
-### Python 依赖
 
 Python 依赖：
 
@@ -263,32 +261,32 @@ python -m pip install --upgrade -e .
 
 当前提供的 YAML 示例为：
 
-- `examples-input/input_1-bulk-nep-rta.yaml`：bulk，NEP 力，有限位移，RTA
-- `examples-input/input_2-bulk-nep-hiphive-rta.yaml`：bulk，NEP 力，HiPhive，RTA
-- `examples-input/input_3-bulk-nep-lbte.yaml`：bulk，NEP 力，有限位移，LBTE
-- `examples-input/input_4-bulk-nep-rta-wigner.yaml`：bulk，NEP 力，有限位移，Wigner 输运
-- `examples-input/input_5-bulk-vasp-rta.yaml`：bulk，VASP 弛豫和 VASP 力，有限位移，RTA
-- `examples-input/input_6-bulk-vasp-hiphive-rta.yaml`：bulk，VASP 弛豫和 VASP 力，HiPhive，RTA
-- `examples-input/input_7-film-nep-hiphive-rta.yaml`：film，NEP 力，HiPhive，RTA
+- `examples/1-bulk-nep-rta.yaml`：bulk，NEP 力，有限位移，RTA
+- `examples/2-bulk-nep-hiphive-rta.yaml`：bulk，NEP 力，HiPhive，RTA
+- `examples/3-bulk-nep-lbte.yaml`：bulk，NEP 力，有限位移，LBTE
+- `examples/4-bulk-nep-rta-wigner.yaml`：bulk，NEP 力，有限位移，Wigner 输运
+- `examples/5-bulk-vasp-rta.yaml`：bulk，VASP 弛豫和 VASP 力，有限位移，RTA
+- `examples/6-bulk-vasp-hiphive-rta.yaml`：bulk，VASP 弛豫和 VASP 力，HiPhive，RTA
+- `examples/7-film-nep-hiphive-rta.yaml`：film，NEP 力，HiPhive，RTA
 
 正式运行前建议先检查配置：
 
 ```bash
-nepkappa info examples-input/input_1-bulk-nep-rta.yaml
+nepkappa info examples/1-bulk-nep-rta.yaml
 ```
 
 运行完整流程：
 
 ```bash
-nepkappa run examples-input/input_1-bulk-nep-rta.yaml
+nepkappa run examples/1-bulk-nep-rta.yaml
 ```
 
 也可以分步运行：
 
 ```bash
-nepkappa relax examples-input/input_1-bulk-nep-rta.yaml
-nepkappa fc examples-input/input_1-bulk-nep-rta.yaml
-nepkappa kappa examples-input/input_1-bulk-nep-rta.yaml
+nepkappa relax examples/1-bulk-nep-rta.yaml
+nepkappa fc examples/1-bulk-nep-rta.yaml
+nepkappa kappa examples/1-bulk-nep-rta.yaml
 ```
 
 当 `relaxation.enabled: true` 时，单独运行 `nepkappa fc` 会要求
@@ -301,7 +299,7 @@ nepkappa kappa examples-input/input_1-bulk-nep-rta.yaml
 
 ```yaml
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: nep
@@ -323,7 +321,7 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/1-bulk-nep-rta
+  result_dir: results/1-bulk-nep-rta
 ```
 
 VASP 计算使用 `calculator.name: vasp`，并设置 `vasp_command` 或

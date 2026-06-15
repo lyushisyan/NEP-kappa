@@ -11,7 +11,7 @@ used in production runs:
 
 The commands are:
 
-- ``nepkappa relax input.yaml`` prepares or relaxes the structure
+- ``nepkappa relax input.yaml`` relaxes the structure
 - ``nepkappa fc input.yaml`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``
 - ``nepkappa kappa input.yaml`` computes thermal conductivity from existing force constants
 - ``nepkappa run input.yaml`` runs ``relax``, ``fc``, and ``kappa`` in sequence
@@ -38,11 +38,11 @@ Repository layout
 
 - ``pyproject.toml``: package metadata and dependencies
 - ``src/nepkappa/``: Python package and command-line implementation
-- ``examples-input/``: packaged POSCAR and YAML examples
+- ``examples/``: packaged POSCAR and YAML examples
 - ``potentials/``: example NEP model files
 - ``docs/``: Sphinx documentation
 - ``tests/``: lightweight configuration and CLI tests
 
 Run outputs are written to the YAML ``output.result_dir`` value, commonly
-``examples-output/...``. These generated files are local artifacts and are not
+``results/...``. These generated files are local artifacts and are not
 tracked by the repository.

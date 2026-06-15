@@ -1,6 +1,6 @@
-# Bulk Si example using finite displacement.
+# Bulk Si example using NEP reference forces, HiPhive, and RTA.
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: nep
@@ -11,8 +11,11 @@ relaxation:
 
 force-constant:
   dim: [3, 3, 3]
-  fc_calculator: symfc
-  use_hiphive: false
+  use_hiphive: true
+  n_structures: 50
+  rattle_std: 0.03
+  min_dist: 2.0
+  cutoffs: [5.0, 4.0]
 
 kappa:
   mesh: [21, 21, 21]
@@ -22,4 +25,4 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/1-bulk-nep-rta
+  result_dir: results/2-bulk-nep-hiphive-rta

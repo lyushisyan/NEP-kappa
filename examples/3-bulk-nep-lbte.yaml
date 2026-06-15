@@ -1,6 +1,6 @@
 # Bulk Si example using finite displacement.
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: nep
@@ -22,4 +22,4 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/3-bulk-nep-lbte
+  result_dir: results/3-bulk-nep-lbte

@@ -1,6 +1,6 @@
 # Bulk Si example using finite displacement.
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: nep
@@ -18,8 +18,8 @@ kappa:
   mesh: [21, 21, 21]
   temps: [100, 1000, 50]
   method: rta
-  wigner: true
+  wigner: false
 
 output:
   progress: true
-  result_dir: examples-output/4-bulk-nep-rta-wigner
+  result_dir: results/1-bulk-nep-rta

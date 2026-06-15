@@ -30,5 +30,5 @@ docs/build/
 # ------------------------------
 # Generated examples and local scripts
 # ------------------------------
-examples-output/
+results/
 *.sh

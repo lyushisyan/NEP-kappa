@@ -1,6 +1,6 @@
 # Bulk Si example using two-stage VASP relaxation, VASP forces, and finite displacement.
 structure:
-  poscar: examples-input/POSCAR_bulk
+  poscar: examples/POSCAR_bulk
 
 calculator:
   name: vasp
@@ -48,4 +48,4 @@ kappa:
 
 output:
   progress: true
-  result_dir: examples-output/5-bulk-vasp-rta
+  result_dir: results/5-bulk-vasp-rta

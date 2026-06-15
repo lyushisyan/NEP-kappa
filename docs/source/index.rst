@@ -13,7 +13,7 @@ conductivity calculations based on **NEP**, **VASP**, **HiPhive**, and
 It supports:
 
 - staged commands: ``info``, ``relax``, ``fc``, ``kappa``, and ``run``
-- structure preparation and optional NEP or VASP relaxation
+- optional NEP or VASP structure relaxation
 - force-constant generation by finite displacement or HiPhive
 - thermal conductivity calculations with phono3py
 - packaged YAML examples for bulk and film systems
