@@ -1,74 +1,70 @@
 Quick Start
 ===========
 
-This page shows the minimal steps required to run **NEP-kappa**.
-
-Prepare a structure
+Install the package
 -------------------
 
-Use the example structure builder:
+From the repository root:
 
 .. code-block:: bash
 
-   python Structure/build_and_relax_prim.py --model film --thick 8 --vac 15
-   python Structure/build_and_relax_prim.py --model wire --thick 8 --vac 15
-   python Structure/build_and_relax_prim.py --model bulk
+   python -m pip install -e .
 
-This writes:
-
-- ``Structure/POSCAR``
-
-You may also use your own structure file and pass it later with ``--poscar``.
-
-Run the workflow
-----------------
-
-Using an input file:
+Check that the command is available:
 
 .. code-block:: bash
 
-   python nepkappa.py input_1.txt
+   nepkappa --help
 
-or
+Inspect an example
+------------------
 
-.. code-block:: bash
-
-   python nepkappa.py input_2.txt
-
-Using direct command-line arguments:
+The example inputs are in ``examples/``. Before starting a calculation,
+inspect the parsed settings:
 
 .. code-block:: bash
 
-   python nepkappa.py \
-     --poscar Structure/POSCAR \
-     --nep_model NEP/Si_2025_Xuke.txt \
-     --do_relax false \
-     --dim 4 4 1 \
-     --mesh 21 21 1 \
-     --temps 100 1000 50 \
-     --fc2fc3 true \
-     --use_hiphive false \
-     --method rta \
-     --wigner true \
-     --result_dir result \
-     --output_name kappa
+   nepkappa info examples/1-bulk-nep-rta.yaml
 
-.. note::
+Run a complete workflow
+-----------------------
 
-   For input-file syntax and parameter details, see :doc:`input_files`.
+For the default bulk NEP finite-displacement RTA example:
+
+.. code-block:: bash
+
+   nepkappa run examples/1-bulk-nep-rta.yaml
+
+Run stages separately
+---------------------
+
+The same workflow can be split into stages:
+
+.. code-block:: bash
+
+   nepkappa relax examples/1-bulk-nep-rta.yaml
+   nepkappa fc examples/1-bulk-nep-rta.yaml
+   nepkappa kappa examples/1-bulk-nep-rta.yaml
+   nepkappa plot examples/1-bulk-nep-rta.yaml
+
+If ``relaxation.enabled`` is ``false``, the ``relax`` stage copies the input
+structure to ``POSCAR_relaxed``.
+
+For VASP examples, edit the VASP executable, MPI command, and POTCAR path before
+running on your own machine or cluster.
 
 Typical outputs
 ---------------
 
-Depending on the selected workflow, typical output files include:
+Generated files are written under ``output.result_dir`` from the YAML file.
+Typical outputs include:
 
-- ``result/run.log``
-- ``result/POSCAR_relaxed``
-- ``result/phono3py_disp.yaml``
-- ``result/hiphive_model.fcp``
-- ``result/fc2.hdf5``
-- ``result/fc3.hdf5``
-- ``result/kappa.hdf5`` or ``result/kappa-mXXXXX.hdf5``
-
-By default, workflow outputs are written under ``result/``. The terminal output
-is also saved to ``result/run.log``.
+- ``run.log``
+- ``POSCAR_relaxed`` when relaxation is enabled
+- ``phono3py_disp.yaml``
+- ``fc2.hdf5``
+- ``fc3.hdf5``
+- ``hiphive_model.fcp`` for HiPhive runs
+- ``vasp-runs/`` and ``vasp-relax/`` for VASP runs
+- ``kappa-mXXXXX.hdf5`` from ``phono3py``
+- ``plots/`` with dispersion, DOS, volume heat capacity, group velocity in km/s, relaxation time, and kappa figures

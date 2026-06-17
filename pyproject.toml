@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nepkappa"
+version = "1.1.0"
+description = "NEP-assisted workflow for lattice thermal conductivity calculations."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "NEP-kappa developers" }
+]
+dependencies = [
+  "numpy",
+  "h5py",
+  "ase",
+  "calorine",
+  "hiphive",
+  "trainstation",
+  "phonopy",
+  "phono3py>=4.0.1",
+  "seekpath",
+  "matplotlib",
+  "tqdm",
+  "PyYAML"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0"
+]
+docs = [
+  "sphinx",
+  "sphinx-rtd-theme"
+]
+
+[project.scripts]
+nepkappa = "nepkappa.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

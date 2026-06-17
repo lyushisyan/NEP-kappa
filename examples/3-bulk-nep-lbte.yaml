@@ -1,0 +1,25 @@
+# Bulk Si example using finite displacement.
+structure:
+  poscar: examples/POSCAR_bulk
+
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: true
+
+force-constant:
+  dim: [3, 3, 3]
+  fc_calculator: symfc
+  use_hiphive: false
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: lbte
+  wigner: false
+
+output:
+  progress: true
+  result_dir: results/3-bulk-nep-lbte

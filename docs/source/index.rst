@@ -6,15 +6,18 @@ Welcome to the documentation of **NEP-kappa**.
 Source code repository:
 `GitHub <https://github.com/lyushisyan/NEP-kappa>`_
 
-**NEP-kappa** is a workflow for lattice thermal conductivity calculations based on
-**NEP**, **HiPhive**, and **phono3py**.
+**NEP-kappa v1.1** is an installable workflow package for lattice thermal
+conductivity calculations based on **NEP**, **VASP**, **HiPhive**, and
+**phono3py**.
 
 It supports:
 
-- structure preparation and optional relaxation
+- staged commands: ``info``, ``relax``, ``fc``, ``kappa``, ``plot``, and ``run``
+- optional NEP or VASP structure relaxation
 - force-constant generation by finite displacement or HiPhive
 - thermal conductivity calculations with phono3py
-- example plotting scripts for bulk and film systems
+- plotting for dispersion, DOS, heat capacity, group velocity, relaxation time, and kappa
+- packaged YAML examples for bulk and film systems
 
 .. toctree::
    :maxdepth: 1

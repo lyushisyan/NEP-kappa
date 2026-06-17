@@ -1,71 +1,97 @@
 Tutorial
 ========
 
-This is a minimal end-to-end example (film, finite displacement, RTA).
+This tutorial shows a minimal bulk Si calculation using the current YAML
+framework.
 
-Step 1: Build a film structure
-------------------------------
+Step 1: Choose the input structure
+----------------------------------
 
-.. code-block:: bash
-
-   python Structure/build_and_relax_prim.py --model film --thick 8 --vac 15
-
-This writes:
-
-- `Structure/POSCAR`
-
-Step 2: Create an input file
-----------------------------
-
-Create `input.txt`:
+Use the packaged bulk POSCAR:
 
 .. code-block:: text
 
-   --poscar      Structure/POSCAR
-   --nep_model   NEP/Si_2025_Xuke.txt
-   --do_relax    false
-   --dim         4 4 1
-   --mesh        21 21 1
-   --temps       100 1000 100
-   --fc2fc3      true
-   --use_hiphive false
-   --method      rta
-   --wigner      true
-   --result_dir  result
-   --output_name kappa
+   examples/POSCAR_bulk
 
-Step 3: Run workflow
---------------------
+For your own calculation, replace this with any POSCAR path in the YAML
+``structure.poscar`` field.
+
+Step 2: Create a YAML input
+---------------------------
+
+Create ``input.yaml``:
+
+.. code-block:: yaml
+
+   structure:
+     poscar: examples/POSCAR_bulk
+
+   calculator:
+     name: nep
+     nep_model: potentials/Si_Bulk_Fan.txt
+
+   relaxation:
+     enabled: true
+
+   force-constant:
+     dim: [3, 3, 3]
+     fc_calculator: symfc
+     use_hiphive: false
+
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [100, 1000, 50]
+     method: rta
+     wigner: false
+
+   plot:
+     layout: separate
+     path: seekpath
+     tau: total
+     kappa: all
+     temperature: 300
+     dpi: 300
+
+   output:
+     progress: true
+     result_dir: results/bulk-nep-rta
+
+Step 3: Run the workflow
+------------------------
+
+Run all stages:
 
 .. code-block:: bash
 
-   python nepkappa.py input.txt
+   nepkappa run input.yaml
 
-Typical outputs:
+Or run the stages separately:
 
-- `result/run.log`
-- `result/fc2.hdf5`
-- `result/fc3.hdf5`
-- `result/kappa.hdf5`
+.. code-block:: bash
 
-If ``--output_name`` is omitted, the exact ``kappa`` filename depends on the mesh.
+   nepkappa relax input.yaml
+   nepkappa fc input.yaml
+   nepkappa kappa input.yaml
+   nepkappa plot input.yaml
 
-For details on reading ``kappa-m*.hdf5`` files, please refer to the
-`phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
+You can inspect the parsed settings first:
 
-Step 4: Plot examples
+.. code-block:: bash
+
+   nepkappa info input.yaml
+
+Step 4: Check outputs
 ---------------------
 
-.. code-block:: bash
+The calculation writes all generated files to ``results/bulk-nep-rta``:
 
-   python path/plot_film.py
+- ``run.log``
+- ``POSCAR_relaxed``
+- ``phono3py_disp.yaml``
+- ``fc2.hdf5``
+- ``fc3.hdf5``
+- ``kappa-m*.hdf5``
+- ``plots/`` with dispersion, DOS, volume heat capacity, group velocity, relaxation time, and kappa figures
 
-This generates:
-
-- `path/Si_film_1nm_4panel.pdf`
-
-Notes
------
-
-- Example plotting scripts are templates for your own data.
-- For your own results, copy and edit script paths accordingly.
+For details on reading ``kappa-m*.hdf5`` files, see the
+`phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
