@@ -1,0 +1,30 @@
+# Film Si example using finite displacement.
+structure:
+  poscar: examples/POSCAR_film
+  dimensionality: 2
+  effective_thickness: 10.0
+  vacuum_axis: z
+
+calculator:
+  name: nep
+  nep_model: potentials/Si_NWs_XuKe.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [4, 4, 1]
+  dim-fc3: [4, 4, 1]
+  use_hiphive: false
+
+kappa:
+  mesh: [21, 21, 1]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: false
+  bfmp: 1.0e6
+  wigner: false
+
+output:
+  progress: true
+  result_dir: results/7-film-nep-rta

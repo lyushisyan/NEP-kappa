@@ -8,7 +8,7 @@ from nepkappa.cli import Tee, main
 
 
 def test_info_command(capsys):
-    assert main(["info", "examples/7-film-nep-hiphive-rta.yaml"]) == 0
+    assert main(["info", "examples/8-film-nep-hiphive-rta.yaml"]) == 0
 
     output = capsys.readouterr().out
     assert "potentials/Si_NWs_XuKe.txt" in output

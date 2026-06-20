@@ -9,7 +9,12 @@ import sys
 import time
 
 from nepkappa import __version__
-from nepkappa.config import format_config, parse_workflow_args
+from nepkappa.config import (
+    format_compare_config,
+    format_config,
+    parse_compare_args,
+    parse_workflow_args,
+)
 
 
 class Tee:
@@ -61,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in {"run", "relax", "fc", "kappa", "plot"}:
         return run_command(args.command, args.config)
+    if args.command == "compare":
+        return compare_command(args.config)
     if args.command == "info":
         return info_command(args.config)
 
@@ -101,6 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
         "plot", help="Plot phonon and thermal-transport results."
     )
     plot_parser.add_argument("config", help="YAML input file")
+
+    compare_parser = subparsers.add_parser(
+        "compare", help="Compare DFT and NEP phonon/thermal-transport results."
+    )
+    compare_parser.add_argument("config", help="YAML comparison input file")
 
     info_parser = subparsers.add_parser(
         "info", help="Print parsed workflow settings without running."
@@ -170,6 +182,45 @@ def info_command(config_path) -> int:
     args = parse_workflow_args(config_path)
     print(format_config(args))
     return 0
+
+
+def compare_command(config_path) -> int:
+    """Run DFT-vs-NEP comparison plotting."""
+    start_time = time.time()
+    args = parse_compare_args(config_path)
+    os.makedirs(args.compare_dir, exist_ok=True)
+    log_path = os.path.join(args.compare_dir, "compare.log")
+
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        stdout = Tee(sys.stdout, log_file)
+        stderr = Tee(sys.stderr, log_file)
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            print("[main] Command: compare")
+            print(f"[main] Reading arguments from {config_path}...")
+            print(f"[main] Logging output to {log_path}")
+            print("-" * 60)
+            print(format_compare_config(args))
+            print("-" * 60)
+
+            exit_code = 0
+            try:
+                from nepkappa.plot import compare_results
+
+                compare_results(args)
+            except Exception as exc:
+                exit_code = 1
+                print(f"\n[Error] Comparison failed: {exc}")
+                import traceback
+
+                traceback.print_exc()
+            finally:
+                print("-" * 60)
+                print(f"Total Execution Time: {format_duration(time.time() - start_time)}")
+                print("-" * 60)
+
+    print("-" * 60)
+    print(f"Compare log saved to: {log_path}")
+    return exit_code
 
 
 def format_duration(seconds):

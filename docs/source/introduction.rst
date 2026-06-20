@@ -9,6 +9,7 @@ used in production runs:
 2. force-constant generation
 3. thermal conductivity calculation with ``phono3py``
 4. plotting phonon and thermal-transport results from existing HDF5 outputs
+5. comparison plotting between completed DFT and NEP result directories
 
 The commands are:
 
@@ -16,6 +17,7 @@ The commands are:
 - ``nepkappa fc input.yaml`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``
 - ``nepkappa kappa input.yaml`` computes thermal conductivity from existing force constants
 - ``nepkappa plot input.yaml`` plots phonon and thermal-transport results
+- ``nepkappa compare compare.yaml`` overlays DFT and NEP results in comparison figures
 - ``nepkappa run input.yaml`` runs ``relax``, ``fc``, and ``kappa`` in sequence
 - ``nepkappa info input.yaml`` prints the parsed configuration without running
 
@@ -44,6 +46,9 @@ DOS, volume heat capacity, group velocity in km/s, relaxation time, and thermal
 conductivity figures. The plot layout, high-symmetry path, relaxation-time
 channel, and thermal-conductivity component are controlled by the YAML
 ``plot`` section.
+
+``nepkappa compare`` reads completed DFT and NEP result directories and writes
+overlaid comparison plots with the same layout and channel options.
 
 Repository layout
 -----------------

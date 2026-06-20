@@ -12,6 +12,9 @@ grouping settings into the same stages used by the command line:
 - ``plot``: plot layout, band path, relaxation-time channel, and kappa component
 - ``output``: progress display and result directory
 
+The ``compare`` command uses a smaller YAML file with ``reference``,
+``candidate``, ``compare``, and ``plot`` sections.
+
 Command behavior
 ----------------
 
@@ -21,6 +24,7 @@ Command behavior
    nepkappa fc input.yaml
    nepkappa kappa input.yaml
    nepkappa plot input.yaml
+   nepkappa compare compare.yaml
    nepkappa run input.yaml
    nepkappa info input.yaml
 
@@ -28,6 +32,7 @@ Command behavior
 - ``nepkappa fc`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa plot`` creates standard plots from ``fc2.hdf5`` and ``kappa-m*.hdf5``.
+- ``nepkappa compare`` overlays DFT and NEP result directories in the same standard figures.
 - ``nepkappa run`` executes ``relax``, ``fc``, and ``kappa`` in sequence.
 - ``nepkappa info`` prints the parsed configuration without running a calculation.
 
@@ -48,7 +53,9 @@ The repository provides example POSCAR files and YAML files in ``examples/``:
 - ``examples/4-bulk-nep-rta-wigner.yaml``: bulk, NEP forces, finite displacement, Wigner transport
 - ``examples/5-bulk-vasp-rta.yaml``: bulk, VASP relaxation and VASP forces, finite displacement, RTA
 - ``examples/6-bulk-vasp-hiphive-rta.yaml``: bulk, VASP relaxation and VASP forces, HiPhive, RTA
-- ``examples/7-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
+- ``examples/7-film-nep-rta.yaml``: film, NEP forces, finite displacement, RTA
+- ``examples/8-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
+- ``examples/compare.yaml``: DFT-vs-NEP comparison plotting
 
 Example outputs are written to ``results/...`` and are not tracked by Git.
 
@@ -59,6 +66,7 @@ Minimal NEP example
 
    structure:
      poscar: examples/POSCAR_bulk
+     dimensionality: 3
 
    calculator:
      name: nep
@@ -68,14 +76,16 @@ Minimal NEP example
      enabled: true
 
    force-constant:
-     dim: [3, 3, 3]
-     fc_calculator: symfc
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
      use_hiphive: false
 
    kappa:
      mesh: [21, 21, 21]
      temps: [100, 1000, 50]
      method: rta
+     isotope: false
+     bfmp: 1.0e6
      wigner: false
 
    plot:
@@ -97,6 +107,9 @@ HiPhive example
 
    structure:
      poscar: examples/POSCAR_film
+     dimensionality: 2
+     effective_thickness: 10.0
+     vacuum_axis: z
 
    calculator:
      name: nep
@@ -106,7 +119,8 @@ HiPhive example
      enabled: false
 
    force-constant:
-     dim: [4, 4, 1]
+     dim-fc2: [4, 4, 1]
+     dim-fc3: [4, 4, 1]
      use_hiphive: true
      n_structures: 500
      rattle_std: 0.03
@@ -117,6 +131,8 @@ HiPhive example
      mesh: [21, 21, 1]
      temps: [100, 1000, 50]
      method: rta
+     isotope: false
+     bfmp: 1.0e6
      wigner: false
 
    output:
@@ -163,16 +179,18 @@ VASP example
        kspacing: 0.2
        kgamma: true
        kpar: 2
-       ncore: 3
-       lreal: false
-     dim: [3, 3, 3]
-     fc_calculator: symfc
+     ncore: 3
+     lreal: false
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
      use_hiphive: false
 
    kappa:
      mesh: [21, 21, 21]
      temps: [100, 1000, 50]
      method: rta
+     isotope: false
+     bfmp: 1.0e6
      wigner: false
 
    output:
@@ -189,6 +207,22 @@ directory where ``nepkappa`` is launched, usually the repository root.
 
    structure:
      poscar: examples/POSCAR_bulk
+     dimensionality: 3
+
+``dimensionality`` controls effective-volume corrections used by
+``nepkappa plot``:
+
+- ``3``: bulk material. No effective-geometry correction is applied.
+- ``2``: film or slab. Set ``effective_thickness`` in Angstrom and optionally
+  ``vacuum_axis`` (``x``, ``y``, or ``z``; default ``z``).
+- ``1``: nanowire. Set ``effective_area`` in Angstrom^2 and optionally
+  ``periodic_axis`` (``x``, ``y``, or ``z``; default ``z``).
+
+For films, NEP-kappa scales cell-normalized volume heat capacity and thermal
+conductivity by ``cell_thickness / effective_thickness``. For nanowires, it
+scales them by ``cell_cross_section / effective_area``. These corrections are
+applied only during plotting; the original ``kappa-m*.hdf5`` file is not
+modified.
 
 ``calculator``
 --------------
@@ -250,16 +284,21 @@ Finite-displacement route:
 .. code-block:: yaml
 
    force-constant:
-     dim: [3, 3, 3]
-     fc_calculator: symfc
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
      use_hiphive: false
+
+``dim-fc2`` sets the phonon supercell used for FC2. ``dim-fc3`` sets the
+supercell used for FC3. The deprecated ``dim`` key is still accepted for
+compatibility and is interpreted as both ``dim-fc2`` and ``dim-fc3``.
 
 HiPhive route:
 
 .. code-block:: yaml
 
    force-constant:
-     dim: [3, 3, 3]
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
      use_hiphive: true
      n_structures: 100
      rattle_std: 0.03
@@ -289,11 +328,15 @@ settings:
      mesh: [21, 21, 21]
      temps: [100, 1000, 50]
      method: rta
+     isotope: false
+     bfmp: 1.0e6
      wigner: false
 
 ``temps`` accepts either one temperature or ``[tmin, tmax, tstep]``.
-``method`` can be ``rta`` or ``lbte``. ``wigner: true`` enables Wigner transport
-through ``phono3py-wte``.
+``method`` can be ``rta`` or ``lbte``. ``isotope: true`` adds phono3py's
+``--isotope`` option. ``bfmp`` maps to phono3py's ``--boundary-mfp`` option;
+its unit is micrometer, and the phono3py CLI default is ``1.0e6``. ``wigner:
+true`` enables Wigner transport through ``phono3py-wte``.
 
 ``plot``
 --------
@@ -390,3 +433,36 @@ titles are intentionally omitted so the figures are easier to compose in papers.
 - ``relaxation_time.png``: relaxation time near 300 K
 - ``kappa.png``: selected thermal conductivity component or all diagonal components plus average
 - ``combined.png``: 2-by-3 combined multi-panel figure when ``layout`` is ``combined`` or ``both``
+
+DFT-vs-NEP comparison
+---------------------
+
+``nepkappa compare compare.yaml`` reads one completed DFT result directory and
+one completed NEP result directory, then overlays them in the same six standard
+figures. Each result directory must contain ``phono3py_disp.yaml``,
+``fc2.hdf5``, and ``kappa-m*.hdf5``.
+
+.. code-block:: yaml
+
+   reference:
+     dft_dir: results/dft
+     label: DFT
+
+   candidate:
+     nep_dir: results/nep
+     label: NEP
+
+   compare:
+     compare_dir: comparison
+
+   plot:
+     layout: both
+     path: seekpath
+     tau: total
+     temperature: 300
+     kappa: all
+     dpi: 300
+
+``compare.compare_dir`` receives ``compare.log`` and a ``plots/`` directory.
+The ``layout``, ``path``, ``tau``, ``temperature``, ``kappa``, and ``dpi``
+settings follow the same rules as ``nepkappa plot``.

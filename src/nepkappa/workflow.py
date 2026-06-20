@@ -226,8 +226,8 @@ class NEPPhononWorkflow:
         """Create a Phono3py object with the workflow's structure settings."""
         return Phono3py(
             ase_to_phonopy(self.prim),
-            supercell_matrix=self.cfg.dim,
-            phonon_supercell_matrix=self.cfg.dim,
+            supercell_matrix=self.cfg.dim_fc3,
+            phonon_supercell_matrix=self.cfg.dim_fc2,
             primitive_matrix="auto",
         )
 
@@ -615,7 +615,7 @@ class NEPPhononWorkflow:
         self._save_phono3py_metadata()
 
         # 1. Create supercell
-        nx, ny, nz = cfg.dim
+        nx, ny, nz = cfg.dim_fc3
         atoms_ideal = self.prim.repeat((nx, ny, nz))
         
         # 2. Generate rattled structures
@@ -664,12 +664,17 @@ class NEPPhononWorkflow:
 
         # 6. Export to Phono3py FC2 and FC3
         print("  - Exporting FC2 and FC3 from HiPhive model")
-        phonopy_obj = Phonopy(ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim))
-        supercell_ase = phonopy_to_ase(phonopy_obj.supercell)
-        fcs = fcp.get_force_constants(supercell_ase)
-        
-        fcs.write_to_phonopy(str(self.fc2_path))
-        fcs.write_to_phono3py(str(self.fc3_path))
+        phonopy_fc2 = Phonopy(
+            ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc2)
+        )
+        phonopy_fc3 = Phonopy(
+            ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc3)
+        )
+        fcs_fc2 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc2.supercell))
+        fcs_fc3 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc3.supercell))
+
+        fcs_fc2.write_to_phonopy(str(self.fc2_path))
+        fcs_fc3.write_to_phono3py(str(self.fc3_path))
         print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
 
     def run_finite_disp_fitting(self):
@@ -717,34 +722,23 @@ class NEPPhononWorkflow:
         ph3.forces = np.array(forces_fc3)
 
         # 5. Produce and save FCs
-        fc_calculator = getattr(cfg, "fc_calculator", "traditional")
-        solver_name = None if fc_calculator == "traditional" else fc_calculator
-        solver_options = getattr(cfg, "fc_calculator_options", None)
-        symmetrize_traditional = fc_calculator == "traditional"
-        produce_kwargs = {
-            "fc_calculator": solver_name,
-            "fc_calculator_options": solver_options,
-        }
-        solver_label = fc_calculator if fc_calculator else "traditional"
-        print(f"  - Force constants solver: {solver_label}")
+        print("  - Producing force constants with phono3py finite differences")
         print("  - Producing FC2 and FC3...")
         run_activity_task(
             "Producing FC2",
-            lambda: ph3.produce_fc2(**produce_kwargs),
+            ph3.produce_fc2,
             enabled=self.show_progress,
         )
-        if symmetrize_traditional:
-            print("  - Symmetrizing FC2...")
-            ph3.symmetrize_fc2()
+        print("  - Symmetrizing FC2...")
+        ph3.symmetrize_fc2()
         write_fc2_to_hdf5(ph3.fc2, filename=str(self.fc2_path))
         run_activity_task(
             "Producing FC3",
-            lambda: ph3.produce_fc3(**produce_kwargs),
+            ph3.produce_fc3,
             enabled=self.show_progress,
         )
-        if symmetrize_traditional:
-            print("  - Symmetrizing FC3...")
-            ph3.symmetrize_fc3()
+        print("  - Symmetrizing FC3...")
+        ph3.symmetrize_fc3()
         write_fc3_to_hdf5(ph3.fc3, filename=str(self.fc3_path))
         print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
         
@@ -787,6 +781,14 @@ class NEPPhononWorkflow:
             print("  - Wigner transport: enabled via phono3py-wte (--tt wte)")
             cmd.extend(["--tt", "wte"])
 
+        if cfg.isotope:
+            print("  - Isotope scattering: enabled")
+            cmd.append("--isotope")
+
+        if cfg.bfmp is not None:
+            print(f"  - Boundary mean free path: {cfg.bfmp:g} micrometer")
+            cmd.extend(["--boundary-mfp", str(cfg.bfmp)])
+
         if len(cfg.temps) == 3:
             tmin, tmax, tstep = cfg.temps
             cmd.extend(["--tmin", str(tmin), "--tmax", str(tmax), "--tstep", str(tstep)])
@@ -802,6 +804,7 @@ class NEPPhononWorkflow:
             print(f"Check {self.output_dir / self._expected_kappa_name()} for results.")
         else:
             print(f"\n[Error] Phono3py failed with return code {ret}")
+            raise RuntimeError(f"Phono3py failed with return code {ret}")
 
     def generate_force_constants(self):
         """Generate FC2 and FC3 files."""

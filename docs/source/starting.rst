@@ -53,6 +53,19 @@ structure to ``POSCAR_relaxed``.
 For VASP examples, edit the VASP executable, MPI command, and POTCAR path before
 running on your own machine or cluster.
 
+Compare completed DFT and NEP results
+-------------------------------------
+
+After both result directories contain ``phono3py_disp.yaml``, ``fc2.hdf5``,
+and ``kappa-m*.hdf5``, compare them with:
+
+.. code-block:: bash
+
+   nepkappa compare examples/compare.yaml
+
+Comparison figures are written under ``compare.compare_dir/plots`` from the
+comparison YAML file.
+
 Typical outputs
 ---------------
 
@@ -68,3 +81,4 @@ Typical outputs include:
 - ``vasp-runs/`` and ``vasp-relax/`` for VASP runs
 - ``kappa-mXXXXX.hdf5`` from ``phono3py``
 - ``plots/`` with dispersion, DOS, volume heat capacity, group velocity in km/s, relaxation time, and kappa figures
+- ``comparison/plots/`` for DFT-vs-NEP comparison figures
