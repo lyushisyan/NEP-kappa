@@ -1,0 +1,20 @@
+/* NEP-kappa brand colors for the Read the Docs theme. */
+.wy-nav-side {
+  background: #171322;
+}
+
+.wy-side-nav-search {
+  color: #171322;
+}
+
+.wy-side-nav-search > div.version {
+  color: #6b6178;
+}
+
+.wy-menu-vertical a:hover {
+  background-color: #322044;
+}
+
+.wy-menu-vertical li.current > a {
+  border-right: 3px solid #d4145a;
+}
