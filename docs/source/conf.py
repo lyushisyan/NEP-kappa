@@ -33,7 +33,7 @@ language = "en"
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
-html_logo = "_static/NEP-kappa-logo.png"
+html_logo = "_static/NEP-kappa-logo-1200x750.png"
 
 html_theme_options = {
     "navigation_depth": 4,
