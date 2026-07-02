@@ -17,7 +17,7 @@ It supports:
 - force-constant generation by finite displacement or HiPhive
 - thermal conductivity calculations with phono3py
 - plotting for dispersion, DOS, heat capacity, group velocity, relaxation time, and kappa
-- packaged YAML examples for bulk and film systems
+- repository-provided YAML examples for bulk and film systems
 
 .. toctree::
    :maxdepth: 1

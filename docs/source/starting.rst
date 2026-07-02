@@ -60,7 +60,7 @@ Generated files are written under ``output.result_dir`` from the YAML file.
 Typical outputs include:
 
 - ``run.log``
-- ``POSCAR_relaxed`` when relaxation is enabled
+- ``POSCAR_relaxed`` (a relaxed structure, or a copy of the input when relaxation is disabled)
 - ``phono3py_disp.yaml``
 - ``fc2.hdf5``
 - ``fc3.hdf5``

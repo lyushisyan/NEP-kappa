@@ -35,8 +35,8 @@ When ``relaxation.enabled`` is ``true``, ``nepkappa fc`` reads
 ``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa relax`` first, or
 use ``nepkappa run``.
 
-Packaged examples
------------------
+Repository-provided examples
+----------------------------
 
 The repository provides example POSCAR files and YAML files in ``examples/``:
 
@@ -69,7 +69,7 @@ Minimal NEP example
 
    force-constant:
      dim: [3, 3, 3]
-     fc_calculator: symfc
+     fc_calculator: traditional
      use_hiphive: false
 
    kappa:
@@ -79,7 +79,7 @@ Minimal NEP example
      wigner: false
 
    plot:
-     layout: separate
+     layout: both
      path: seekpath
      tau: total
      kappa: all
@@ -252,7 +252,12 @@ Finite-displacement route:
    force-constant:
      dim: [3, 3, 3]
      fc_calculator: symfc
+     fc_calculator_options: null
      use_hiphive: false
+
+``fc_calculator`` accepts ``traditional``, ``symfc``, or ``alm``.
+``fc_calculator_options`` optionally passes solver-specific settings to
+``phono3py``; omit it when the selected solver does not need extra options.
 
 HiPhive route:
 

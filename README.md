@@ -44,8 +44,8 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 - `pyproject.toml`: package metadata and install configuration
 - `src/nepkappa/`: installable Python package
-- `examples/`: packaged POSCAR and YAML examples
-- `potentials/`: packaged Si NEP model files
+- `examples/`: repository-provided POSCAR and YAML examples
+- `potentials/`: repository-provided Si NEP model files
 - `tests/`: parser and CLI smoke tests
 - `docs/`: Sphinx documentation
 
@@ -85,7 +85,7 @@ python -m pip install --upgrade -e .
 
 ### Example Inputs
 
-The packaged examples are:
+The repository-provided examples are:
 
 - `examples/1-bulk-nep-rta.yaml`: bulk, NEP forces, finite displacement, RTA
 - `examples/2-bulk-nep-hiphive-rta.yaml`: bulk, NEP forces, HiPhive, RTA
@@ -147,7 +147,7 @@ kappa:
   wigner: false
 
 plot:
-  layout: separate
+  layout: both
   path: seekpath
   tau: total
   kappa: all
@@ -174,6 +174,7 @@ directory, NEP-kappa assembles a combined `POTCAR` in POSCAR element order.
 - `force-constant.dim`: supercell dimension for force constants
 - `force-constant.use_hiphive`: `false` for finite displacement, `true` for HiPhive
 - `force-constant.fc_calculator`: finite-displacement solver, e.g. `symfc`
+- `force-constant.fc_calculator_options`: optional solver-specific settings passed to `phono3py`
 - `kappa.method`: `rta` or `lbte`
 - `kappa.wigner`: use `phono3py-wte` via `--tt wte`
 - `plot.layout`: `separate`, `combined`, or `both`
@@ -231,7 +232,6 @@ not add subplot titles.
 - `hiphive_model.fcp` when HiPhive is used
 - `vasp-relax/` and `vasp-runs/` when VASP is used
 - `kappa-m{mesh}.hdf5`
-- `phono3py.yaml`
 - `plots/dispersion.png`
 - `plots/dos.png`
 - `plots/heat_capacity.png`
@@ -285,8 +285,8 @@ Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.032
 
 - `pyproject.toml`：软件包元数据和安装配置
 - `src/nepkappa/`：可安装的 Python 软件包
-- `examples/`：打包的 POSCAR 和 YAML 示例
-- `potentials/`：打包的 Si NEP 势函数
+- `examples/`：仓库提供的 POSCAR 和 YAML 示例
+- `potentials/`：仓库提供的 Si NEP 势函数
 - `tests/`：解析器和 CLI 基础测试
 - `docs/`：Sphinx 文档
 
@@ -386,7 +386,7 @@ kappa:
   wigner: false
 
 plot:
-  layout: separate
+  layout: both
   path: seekpath
   tau: total
   kappa: all
@@ -413,6 +413,7 @@ VASP 计算使用 `calculator.name: vasp`，并设置 `vasp_command` 或
 - `force-constant.dim`：力常数超胞尺寸
 - `force-constant.use_hiphive`：`false` 为有限位移，`true` 为 HiPhive
 - `force-constant.fc_calculator`：有限位移求解器，例如 `symfc`
+- `force-constant.fc_calculator_options`：传递给 `phono3py` 的可选求解器专用设置
 - `kappa.method`：`rta` 或 `lbte`
 - `kappa.wigner`：通过 `phono3py-wte` 使用 `--tt wte`
 - `plot.layout`：`separate`、`combined` 或 `both`
@@ -467,7 +468,6 @@ plot:
 - 使用 HiPhive 时的 `hiphive_model.fcp`
 - 使用 VASP 时的 `vasp-relax/` 和 `vasp-runs/`
 - `kappa-m{mesh}.hdf5`
-- `phono3py.yaml`
 - `plots/dispersion.png`
 - `plots/dos.png`
 - `plots/heat_capacity.png`

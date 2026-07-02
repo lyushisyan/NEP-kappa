@@ -16,7 +16,7 @@ reinstall NEP-kappa:
 VASP path errors
 ----------------
 
-The packaged VASP examples contain paths for a specific server. Edit
+The repository-provided VASP examples contain paths for a specific server. Edit
 ``calculator.vasp_command``, ``calculator.vasp_path``, and
 ``calculator.potcar_path`` before running on a different machine.
 

@@ -17,7 +17,7 @@ def test_bulk_yaml_uses_finite_displacement():
     assert args.mesh == [21, 21, 21]
     assert args.fc_calculator == "traditional"
     assert args.use_hiphive is False
-    assert args.plot_layout == "separate"
+    assert args.plot_layout == "both"
     assert args.plot_path == "seekpath"
     assert args.plot_tau == "total"
     assert args.plot_kappa == "all"

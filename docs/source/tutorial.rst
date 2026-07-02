@@ -7,7 +7,7 @@ framework.
 Step 1: Choose the input structure
 ----------------------------------
 
-Use the packaged bulk POSCAR:
+Use the repository-provided bulk POSCAR:
 
 .. code-block:: text
 
@@ -35,7 +35,7 @@ Create ``input.yaml``:
 
    force-constant:
      dim: [3, 3, 3]
-     fc_calculator: symfc
+     fc_calculator: traditional
      use_hiphive: false
 
    kappa:
@@ -45,7 +45,7 @@ Create ``input.yaml``:
      wigner: false
 
    plot:
-     layout: separate
+     layout: both
      path: seekpath
      tau: total
      kappa: all
@@ -54,7 +54,7 @@ Create ``input.yaml``:
 
    output:
      progress: true
-     result_dir: results/bulk-nep-rta
+     result_dir: results/1-bulk-nep-rta
 
 Step 3: Run the workflow
 ------------------------
@@ -83,7 +83,7 @@ You can inspect the parsed settings first:
 Step 4: Check outputs
 ---------------------
 
-The calculation writes all generated files to ``results/bulk-nep-rta``:
+The calculation writes all generated files to ``results/1-bulk-nep-rta``:
 
 - ``run.log``
 - ``POSCAR_relaxed``
@@ -92,6 +92,7 @@ The calculation writes all generated files to ``results/bulk-nep-rta``:
 - ``fc3.hdf5``
 - ``kappa-m*.hdf5``
 - ``plots/`` with dispersion, DOS, volume heat capacity, group velocity, relaxation time, and kappa figures
+- ``plots/combined.png`` containing the same six plots in a 2-by-3 layout
 
 For details on reading ``kappa-m*.hdf5`` files, see the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.

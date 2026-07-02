@@ -50,7 +50,7 @@ Repository layout
 
 - ``pyproject.toml``: package metadata and dependencies
 - ``src/nepkappa/``: Python package and command-line implementation
-- ``examples/``: packaged POSCAR and YAML examples
+- ``examples/``: repository-provided POSCAR and YAML examples
 - ``potentials/``: example NEP model files
 - ``docs/``: Sphinx documentation
 - ``tests/``: lightweight configuration and CLI tests
