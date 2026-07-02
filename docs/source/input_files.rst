@@ -1,7 +1,7 @@
 Input Files
 ===========
 
-NEP-kappa v1.1 uses YAML input files. Each YAML file describes one workflow by
+NEP-kappa v1.1.0 uses YAML input files. Each YAML file describes one workflow by
 grouping settings into the same stages used by the command line:
 
 - ``structure``: input POSCAR
