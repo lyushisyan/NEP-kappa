@@ -10,14 +10,16 @@ relaxation:
   enabled: true
 
 force-constant:
-  dim: [3, 3, 3]
-  fc_calculator: traditional
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
   use_hiphive: false
 
 kappa:
   mesh: [21, 21, 21]
   temps: [100, 1000, 50]
   method: rta
+  isotope: false
+  bfmp: 1.0e6
   wigner: false
 
 plot:

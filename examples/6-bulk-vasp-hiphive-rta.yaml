@@ -37,7 +37,8 @@ force-constant:
     ncore: 3
     lreal: false
     addgrid: true
-  dim: [3, 3, 3]
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
   use_hiphive: true
   n_structures: 100
   rattle_std: 0.03
@@ -48,6 +49,8 @@ kappa:
   mesh: [21, 21, 21]
   temps: [100, 1000, 50]
   method: rta
+  isotope: false
+  bfmp: 1.0e6
   wigner: false
 
 output:

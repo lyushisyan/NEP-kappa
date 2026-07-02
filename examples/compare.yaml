@@ -1,0 +1,19 @@
+# Compare DFT and NEP results.
+reference:
+  dft_dir: results/dft
+  label: DFT
+
+candidate:
+  nep_dir: results/nep
+  label: NEP
+
+compare:
+  compare_dir: comparison
+
+plot:
+  layout: both
+  path: seekpath
+  tau: total
+  temperature: 300
+  kappa: all
+  dpi: 300

@@ -25,6 +25,7 @@ Create ``input.yaml``:
 
    structure:
      poscar: examples/POSCAR_bulk
+     dimensionality: 3
 
    calculator:
      name: nep
@@ -34,14 +35,16 @@ Create ``input.yaml``:
      enabled: true
 
    force-constant:
-     dim: [3, 3, 3]
-     fc_calculator: traditional
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
      use_hiphive: false
 
    kappa:
      mesh: [21, 21, 21]
      temps: [100, 1000, 50]
      method: rta
+     isotope: false
+     bfmp: 1.0e6
      wigner: false
 
    plot:
@@ -96,3 +99,17 @@ The calculation writes all generated files to ``results/1-bulk-nep-rta``:
 
 For details on reading ``kappa-m*.hdf5`` files, see the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
+
+Step 5: Compare DFT and NEP results
+-----------------------------------
+
+If you have already generated one DFT result directory and one NEP result
+directory, create a comparison YAML or edit ``examples/compare.yaml``:
+
+.. code-block:: bash
+
+   nepkappa compare examples/compare.yaml
+
+The comparison command writes overlaid dispersion, DOS, volume heat capacity,
+group velocity, relaxation time, and kappa figures to ``comparison/plots`` by
+default.

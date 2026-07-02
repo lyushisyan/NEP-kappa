@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 try:
     import yaml
@@ -67,6 +68,45 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--poscar", default="POSCAR", help="Input structure file")
+    parser.add_argument(
+        "--dimensionality",
+        type=int,
+        choices=[1, 2, 3],
+        default=3,
+        help="Material dimensionality used for plot post-processing",
+    )
+    parser.add_argument(
+        "--effective_thickness",
+        "--effective-thickness",
+        dest="effective_thickness",
+        type=float,
+        default=None,
+        help="[2D] Effective film thickness in Angstrom",
+    )
+    parser.add_argument(
+        "--effective_area",
+        "--effective-area",
+        dest="effective_area",
+        type=float,
+        default=None,
+        help="[1D] Effective nanowire cross-sectional area in Angstrom^2",
+    )
+    parser.add_argument(
+        "--vacuum_axis",
+        "--vacuum-axis",
+        dest="vacuum_axis",
+        choices=["x", "y", "z"],
+        default="z",
+        help="[2D] Non-periodic film axis used for effective-thickness correction",
+    )
+    parser.add_argument(
+        "--periodic_axis",
+        "--periodic-axis",
+        dest="periodic_axis",
+        choices=["x", "y", "z"],
+        default="z",
+        help="[1D] Nanowire periodic axis used for effective-area correction",
+    )
     parser.add_argument("--nep_model", default=None, help="Path to NEP model file")
     parser.add_argument(
         "--calculator",
@@ -120,7 +160,29 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Relax structure",
     )
     parser.add_argument(
-        "--dim", type=int, nargs=3, default=[4, 4, 1], help="Supercell dimension"
+        "--dim",
+        type=int,
+        nargs=3,
+        default=None,
+        help="[Deprecated] Supercell dimension used for both FC2 and FC3",
+    )
+    parser.add_argument(
+        "--dim_fc2",
+        "--dim-fc2",
+        dest="dim_fc2",
+        type=int,
+        nargs=3,
+        default=None,
+        help="Phonon supercell dimension for FC2",
+    )
+    parser.add_argument(
+        "--dim_fc3",
+        "--dim-fc3",
+        dest="dim_fc3",
+        type=int,
+        nargs=3,
+        default=None,
+        help="Supercell dimension for FC3",
     )
 
     parser.add_argument(
@@ -149,17 +211,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="[HiPhive] Minimum atomic distance for rattling",
     )
-    parser.add_argument(
-        "--fc_calculator",
-        choices=["traditional", "symfc", "alm"],
-        default="traditional",
-        help="[Finite displacement] Force constants solver",
-    )
-    parser.add_argument(
-        "--fc_calculator_options",
-        default=None,
-        help="[Finite displacement] Options passed to the force constants solver",
-    )
     parser.add_argument("--mesh", type=int, nargs=3, default=[21, 21, 1])
     parser.add_argument(
         "--temps",
@@ -169,6 +220,20 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="One value or tmin tmax tstep",
     )
     parser.add_argument("--method", choices=["lbte", "rta"], default="lbte")
+    parser.add_argument(
+        "--isotope",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=False,
+        help="[Kappa] Include isotope scattering",
+    )
+    parser.add_argument(
+        "--bfmp",
+        type=float,
+        default=1.0e6,
+        help="[Kappa] Boundary mean free path in micrometer",
+    )
     parser.add_argument(
         "--wigner",
         type=str2bool,
@@ -311,7 +376,14 @@ def parse_yaml_input_file(filename):
 def yaml_input_sections():
     """Return supported YAML sections and their documented keys."""
     return {
-        "structure": {"poscar"},
+        "structure": {
+            "poscar",
+            "dimensionality",
+            "effective_thickness",
+            "effective_area",
+            "vacuum_axis",
+            "periodic_axis",
+        },
         "calculator": {
             "calculator",
             "name",
@@ -327,17 +399,17 @@ def yaml_input_sections():
         },
         "force-constant": {
             "dim",
+            "dim_fc2",
+            "dim_fc3",
             "use_hiphive",
             "n_structures",
             "rattle_std",
             "cutoffs",
             "min_dist",
-            "fc_calculator",
-            "fc_calculator_options",
             "workdir",
             "vasp_kwargs",
         },
-        "kappa": {"mesh", "temps", "method", "wigner"},
+        "kappa": {"mesh", "temps", "method", "isotope", "bfmp", "wigner"},
         "plot": {
             "layout",
             "path",
@@ -356,6 +428,11 @@ def yaml_arg_order():
     """Return a stable option order for parsed YAML values."""
     return [
         "poscar",
+        "dimensionality",
+        "effective_thickness",
+        "effective_area",
+        "vacuum_axis",
+        "periodic_axis",
         "nep_model",
         "calculator",
         "vasp_command",
@@ -367,16 +444,18 @@ def yaml_arg_order():
         "vasp_relax_stages",
         "do_relax",
         "dim",
+        "dim_fc2",
+        "dim_fc3",
         "use_hiphive",
         "n_structures",
         "rattle_std",
         "cutoffs",
         "min_dist",
-        "fc_calculator",
-        "fc_calculator_options",
         "mesh",
         "temps",
         "method",
+        "isotope",
+        "bfmp",
         "wigner",
         "progress",
         "result_dir",
@@ -420,22 +499,162 @@ def parse_workflow_args(config_path):
         parser.error(f"input file not found: {config_path}")
     tokens = parse_input_file(config_path)
     args = parser.parse_args(tokens)
+    resolve_force_constant_dimensions(args)
     calculator_error = validate_calculator(args)
     if calculator_error:
         parser.error(calculator_error)
     temps_error = validate_temps(args.temps)
     if temps_error:
         parser.error(temps_error)
+    geometry_error = validate_effective_geometry(args)
+    if geometry_error:
+        parser.error(geometry_error)
     return args
+
+
+def parse_compare_args(config_path):
+    """Parse a DFT-vs-NEP comparison YAML file."""
+    if yaml is None:
+        raise RuntimeError(
+            "YAML input files require PyYAML. Install it with: pip install PyYAML"
+        )
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"input file not found: {config_path}")
+    if path.suffix.lower() not in (".yaml", ".yml"):
+        raise ValueError("NEP-kappa compare files must end in .yaml or .yml.")
+
+    with open(path, "r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    if not isinstance(data, dict):
+        raise ValueError("Compare YAML input must be a mapping.")
+
+    reference = require_mapping(data, "reference")
+    candidate = require_mapping(data, "candidate")
+    compare = require_mapping(data, "compare")
+    plot = data.get("plot", {}) or {}
+    structure = data.get("structure", {}) or {}
+    if not isinstance(plot, dict):
+        raise ValueError("YAML section 'plot' must be a mapping.")
+    if not isinstance(structure, dict):
+        raise ValueError("YAML section 'structure' must be a mapping.")
+    reference = normalize_mapping_keys(reference)
+    candidate = normalize_mapping_keys(candidate)
+    compare = normalize_mapping_keys(compare)
+    plot = normalize_mapping_keys(plot)
+    structure = normalize_mapping_keys(structure)
+
+    args = SimpleNamespace(
+        dft_dir=required_section_value(reference, "reference", "dft_dir"),
+        nep_dir=required_section_value(candidate, "candidate", "nep_dir"),
+        compare_dir=required_section_value(compare, "compare", "compare_dir"),
+        reference_label=str(reference.get("label", "DFT")),
+        candidate_label=str(candidate.get("label", "NEP")),
+        dimensionality=int(structure.get("dimensionality", 3)),
+        effective_thickness=structure.get("effective_thickness", None),
+        effective_area=structure.get("effective_area", None),
+        vacuum_axis=str(structure.get("vacuum_axis", "z")),
+        periodic_axis=str(structure.get("periodic_axis", "z")),
+        plot_layout=str(plot.get("layout", "separate")),
+        plot_path=str(plot.get("path", "seekpath")),
+        plot_path_points=plot.get("path_points", None),
+        plot_path_segments=plot.get("path_segments", None),
+        plot_tau=str(plot.get("tau", "total")),
+        plot_kappa=str(plot.get("kappa", "all")),
+        plot_temperature=float(plot.get("temperature", 300.0)),
+        plot_dpi=int(plot.get("dpi", 300)),
+        mesh=None,
+    )
+    validate_compare_args(args)
+    return args
+
+
+def require_mapping(data, section):
+    """Return a required YAML section mapping."""
+    section_data = data.get(section)
+    if not isinstance(section_data, dict):
+        raise ValueError(f"YAML section '{section}' is required and must be a mapping.")
+    return section_data
+
+
+def normalize_mapping_keys(data):
+    """Return a copy of a mapping with YAML keys normalized to option names."""
+    return {normalize_yaml_key(key): value for key, value in data.items()}
+
+
+def required_section_value(section_data, section, key):
+    """Return a required section value."""
+    value = section_data.get(key)
+    if value in (None, ""):
+        raise ValueError(f"YAML section '{section}' requires '{key}'.")
+    return str(value)
+
+
+def validate_compare_args(args):
+    """Validate compare command options."""
+    if args.dimensionality not in (1, 2, 3):
+        raise ValueError("structure.dimensionality must be 1, 2, or 3.")
+    geometry_error = validate_effective_geometry(args)
+    if geometry_error:
+        raise ValueError(geometry_error)
+    if args.plot_layout not in ("separate", "combined", "both"):
+        raise ValueError("plot.layout must be separate, combined, or both.")
+    if args.plot_path not in ("seekpath", "custom"):
+        raise ValueError("plot.path must be seekpath or custom.")
+    if args.plot_tau not in ("total", "normal", "umklapp", "all"):
+        raise ValueError("plot.tau must be total, normal, umklapp, or all.")
+    if args.plot_kappa not in ("x", "y", "z", "all"):
+        raise ValueError("plot.kappa must be x, y, z, or all.")
+    if args.plot_dpi <= 0:
+        raise ValueError("plot.dpi must be positive.")
+
+
+def format_compare_config(args):
+    """Return a readable multi-line comparison configuration summary."""
+    lines = ["Running comparison with configuration:"]
+    for key in [
+        "dft_dir",
+        "nep_dir",
+        "compare_dir",
+        "reference_label",
+        "candidate_label",
+        "dimensionality",
+        "effective_thickness",
+        "effective_area",
+        "vacuum_axis",
+        "periodic_axis",
+        "plot_layout",
+        "plot_path",
+        "plot_tau",
+        "plot_kappa",
+        "plot_temperature",
+        "plot_dpi",
+    ]:
+        value = getattr(args, key)
+        if value is None:
+            continue
+        if args.dimensionality != 2 and key in {"effective_thickness", "vacuum_axis"}:
+            continue
+        if args.dimensionality != 1 and key in {"effective_area", "periodic_axis"}:
+            continue
+        lines.append(f"  {key:<18} : {value}")
+    return "\n".join(lines)
+
+
+def resolve_force_constant_dimensions(args):
+    """Resolve deprecated dim into explicit FC2 and FC3 supercell dimensions."""
+    legacy_dim = args.dim
+    default_dim = [4, 4, 1]
+    if args.dim_fc2 is None:
+        args.dim_fc2 = list(legacy_dim or default_dim)
+    if args.dim_fc3 is None:
+        args.dim_fc3 = list(legacy_dim or default_dim)
 
 
 def iter_display_args(args):
     """Iterate over user-facing config values, hiding inactive route settings."""
+    compatibility_only = {"dim"}
     hiphive_only = {"n_structures", "rattle_std", "cutoffs", "min_dist"}
-    finite_disp_only = {
-        "fc_calculator",
-        "fc_calculator_options",
-    }
     vasp_only = {
         "vasp_command",
         "vasp_path",
@@ -447,14 +666,20 @@ def iter_display_args(args):
         "vasp_relax_workdir",
         "vasp_relax_stages",
     }
+    film_only = {"effective_thickness", "vacuum_axis"}
+    wire_only = {"effective_area", "periodic_axis"}
     for arg, value in vars(args).items():
         if value is None:
+            continue
+        if arg in compatibility_only:
+            continue
+        if args.dimensionality != 2 and arg in film_only:
+            continue
+        if args.dimensionality != 1 and arg in wire_only:
             continue
         if args.calculator == "vasp" and arg == "nep_model" and value is None:
             continue
         if not args.use_hiphive and arg in hiphive_only:
-            continue
-        if args.use_hiphive and arg in finite_disp_only:
             continue
         if args.calculator != "vasp" and arg in vasp_only:
             continue
@@ -480,6 +705,25 @@ def validate_temps(temps):
         return (
             f"--temps expects 1 value (single temperature) or 3 values "
             f"(tmin tmax tstep), got {count}: {temps}"
+        )
+    return None
+
+
+def validate_effective_geometry(args):
+    """Validate low-dimensional effective-volume settings."""
+    if args.effective_thickness is not None and args.effective_thickness <= 0:
+        return "--effective_thickness must be positive."
+    if args.effective_area is not None and args.effective_area <= 0:
+        return "--effective_area must be positive."
+    if args.dimensionality == 2 and args.effective_thickness is None:
+        return (
+            "structure.effective_thickness is required when "
+            "structure.dimensionality is 2."
+        )
+    if args.dimensionality == 1 and args.effective_area is None:
+        return (
+            "structure.effective_area is required when "
+            "structure.dimensionality is 1."
         )
     return None
 
