@@ -92,6 +92,8 @@ The main settings in this example are:
 - ``temps`` must contain either one temperature, for example ``[300]``, or
   exactly three values ``[tmin, tmax, tstep]``.
 - ``bfmp`` is the boundary mean free path in micrometers.
+- Advanced users can replace these automatic kappa settings with a full
+  ``kappa.command`` phono3py command.
 - all generated files and the run log are written below ``result_dir``.
 
 Step 3: Validate and run

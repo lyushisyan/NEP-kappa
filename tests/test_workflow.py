@@ -81,6 +81,52 @@ def test_compute_kappa_raises_when_phono3py_fails(tmp_path):
         workflow.compute_kappa()
 
 
+def test_compute_kappa_runs_custom_phono3py_command(tmp_path):
+    cfg = SimpleNamespace(
+        result_dir=str(tmp_path),
+        mesh=[1, 1, 1],
+        method="lbte",
+        wigner=True,
+        isotope=True,
+        bfmp=1.0e6,
+        temps=[300],
+        progress=False,
+        lbte_parallel={},
+        kappa_command=(
+            "phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu "
+            "--mesh 4 4 4 --ts 300"
+        ),
+    )
+    workflow = NEPPhononWorkflow(cfg)
+    workflow.fc2_path.write_text("fc2", encoding="utf-8")
+    workflow.fc3_path.write_text("fc3", encoding="utf-8")
+    workflow.disp_path.write_text("disp", encoding="utf-8")
+    commands = []
+    workflow._run_command = lambda cmd, cwd=None: commands.append((cmd, cwd)) or 0
+
+    workflow.compute_kappa()
+
+    assert commands == [
+        (
+            [
+                "phono3py",
+                "phono3py_disp.yaml",
+                "--fc2",
+                "--fc3",
+                "--br",
+                "--nu",
+                "--mesh",
+                "4",
+                "4",
+                "4",
+                "--ts",
+                "300",
+            ],
+            tmp_path,
+        )
+    ]
+
+
 def test_finite_displacement_defaults_to_compact_fc(tmp_path):
     cfg = SimpleNamespace(
         result_dir=str(tmp_path),

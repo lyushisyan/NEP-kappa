@@ -124,6 +124,29 @@ kappa:
     assert args.lbte_parallel["submit"] is False
 
 
+def test_kappa_custom_command_parses_from_yaml(tmp_path):
+    config = tmp_path / "custom-kappa.yaml"
+    config.write_text(
+        """
+structure:
+  poscar: examples/POSCAR_bulk
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+kappa:
+  command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --ts 300
+""",
+        encoding="utf-8",
+    )
+
+    args = parse_workflow_args(config)
+
+    assert args.kappa_command == (
+        "phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu "
+        "--mesh 21 21 21 --ts 300"
+    )
+
+
 def test_slurm_parallel_rejects_rta(tmp_path):
     config = tmp_path / "rta-slurm.yaml"
     config.write_text(

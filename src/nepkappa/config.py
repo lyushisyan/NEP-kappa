@@ -231,6 +231,13 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--method", choices=["lbte", "rta"], default="lbte")
     parser.add_argument(
+        "--kappa_command",
+        "--kappa-command",
+        dest="kappa_command",
+        default=None,
+        help="[Kappa] Full custom phono3py command run in output.result_dir",
+    )
+    parser.add_argument(
         "--isotope",
         type=str2bool,
         nargs="?",
@@ -365,6 +372,9 @@ def parse_yaml_input_file(filename):
                 else:
                     flat[normalized_key] = value
                 continue
+            if section == "kappa" and normalized_key == "command":
+                flat["kappa_command"] = value
+                continue
             if section == "kappa" and normalized_key == "parallel":
                 flat["lbte_parallel"] = value
                 continue
@@ -433,6 +443,7 @@ def yaml_input_sections():
             "mesh",
             "temps",
             "method",
+            "command",
             "isotope",
             "bfmp",
             "wigner",
@@ -483,6 +494,7 @@ def yaml_arg_order():
         "mesh",
         "temps",
         "method",
+        "kappa_command",
         "isotope",
         "bfmp",
         "wigner",

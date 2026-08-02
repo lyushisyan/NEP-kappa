@@ -204,6 +204,7 @@ directory, NEP-kappa assembles a combined `POTCAR` in POSCAR element order.
 - `kappa.isotope`: include isotope scattering, `true` or `false`
 - `kappa.bfmp`: boundary mean free path in micrometer; phono3py CLI default is `1.0e6`
 - `kappa.wigner`: use `phono3py-wte` via `--tt wte`
+- `kappa.command`: full custom `phono3py` command run in `output.result_dir`; when set, it overrides the automatic `mesh`/`method`/scattering command builder
 - `kappa.parallel`: optional Slurm settings for distributed LBTE calculations
 - `plot.layout`: `separate`, `combined`, or `both`
 - `plot.path`: high-symmetry path source, `seekpath` or `custom`
@@ -239,6 +240,21 @@ plot:
 
 Disconnected neighboring segments are shown with a combined label, e.g.
 `[X, U]` followed by `[K, G]` is plotted as `U|K`.
+
+### Custom phono3py command
+
+Advanced users can bypass NEP-kappa's automatic kappa command builder and write
+the phono3py command directly:
+
+```yaml
+kappa:
+  command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --tmin 100 --tmax 1000 --tstep 50
+```
+
+The command is executed inside `output.result_dir`, so relative paths such as
+`phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5` refer to files in the result
+directory. This command is split like a normal command line, but shell features
+such as pipes and redirects are not interpreted.
 
 ### Parallel LBTE with Slurm
 
@@ -537,6 +553,7 @@ VASP 计算使用 `calculator.name: vasp`，并设置 `vasp_command` 或
 - `kappa.isotope`：是否包含同位素散射，`true` 或 `false`
 - `kappa.bfmp`：边界平均自由程，单位 micrometer；phono3py CLI 默认值为 `1.0e6`
 - `kappa.wigner`：通过 `phono3py-wte` 使用 `--tt wte`
+- `kappa.command`：完整自定义 `phono3py` 命令，会在 `output.result_dir` 中执行；设置后会覆盖自动的 `mesh`、`method` 和散射参数命令拼接
 - `kappa.parallel`：用于分布式 LBTE 计算的可选 Slurm 设置
 - `plot.layout`：`separate`、`combined` 或 `both`
 - `plot.path`：高对称路径来源，`seekpath` 或 `custom`
@@ -572,6 +589,20 @@ plot:
 
 相邻两段如果不连续，会在横坐标断点处合并显示，例如 `[X, U]`
 后接 `[K, G]` 会显示为 `U|K`。
+
+### 自定义 phono3py 命令
+
+高级用户可以跳过 NEP-kappa 自动拼接的 kappa 命令，直接手写 phono3py
+命令：
+
+```yaml
+kappa:
+  command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --tmin 100 --tmax 1000 --tstep 50
+```
+
+这条命令会在 `output.result_dir` 中执行，因此相对路径
+`phono3py_disp.yaml`、`fc2.hdf5` 和 `fc3.hdf5` 都指向结果目录中的文件。
+该命令会像普通命令行一样拆分参数，但不解释管道和重定向等 shell 语法。
 
 ### 使用 Slurm 并行计算 LBTE
 

@@ -350,6 +350,24 @@ settings:
 its unit is micrometer, and the phono3py CLI default is ``1.0e6``. ``wigner:
 true`` enables Wigner transport through ``phono3py-wte``.
 
+Custom phono3py command
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Advanced users can bypass NEP-kappa's automatic kappa command builder and write
+the phono3py command directly:
+
+.. code-block:: yaml
+
+   kappa:
+     command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --tmin 100 --tmax 1000 --tstep 50
+
+The command runs inside ``output.result_dir``. Relative paths such as
+``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5`` therefore refer to files
+in the result directory. When ``command`` is set, NEP-kappa skips the automatic
+``mesh``/``method``/scattering option builder and runs this command instead.
+The command is split like a normal command line; shell features such as pipes
+and redirects are not interpreted.
+
 Distributed LBTE with Slurm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

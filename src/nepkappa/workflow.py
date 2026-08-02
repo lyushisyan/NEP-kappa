@@ -791,6 +791,22 @@ class NEPPhononWorkflow:
                 f"Run `nepkappa fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
                 f"and {self.disp_path.name} in {self.output_dir}."
             )
+
+        custom_command = getattr(cfg, "kappa_command", None)
+        if custom_command:
+            cmd = shlex.split(custom_command)
+            print("  - Method: custom phono3py command")
+            print(f"  - Output directory: {self.output_dir}")
+            print(f"  - Running command: {shlex.join(cmd)}")
+            ret = self._run_command(cmd, cwd=self.output_dir)
+            if ret == 0:
+                print("\n[Done] Custom phono3py command finished successfully.")
+            else:
+                print(f"\n[Error] Custom phono3py command failed with return code {ret}")
+                raise RuntimeError(
+                    f"Custom phono3py command failed with return code {ret}"
+                )
+            return
         
         parallel = getattr(cfg, "lbte_parallel", {}) or {}
         if cfg.method == "lbte" and str(parallel.get("backend", "none")).lower() == "slurm":
