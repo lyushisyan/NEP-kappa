@@ -194,6 +194,16 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Use HiPhive",
     )
     parser.add_argument(
+        "--compact_fc",
+        "--compact-fc",
+        dest="compact_fc",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=True,
+        help="[Force constants] Write compact FC2/FC3 arrays; false writes full arrays",
+    )
+    parser.add_argument(
         "--n_structures",
         type=int,
         default=50,
@@ -243,6 +253,12 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Use Wigner transport via phono3py-wte (--tt wte)",
     )
     parser.add_argument(
+        "--lbte_parallel",
+        type=json_dict,
+        default={},
+        help="[LBTE] Slurm parallel calculation settings",
+    )
+    parser.add_argument(
         "--progress",
         type=str2bool,
         nargs="?",
@@ -279,9 +295,9 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--plot_tau",
-        choices=["total", "normal", "umklapp", "all"],
+        choices=["total", "normal", "umklapp", "nu", "all"],
         default="total",
-        help="[Plot] Relaxation-time channel",
+        help="[Plot] Relaxation-time channel (nu plots N and U together)",
     )
     parser.add_argument(
         "--plot_kappa",
@@ -349,6 +365,9 @@ def parse_yaml_input_file(filename):
                 else:
                     flat[normalized_key] = value
                 continue
+            if section == "kappa" and normalized_key == "parallel":
+                flat["lbte_parallel"] = value
+                continue
             if section == "plot":
                 flat[f"plot_{normalized_key}"] = value
                 continue
@@ -402,6 +421,7 @@ def yaml_input_sections():
             "dim_fc2",
             "dim_fc3",
             "use_hiphive",
+            "compact_fc",
             "n_structures",
             "rattle_std",
             "cutoffs",
@@ -409,7 +429,15 @@ def yaml_input_sections():
             "workdir",
             "vasp_kwargs",
         },
-        "kappa": {"mesh", "temps", "method", "isotope", "bfmp", "wigner"},
+        "kappa": {
+            "mesh",
+            "temps",
+            "method",
+            "isotope",
+            "bfmp",
+            "wigner",
+            "parallel",
+        },
         "plot": {
             "layout",
             "path",
@@ -447,6 +475,7 @@ def yaml_arg_order():
         "dim_fc2",
         "dim_fc3",
         "use_hiphive",
+        "compact_fc",
         "n_structures",
         "rattle_std",
         "cutoffs",
@@ -457,6 +486,7 @@ def yaml_arg_order():
         "isotope",
         "bfmp",
         "wigner",
+        "lbte_parallel",
         "progress",
         "result_dir",
         "plot_layout",
@@ -509,6 +539,9 @@ def parse_workflow_args(config_path):
     geometry_error = validate_effective_geometry(args)
     if geometry_error:
         parser.error(geometry_error)
+    parallel_error = validate_lbte_parallel(args)
+    if parallel_error:
+        parser.error(parallel_error)
     return args
 
 
@@ -601,8 +634,8 @@ def validate_compare_args(args):
         raise ValueError("plot.layout must be separate, combined, or both.")
     if args.plot_path not in ("seekpath", "custom"):
         raise ValueError("plot.path must be seekpath or custom.")
-    if args.plot_tau not in ("total", "normal", "umklapp", "all"):
-        raise ValueError("plot.tau must be total, normal, umklapp, or all.")
+    if args.plot_tau not in ("total", "normal", "umklapp", "nu", "all"):
+        raise ValueError("plot.tau must be total, normal, umklapp, nu, or all.")
     if args.plot_kappa not in ("x", "y", "z", "all"):
         raise ValueError("plot.kappa must be x, y, z, or all.")
     if args.plot_dpi <= 0:
@@ -671,6 +704,8 @@ def iter_display_args(args):
     for arg, value in vars(args).items():
         if value is None:
             continue
+        if arg == "lbte_parallel" and not value:
+            continue
         if arg in compatibility_only:
             continue
         if args.dimensionality != 2 and arg in film_only:
@@ -732,4 +767,46 @@ def validate_calculator(args):
     """Validate calculator-specific settings."""
     if args.calculator == "nep" and not args.nep_model:
         return "--nep_model is required when --calculator nep"
+    return None
+
+
+def validate_lbte_parallel(args):
+    """Validate optional Slurm settings for distributed LBTE calculations."""
+    settings = getattr(args, "lbte_parallel", {}) or {}
+    if not isinstance(settings, dict):
+        return "kappa.parallel must be a mapping."
+    settings = {normalize_yaml_key(key): value for key, value in settings.items()}
+    args.lbte_parallel = settings
+
+    backend = str(settings.get("backend", "none")).lower()
+    if backend not in {"none", "slurm"}:
+        return "kappa.parallel.backend must be 'none' or 'slurm'."
+    if backend == "none":
+        return None
+    if args.method != "lbte":
+        return "kappa.parallel.backend 'slurm' requires kappa.method: lbte."
+
+    try:
+        values = [int(settings.get("jobs", 32))]
+        for key in ("cpus_per_task", "collect_cpus_per_task", "max_concurrent"):
+            if settings.get(key) is not None:
+                values.append(int(settings[key]))
+        nodes = int(settings.get("nodes", 1))
+        ntasks = int(settings.get("ntasks", 1))
+    except (TypeError, ValueError):
+        return "Slurm job counts and CPU settings must be integers."
+    if min(values) < 1:
+        return "Slurm job counts and CPU settings must be positive."
+    if nodes != 1 or ntasks != 1:
+        return (
+            "kappa.parallel.nodes and ntasks must be 1; use jobs to distribute "
+            "LBTE grid points across the Slurm array."
+        )
+
+    for key in ("preamble", "extra_sbatch"):
+        value = settings.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            return f"kappa.parallel.{key} must be a list of strings."
+    if "submit" in settings and not isinstance(settings["submit"], bool):
+        return "kappa.parallel.submit must be true or false."
     return None

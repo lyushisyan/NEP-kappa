@@ -50,6 +50,105 @@ force-constant:
     assert args.dim_fc3 == [2, 3, 4]
 
 
+def test_compact_fc_defaults_to_true():
+    args = parse_workflow_args("examples/1-bulk-nep-rta.yaml")
+
+    assert args.compact_fc is True
+
+
+def test_compact_fc_can_be_disabled_from_yaml(tmp_path):
+    config = tmp_path / "full-fc.yaml"
+    config.write_text(
+        """
+structure:
+  poscar: examples/POSCAR_bulk
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+force-constant:
+  compact-fc: false
+""",
+        encoding="utf-8",
+    )
+
+    args = parse_workflow_args(config)
+
+    assert args.compact_fc is False
+
+
+def test_plot_tau_nu_parses_from_yaml(tmp_path):
+    config = tmp_path / "tau-nu.yaml"
+    config.write_text(
+        """
+structure:
+  poscar: examples/POSCAR_bulk
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+plot:
+  tau: nu
+""",
+        encoding="utf-8",
+    )
+
+    args = parse_workflow_args(config)
+
+    assert args.plot_tau == "nu"
+
+
+def test_lbte_slurm_settings_parse_from_kappa_section(tmp_path):
+    config = tmp_path / "lbte-slurm.yaml"
+    config.write_text(
+        """
+structure:
+  poscar: examples/POSCAR_bulk
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+kappa:
+  method: lbte
+  parallel:
+    backend: slurm
+    jobs: 16
+    cpus-per-task: 4
+    submit: false
+""",
+        encoding="utf-8",
+    )
+
+    args = parse_workflow_args(config)
+
+    assert args.lbte_parallel["backend"] == "slurm"
+    assert args.lbte_parallel["jobs"] == 16
+    assert args.lbte_parallel["cpus_per_task"] == 4
+    assert args.lbte_parallel["submit"] is False
+
+
+def test_slurm_parallel_rejects_rta(tmp_path):
+    config = tmp_path / "rta-slurm.yaml"
+    config.write_text(
+        """
+structure:
+  poscar: examples/POSCAR_bulk
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+kappa:
+  method: rta
+  parallel:
+    backend: slurm
+""",
+        encoding="utf-8",
+    )
+
+    try:
+        parse_workflow_args(config)
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("Expected parser to reject Slurm parallel RTA")
+
+
 def test_film_yaml_uses_hiphive():
     args = parse_workflow_args("examples/8-film-nep-hiphive-rta.yaml")
 
@@ -138,3 +237,24 @@ def test_compare_yaml_parses_dft_and_nep_dirs():
     summary = format_compare_config(args)
     assert "dft_dir" in summary
     assert "nep_dir" in summary
+
+
+def test_compare_yaml_accepts_tau_nu(tmp_path):
+    config = tmp_path / "compare-nu.yaml"
+    config.write_text(
+        """
+reference:
+  dft_dir: results/dft
+candidate:
+  nep_dir: results/nep
+compare:
+  compare_dir: comparison
+plot:
+  tau: nu
+""",
+        encoding="utf-8",
+    )
+
+    args = parse_compare_args(config)
+
+    assert args.plot_tau == "nu"

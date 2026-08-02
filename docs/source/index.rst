@@ -6,7 +6,7 @@ Welcome to the documentation of **NEP-kappa**.
 Source code repository:
 `GitHub <https://github.com/lyushisyan/NEP-kappa>`_
 
-**NEP-kappa v1.1** is an installable workflow package for lattice thermal
+**NEP-kappa v1.1.0** is an installable workflow package for lattice thermal
 conductivity calculations based on **NEP**, **VASP**, **HiPhive**, and
 **phono3py**.
 

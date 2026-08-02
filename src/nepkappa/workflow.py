@@ -724,22 +724,37 @@ class NEPPhononWorkflow:
         # 5. Produce and save FCs
         print("  - Producing force constants with phono3py finite differences")
         print("  - Producing FC2 and FC3...")
+        compact_fc = getattr(cfg, "compact_fc", True)
+        layout = "compact" if compact_fc else "full"
+        print(f"  - Force-constant layout: {layout}")
         run_activity_task(
             "Producing FC2",
-            ph3.produce_fc2,
+            lambda: ph3.produce_fc2(is_compact_fc=compact_fc),
             enabled=self.show_progress,
         )
         print("  - Symmetrizing FC2...")
         ph3.symmetrize_fc2()
-        write_fc2_to_hdf5(ph3.fc2, filename=str(self.fc2_path))
+        fc2_p2s_map = ph3.phonon_primitive.p2s_map if compact_fc else None
+        write_fc2_to_hdf5(
+            ph3.fc2,
+            filename=str(self.fc2_path),
+            p2s_map=fc2_p2s_map,
+        )
         run_activity_task(
             "Producing FC3",
-            ph3.produce_fc3,
+            lambda: ph3.produce_fc3(is_compact_fc=compact_fc),
             enabled=self.show_progress,
         )
         print("  - Symmetrizing FC3...")
         ph3.symmetrize_fc3()
-        write_fc3_to_hdf5(ph3.fc3, filename=str(self.fc3_path))
+        fc3_p2s_map = ph3.primitive.p2s_map if compact_fc else None
+        fc3_nonzero_indices = ph3.fc3_nonzero_indices if compact_fc else None
+        write_fc3_to_hdf5(
+            ph3.fc3,
+            fc3_nonzero_indices=fc3_nonzero_indices,
+            filename=str(self.fc3_path),
+            p2s_map=fc3_p2s_map,
+        )
         print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
         
 
@@ -762,6 +777,20 @@ class NEPPhononWorkflow:
                 f"and {self.disp_path.name} in {self.output_dir}."
             )
         
+        parallel = getattr(cfg, "lbte_parallel", {}) or {}
+        if cfg.method == "lbte" and str(parallel.get("backend", "none")).lower() == "slurm":
+            print("  - Method: distributed LBTE with Slurm")
+            from nepkappa.slurm import run_lbte_slurm
+
+            return run_lbte_slurm(
+                cfg,
+                self.output_dir,
+                self.disp_path,
+                self._phono3py_command(),
+                self._phono3py_needs_fc_flags(),
+                self._run_command,
+            )
+
         if cfg.method == 'lbte':
             method_flags = ["--lbte"]
             print("  - Method: LBTE (Linearized Boltzmann Transport Equation)")

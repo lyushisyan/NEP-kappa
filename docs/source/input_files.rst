@@ -55,6 +55,7 @@ The repository provides example POSCAR files and YAML files in ``examples/``:
 - ``examples/6-bulk-vasp-hiphive-rta.yaml``: bulk, VASP relaxation and VASP forces, HiPhive, RTA
 - ``examples/7-film-nep-rta.yaml``: film, NEP forces, finite displacement, RTA
 - ``examples/8-film-nep-hiphive-rta.yaml``: film, NEP forces, HiPhive, RTA
+- ``examples/9-bulk-nep-lbte-slurm.yaml``: bulk LBTE distributed with Slurm
 - ``examples/compare.yaml``: DFT-vs-NEP comparison plotting
 
 Example outputs are written to ``results/...`` and are not tracked by Git.
@@ -79,6 +80,7 @@ Minimal NEP example
      dim-fc2: [3, 3, 3]
      dim-fc3: [3, 3, 3]
      use_hiphive: false
+     compact-fc: true
 
    kappa:
      mesh: [21, 21, 21]
@@ -184,6 +186,7 @@ VASP example
      dim-fc2: [3, 3, 3]
      dim-fc3: [3, 3, 3]
      use_hiphive: false
+     compact-fc: true
 
    kappa:
      mesh: [21, 21, 21]
@@ -287,10 +290,13 @@ Finite-displacement route:
      dim-fc2: [3, 3, 3]
      dim-fc3: [3, 3, 3]
      use_hiphive: false
+     compact-fc: true
 
 ``dim-fc2`` sets the phonon supercell used for FC2. ``dim-fc3`` sets the
 supercell used for FC3. The deprecated ``dim`` key is still accepted for
 compatibility and is interpreted as both ``dim-fc2`` and ``dim-fc3``.
+``compact-fc`` defaults to ``true`` and writes phono3py v4 compact FC2/FC3
+arrays. Set it to ``false`` to write full supercell force-constant arrays.
 
 HiPhive route:
 
@@ -337,6 +343,42 @@ settings:
 ``--isotope`` option. ``bfmp`` maps to phono3py's ``--boundary-mfp`` option;
 its unit is micrometer, and the phono3py CLI default is ``1.0e6``. ``wigner:
 true`` enables Wigner transport through ``phono3py-wte``.
+
+Distributed LBTE with Slurm
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The normal ``nepkappa kappa`` command can submit an LBTE calculation split over
+irreducible grid points:
+
+.. code-block:: yaml
+
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [300]
+     method: lbte
+     parallel:
+       backend: slurm
+       jobs: 32
+
+NEP-kappa first runs phono3py with ``--wgp`` to obtain irreducible grid points.
+It then submits a ``--write-phonon`` preparation job, a ``--write-pp`` Slurm
+array, and a final ``--read-pp`` collection job. Slurm ``afterok`` dependencies
+ensure that each stage starts only after the previous stage succeeds.
+
+``jobs`` controls the number of grid-point chunks and defaults to 32.
+``max-concurrent`` limits
+the number of array tasks running simultaneously. The ``collect-*`` options can
+reserve more memory and CPUs for construction and diagonalization of the full
+LBTE collision matrix. ``partition``, ``account``, ``extra-sbatch``, and
+``preamble`` are optional cluster-specific settings. Each array element is one
+single-node, single-task phono3py process; use ``jobs`` rather than ``ntasks``
+to distribute grid points. When resource overrides are omitted, Slurm's default
+time, memory, CPU, partition, and account settings are preserved.
+
+Generated scripts, grid-point lists, logs, and ``submission.yaml`` are written
+under ``output.result_dir/lbte-slurm``. Set ``submit: false`` to generate these
+files without invoking ``sbatch``. The result directory has to be on a shared
+filesystem visible to all Slurm nodes.
 
 ``plot``
 --------
@@ -392,6 +434,8 @@ the break point, e.g. ``[X, U]`` followed by ``[K, G]`` is shown as ``U|K``.
 - ``total``: total scattering rate from ``gamma``
 - ``normal``: normal-process scattering rate from ``gamma_N``
 - ``umklapp``: Umklapp-process scattering rate from ``gamma_U``
+- ``nu``: plot N and U channels together, without the total channel; both
+  ``gamma_N`` and ``gamma_U`` must be present
 - ``all``: plot total, N, and U channels together when available
 
 ``kappa`` controls the thermal-conductivity components shown in the kappa

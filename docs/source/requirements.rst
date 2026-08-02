@@ -24,3 +24,4 @@ Additional requirements
 - VASP force calculations require a working VASP executable and POTCAR file or potential library
 - VASP examples contain machine-specific paths that should be edited before running elsewhere
 - calculations should be run from the repository root directory
+- Slurm LBTE mode requires ``sbatch`` and a result directory on a shared filesystem

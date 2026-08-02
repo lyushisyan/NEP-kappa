@@ -97,6 +97,7 @@ The repository-provided examples are:
 - `examples/6-bulk-vasp-hiphive-rta.yaml`: bulk, VASP relaxation and VASP forces, HiPhive, RTA
 - `examples/7-film-nep-rta.yaml`: film, NEP forces, finite displacement, RTA
 - `examples/8-film-nep-hiphive-rta.yaml`: film, NEP forces, HiPhive, RTA
+- `examples/9-bulk-nep-lbte-slurm.yaml`: bulk LBTE distributed over Slurm array jobs
 - `examples/compare.yaml`: DFT-vs-NEP comparison plotting
 
 Use `info` before running an expensive calculation:
@@ -150,6 +151,7 @@ force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]
   use_hiphive: false
+  compact-fc: true
 
 kappa:
   mesh: [21, 21, 21]
@@ -192,13 +194,15 @@ directory, NEP-kappa assembles a combined `POTCAR` in POSCAR element order.
 - `force-constant.dim-fc2`: phonon supercell dimension for FC2
 - `force-constant.dim-fc3`: supercell dimension for FC3
 - `force-constant.use_hiphive`: `false` for finite displacement, `true` for HiPhive
+- `force-constant.compact-fc`: write compact phono3py v4 FC2/FC3 arrays by default; set `false` to write full supercell arrays
 - `kappa.method`: `rta` or `lbte`
 - `kappa.isotope`: include isotope scattering, `true` or `false`
 - `kappa.bfmp`: boundary mean free path in micrometer; phono3py CLI default is `1.0e6`
 - `kappa.wigner`: use `phono3py-wte` via `--tt wte`
+- `kappa.parallel`: optional Slurm settings for distributed LBTE calculations
 - `plot.layout`: `separate`, `combined`, or `both`
 - `plot.path`: high-symmetry path source, `seekpath` or `custom`
-- `plot.tau`: relaxation-time channel, `total`, `normal`, `umklapp`, or `all`
+- `plot.tau`: relaxation-time channel; `nu` plots N and U together; available values are `total`, `normal`, `umklapp`, `nu`, and `all`
 - `plot.kappa`: thermal-conductivity component, `x`, `y`, `z`, or `all`
 - `plot.temperature`: target temperature for relaxation-time plots
 - `plot.dpi`: output figure resolution
@@ -230,6 +234,36 @@ plot:
 
 Disconnected neighboring segments are shown with a combined label, e.g.
 `[X, U]` followed by `[K, G]` is plotted as `U|K`.
+
+### Parallel LBTE with Slurm
+
+Set `kappa.method: lbte` and add a `parallel` mapping:
+
+```yaml
+kappa:
+  mesh: [21, 21, 21]
+  temps: [300]
+  method: lbte
+  parallel:
+    backend: slurm
+    jobs: 32
+```
+
+The normal command remains unchanged:
+
+```bash
+nepkappa kappa examples/9-bulk-nep-lbte-slurm.yaml
+```
+
+NEP-kappa obtains the irreducible grid points, writes shared phonon data, splits
+the ph-ph interaction calculation into a Slurm array, and submits a final
+collection job with `afterok` dependencies. Scripts, grid-point lists, logs, and
+job IDs are stored in `output.result_dir/lbte-slurm`. Set `submit: false` to
+generate and inspect the files without calling `sbatch`. The result directory
+must be visible from every allocated node. Slurm's defaults are used for time,
+memory, CPUs, partition, and account unless those values are explicitly set.
+The default number of grid-point array tasks is 32; override `jobs` only when
+needed.
 
 ### Plotting
 
@@ -397,6 +431,7 @@ python -m pip install --upgrade -e .
 - `examples/6-bulk-vasp-hiphive-rta.yaml`：bulk，VASP 弛豫和 VASP 力，HiPhive，RTA
 - `examples/7-film-nep-rta.yaml`：film，NEP 力，有限位移，RTA
 - `examples/8-film-nep-hiphive-rta.yaml`：film，NEP 力，HiPhive，RTA
+- `examples/9-bulk-nep-lbte-slurm.yaml`：通过 Slurm 作业数组并行计算 bulk LBTE
 - `examples/compare.yaml`：DFT 和 NEP 结果对比绘图
 
 正式运行前建议先检查配置：
@@ -444,6 +479,7 @@ force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]
   use_hiphive: false
+  compact-fc: true
 
 kappa:
   mesh: [21, 21, 21]
@@ -486,13 +522,15 @@ VASP 计算使用 `calculator.name: vasp`，并设置 `vasp_command` 或
 - `force-constant.dim-fc2`：二阶力常数 FC2 的声子超胞尺寸
 - `force-constant.dim-fc3`：三阶力常数 FC3 的超胞尺寸
 - `force-constant.use_hiphive`：`false` 为有限位移，`true` 为 HiPhive
+- `force-constant.compact-fc`：默认写出 phono3py v4 的紧凑 FC2/FC3 数组；设为 `false` 时写出完整超胞数组
 - `kappa.method`：`rta` 或 `lbte`
 - `kappa.isotope`：是否包含同位素散射，`true` 或 `false`
 - `kappa.bfmp`：边界平均自由程，单位 micrometer；phono3py CLI 默认值为 `1.0e6`
 - `kappa.wigner`：通过 `phono3py-wte` 使用 `--tt wte`
+- `kappa.parallel`：用于分布式 LBTE 计算的可选 Slurm 设置
 - `plot.layout`：`separate`、`combined` 或 `both`
 - `plot.path`：高对称路径来源，`seekpath` 或 `custom`
-- `plot.tau`：弛豫时间通道，`total`、`normal`、`umklapp` 或 `all`
+- `plot.tau`：弛豫时间通道；`nu` 同时绘制 N 和 U，可选 `total`、`normal`、`umklapp`、`nu` 或 `all`
 - `plot.kappa`：热导率方向，`x`、`y`、`z` 或 `all`
 - `plot.temperature`：弛豫时间图使用的目标温度
 - `plot.dpi`：输出图片分辨率
@@ -524,6 +562,33 @@ plot:
 
 相邻两段如果不连续，会在横坐标断点处合并显示，例如 `[X, U]`
 后接 `[K, G]` 会显示为 `U|K`。
+
+### 使用 Slurm 并行计算 LBTE
+
+设置 `kappa.method: lbte`，并增加 `parallel`：
+
+```yaml
+kappa:
+  mesh: [21, 21, 21]
+  temps: [300]
+  method: lbte
+  parallel:
+    backend: slurm
+    jobs: 32
+```
+
+命令保持不变：
+
+```bash
+nepkappa kappa examples/9-bulk-nep-lbte-slurm.yaml
+```
+
+程序会读取不可约网格点、生成共享声子数据作业、拆分 ph-ph interaction
+Slurm 作业数组，并通过 `afterok` 依赖提交最终汇总作业。脚本、网格点列表、
+日志和作业编号保存在 `output.result_dir/lbte-slurm`。使用 `submit: false`
+可以只生成文件而不调用 `sbatch`。所有计算节点必须能够访问同一个结果目录。
+未显式设置时间、内存、CPU、分区和账户时，程序使用 Slurm 集群默认值。
+网格点作业数组默认包含 32 个任务，只在需要时设置 `jobs` 覆盖它。
 
 ### 绘图功能
 

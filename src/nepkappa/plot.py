@@ -675,6 +675,16 @@ def tau_channels(tau_mode, gamma_data):
     """Return relaxation-time channels requested by YAML."""
     if tau_mode == "all":
         return [name for name in ("total", "normal", "umklapp") if name in gamma_data]
+    if tau_mode == "nu":
+        missing = [name for name in ("normal", "umklapp") if name not in gamma_data]
+        if missing:
+            datasets = ", ".join(
+                "gamma_N" if name == "normal" else "gamma_U" for name in missing
+            )
+            raise ValueError(
+                f"Relaxation-time mode 'nu' requires {datasets} in kappa HDF5."
+            )
+        return ["normal", "umklapp"]
     if tau_mode not in gamma_data:
         raise ValueError(
             f"Relaxation-time channel '{tau_mode}' is not available in kappa HDF5."

@@ -1,0 +1,40 @@
+# Bulk Si LBTE example distributed over irreducible q-points with Slurm.
+structure:
+  poscar: examples/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep_model: potentials/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: true
+
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  use_hiphive: false
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [300]
+  method: lbte
+  isotope: false
+  bfmp: 1.0e6
+  wigner: false
+  parallel:
+    backend: slurm
+    jobs: 32
+    # Optional cluster-specific overrides:
+    # max-concurrent: 16
+    # partition: compute
+    # time: "24:00:00"
+    # memory: 16G
+    # cpus-per-task: 4
+    # preamble:
+    #   - source ~/.bashrc
+    #   - conda activate nepkappa
+
+output:
+  progress: true
+  result_dir: results/9-bulk-nep-lbte-slurm

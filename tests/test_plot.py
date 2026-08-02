@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -10,6 +11,7 @@ from nepkappa.plot import (
     ANGSTROM3_TO_M3,
     EV_TO_J,
     effective_geometry_correction,
+    tau_channels,
     volume_heat_capacity,
 )
 
@@ -52,3 +54,14 @@ def test_nanowire_effective_geometry_correction_uses_effective_area():
 
     assert correction["dimensionality"] == 1
     assert np.isclose(correction["factor"], 1.5)
+
+
+def test_tau_channels_nu_selects_normal_and_umklapp_only():
+    gamma_data = {"total": object(), "normal": object(), "umklapp": object()}
+
+    assert tau_channels("nu", gamma_data) == ["normal", "umklapp"]
+
+
+def test_tau_channels_nu_requires_both_channels():
+    with pytest.raises(ValueError, match="gamma_U"):
+        tau_channels("nu", {"total": object(), "normal": object()})

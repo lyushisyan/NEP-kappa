@@ -27,6 +27,15 @@ For long VASP or large ``phono3py`` calculations, use a scheduler such as Slurm
 when available. For workstation testing, run inside ``tmux`` so the calculation
 continues after disconnecting.
 
+Slurm LBTE submission
+---------------------
+
+If ``sbatch`` is unavailable, set ``kappa.parallel.submit: false`` to generate
+the scripts without submitting them. The configured ``output.result_dir`` must
+be on a filesystem shared by the login and compute nodes. Job IDs and generated
+script paths are recorded in ``output.result_dir/lbte-slurm/submission.yaml``;
+Slurm stdout and stderr files are written under ``lbte-slurm/logs``.
+
 Questions
 ---------
 
