@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command in {"run", "relax", "fc", "kappa", "plot"}:
+    if args.command in {"run", "relax", "fc", "fc2", "fc2fc3", "kappa", "plot"}:
         return run_command(args.command, args.config)
     if args.command == "compare":
         return compare_command(args.config)
@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run_parser = subparsers.add_parser(
-        "run", help="Run relax, fc, and kappa in sequence."
+        "run", help="Run relax, fc2fc3, and kappa in sequence."
     )
     run_parser.add_argument("config", help="YAML input file")
 
@@ -94,8 +94,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     relax_parser.add_argument("config", help="YAML input file")
 
+    fc2_parser = subparsers.add_parser(
+        "fc2", help="Generate fc2.hdf5 and phono3py_disp.yaml only."
+    )
+    fc2_parser.add_argument("config", help="YAML input file")
+
+    fc2fc3_parser = subparsers.add_parser(
+        "fc2fc3", help="Generate fc2.hdf5, fc3.hdf5, and phono3py_disp.yaml."
+    )
+    fc2fc3_parser.add_argument("config", help="YAML input file")
+
     fc_parser = subparsers.add_parser(
-        "fc", help="Generate fc2.hdf5, fc3.hdf5, and phono3py_disp.yaml."
+        "fc", help="Deprecated alias for fc2fc3."
     )
     fc_parser.add_argument("config", help="YAML input file")
 
@@ -125,6 +135,9 @@ def build_parser() -> argparse.ArgumentParser:
 def run_command(command, config_path) -> int:
     """Run one workflow command."""
     start_time = time.time()
+    requested_command = command
+    if command == "fc":
+        command = "fc2fc3"
     args = parse_workflow_args(config_path)
     os.makedirs(args.result_dir, exist_ok=True)
     log_path = os.path.join(args.result_dir, "run.log")
@@ -136,7 +149,9 @@ def run_command(command, config_path) -> int:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             if log_mode == "a" and os.path.getsize(log_path) > 0:
                 print("\n" + "=" * 60)
-            print(f"[main] Command: {command}")
+            print(f"[main] Command: {requested_command}")
+            if requested_command == "fc":
+                print("[main] `fc` is deprecated; use `fc2fc3` instead.")
             if config_path is not None:
                 print(f"[main] Reading arguments from {config_path}...")
             print(f"[main] Logging output to {log_path}")
@@ -151,8 +166,10 @@ def run_command(command, config_path) -> int:
                 workflow = NEPPhononWorkflow(args)
                 if command == "relax":
                     workflow.run_relax()
-                elif command == "fc":
-                    workflow.run_force_constants()
+                elif command == "fc2":
+                    workflow.run_force_constants(include_fc3=False)
+                elif command == "fc2fc3":
+                    workflow.run_force_constants(include_fc3=True)
                 elif command == "kappa":
                     workflow.run_kappa()
                 elif command == "plot":

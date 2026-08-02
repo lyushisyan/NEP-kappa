@@ -43,9 +43,12 @@ The same workflow can be split into stages:
 .. code-block:: bash
 
    nepkappa relax examples/1-bulk-nep-rta.yaml
-   nepkappa fc examples/1-bulk-nep-rta.yaml
+   nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
    nepkappa kappa examples/1-bulk-nep-rta.yaml
    nepkappa plot examples/1-bulk-nep-rta.yaml
+
+Use ``nepkappa fc2`` instead of ``fc2fc3`` when only harmonic FC2 data is
+needed.
 
 If ``relaxation.enabled`` is ``false``, the ``relax`` stage copies the input
 structure to ``POSCAR_relaxed``.

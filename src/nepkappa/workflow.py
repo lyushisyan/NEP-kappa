@@ -607,7 +607,7 @@ class NEPPhononWorkflow:
             print(f"  - Reading input structure from {self.cfg.poscar}")
             self.prim = read(self.cfg.poscar)
 
-    def run_hiphive_fitting(self):
+    def run_hiphive_fitting(self, include_fc3=True):
         """Step 1 (Path A): Fit Force Constants using HiPhive (Compressive Sensing)."""
         print("\n[Step 2 - HiPhive] Generating Training Data & Fitting")
         cfg = self.cfg
@@ -615,7 +615,7 @@ class NEPPhononWorkflow:
         self._save_phono3py_metadata()
 
         # 1. Create supercell
-        nx, ny, nz = cfg.dim_fc3
+        nx, ny, nz = cfg.dim_fc3 if include_fc3 else cfg.dim_fc2
         atoms_ideal = self.prim.repeat((nx, ny, nz))
         
         # 2. Generate rattled structures
@@ -646,8 +646,9 @@ class NEPPhononWorkflow:
                 print(f"    Processed {i+1}/{len(structures)}")
 
         # 4. Train HiPhive Potential
-        print(f"  - Fitting Force Constants (Cutoffs: {cfg.cutoffs})")
-        cs = ClusterSpace(self.prim, cfg.cutoffs)
+        cutoffs = cfg.cutoffs if include_fc3 else cfg.cutoffs[:1]
+        print(f"  - Fitting Force Constants (Cutoffs: {cutoffs})")
+        cs = ClusterSpace(self.prim, cutoffs)
         sc = StructureContainer(cs)
         for s in prepare_structures(structures, atoms_ideal):
             sc.add_structure(s)
@@ -662,22 +663,26 @@ class NEPPhononWorkflow:
         fcp.write(str(self.hiphive_model_path))
         print(f"  - HiPhive model saved to {self.hiphive_model_path}")
 
-        # 6. Export to Phono3py FC2 and FC3
-        print("  - Exporting FC2 and FC3 from HiPhive model")
+        # 6. Export to Phono3py FC2 and optionally FC3
+        export_label = "FC2 and FC3" if include_fc3 else "FC2"
+        print(f"  - Exporting {export_label} from HiPhive model")
         phonopy_fc2 = Phonopy(
             ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc2)
         )
-        phonopy_fc3 = Phonopy(
-            ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc3)
-        )
         fcs_fc2 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc2.supercell))
-        fcs_fc3 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc3.supercell))
-
         fcs_fc2.write_to_phonopy(str(self.fc2_path))
-        fcs_fc3.write_to_phono3py(str(self.fc3_path))
-        print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
 
-    def run_finite_disp_fitting(self):
+        if include_fc3:
+            phonopy_fc3 = Phonopy(
+                ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc3)
+            )
+            fcs_fc3 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc3.supercell))
+            fcs_fc3.write_to_phono3py(str(self.fc3_path))
+            print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
+        else:
+            print(f"  - Generated: {self.fc2_path}")
+
+    def run_finite_disp_fitting(self, include_fc3=True):
         """Step 1 (Path B): Standard Finite Displacement Method using Phono3py."""
         print("\n[Step 2 - FiniteDisp] Phono3py Finite Displacement Method")
         cfg = self.cfg
@@ -685,13 +690,12 @@ class NEPPhononWorkflow:
         # 1. Initialize Phono3py
         ph3 = self._make_phono3py()
         
-        # 2. Generate displacements
-        ph3.generate_displacements()
+        # 2. Generate FC2 displacements first.
+        ph3.generate_fc2_displacements()
         ph3.save(str(self.disp_path))
         
-        fc3_scs = ph3.supercells_with_displacements
         fc2_scs = ph3.phonon_supercells_with_displacements
-        print(f"  - Generated {len(fc3_scs)} FC3 supercells and {len(fc2_scs)} FC2 supercells")
+        print(f"  - Generated {len(fc2_scs)} FC2 supercells")
 
         # 3. Compute forces for FC2
         print("  - Computing forces for FC2...")
@@ -707,23 +711,9 @@ class NEPPhononWorkflow:
             forces_fc2.append(self._calculate_forces(atoms, "fc2", i + 1))
         ph3.phonon_forces = np.array(forces_fc2)
 
-        # 4. Compute forces for FC3
-        print("  - Computing forces for FC3...")
-        forces_fc3 = []
-        for i, sc in enumerate(progress_iter(
-            fc3_scs,
-            enabled=self.show_progress,
-            total=len(fc3_scs),
-            desc=self._force_desc("FC3"),
-            unit="structure"
-        )):
-            atoms = phonopy_to_ase(sc)
-            forces_fc3.append(self._calculate_forces(atoms, "fc3", i + 1))
-        ph3.forces = np.array(forces_fc3)
-
-        # 5. Produce and save FCs
+        # 4. Produce and save FC2 before starting FC3.
         print("  - Producing force constants with phono3py finite differences")
-        print("  - Producing FC2 and FC3...")
+        print("  - Producing FC2...")
         compact_fc = getattr(cfg, "compact_fc", True)
         layout = "compact" if compact_fc else "full"
         print(f"  - Force-constant layout: {layout}")
@@ -740,22 +730,47 @@ class NEPPhononWorkflow:
             filename=str(self.fc2_path),
             p2s_map=fc2_p2s_map,
         )
-        run_activity_task(
-            "Producing FC3",
-            lambda: ph3.produce_fc3(is_compact_fc=compact_fc),
-            enabled=self.show_progress,
-        )
-        print("  - Symmetrizing FC3...")
-        ph3.symmetrize_fc3()
-        fc3_p2s_map = ph3.primitive.p2s_map if compact_fc else None
-        fc3_nonzero_indices = ph3.fc3_nonzero_indices if compact_fc else None
-        write_fc3_to_hdf5(
-            ph3.fc3,
-            fc3_nonzero_indices=fc3_nonzero_indices,
-            filename=str(self.fc3_path),
-            p2s_map=fc3_p2s_map,
-        )
-        print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
+        print(f"  - Generated: {self.fc2_path}")
+        if include_fc3:
+            # 5. Generate FC3 displacements only after FC2 has been written.
+            ph3.generate_displacements()
+            ph3.save(str(self.disp_path))
+
+            fc3_scs = ph3.supercells_with_displacements
+            print(f"  - Generated {len(fc3_scs)} FC3 supercells")
+
+            # 6. Compute forces for FC3.
+            print("  - Computing forces for FC3...")
+            forces_fc3 = []
+            for i, sc in enumerate(progress_iter(
+                fc3_scs,
+                enabled=self.show_progress,
+                total=len(fc3_scs),
+                desc=self._force_desc("FC3"),
+                unit="structure"
+            )):
+                atoms = phonopy_to_ase(sc)
+                forces_fc3.append(self._calculate_forces(atoms, "fc3", i + 1))
+            ph3.forces = np.array(forces_fc3)
+
+            # 7. Produce and save FC3.
+            print("  - Producing FC3...")
+            run_activity_task(
+                "Producing FC3",
+                lambda: ph3.produce_fc3(is_compact_fc=compact_fc),
+                enabled=self.show_progress,
+            )
+            print("  - Symmetrizing FC3...")
+            ph3.symmetrize_fc3()
+            fc3_p2s_map = ph3.primitive.p2s_map if compact_fc else None
+            fc3_nonzero_indices = ph3.fc3_nonzero_indices if compact_fc else None
+            write_fc3_to_hdf5(
+                ph3.fc3,
+                fc3_nonzero_indices=fc3_nonzero_indices,
+                filename=str(self.fc3_path),
+                p2s_map=fc3_p2s_map,
+            )
+            print(f"  - Generated: {self.fc3_path}")
         
 
     def compute_kappa(self):
@@ -773,7 +788,7 @@ class NEPPhononWorkflow:
             missing = ", ".join(str(path) for path in missing_fc)
             raise FileNotFoundError(
                 f"Missing required phono3py file(s): {missing}. "
-                f"Run `nepkappa fc` first or place fc2.hdf5, fc3.hdf5, "
+                f"Run `nepkappa fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
                 f"and {self.disp_path.name} in {self.output_dir}."
             )
         
@@ -835,15 +850,21 @@ class NEPPhononWorkflow:
             print(f"\n[Error] Phono3py failed with return code {ret}")
             raise RuntimeError(f"Phono3py failed with return code {ret}")
 
-    def generate_force_constants(self):
-        """Generate FC2 and FC3 files."""
+    def generate_force_constants(self, include_fc3=True):
+        """Generate FC2 only or both FC2 and FC3 files."""
         print("\n[Step 2] Generate Force Constants")
         self.load_force_constant_structure()
 
         if self.cfg.use_hiphive:
-            self._run_timed_stage("HiPhive fitting", self.run_hiphive_fitting)
+            self._run_timed_stage(
+                "HiPhive fitting",
+                lambda: self.run_hiphive_fitting(include_fc3=include_fc3),
+            )
         else:
-            self._run_timed_stage("Finite displacement", self.run_finite_disp_fitting)
+            self._run_timed_stage(
+                "Finite displacement",
+                lambda: self.run_finite_disp_fitting(include_fc3=include_fc3),
+            )
 
     def calculate_kappa(self):
         """Compute thermal conductivity from existing force constants."""
@@ -854,9 +875,9 @@ class NEPPhononWorkflow:
         self._run_timed_stage("Relax structure", self.relax_structure_stage)
         self._print_timing_summary()
 
-    def run_force_constants(self):
+    def run_force_constants(self, include_fc3=True):
         """Execute only the force-constant generation stage."""
-        self.generate_force_constants()
+        self.generate_force_constants(include_fc3=include_fc3)
         self._print_timing_summary()
 
     def run_kappa(self):

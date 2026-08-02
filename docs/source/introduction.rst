@@ -14,11 +14,12 @@ used in production runs:
 The commands are:
 
 - ``nepkappa relax input.yaml`` relaxes the structure
-- ``nepkappa fc input.yaml`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``
+- ``nepkappa fc2 input.yaml`` generates ``fc2.hdf5`` and ``phono3py_disp.yaml`` only
+- ``nepkappa fc2fc3 input.yaml`` generates ``fc2.hdf5``, ``fc3.hdf5``, and ``phono3py_disp.yaml``
 - ``nepkappa kappa input.yaml`` computes thermal conductivity from existing force constants
 - ``nepkappa plot input.yaml`` plots phonon and thermal-transport results
 - ``nepkappa compare compare.yaml`` overlays DFT and NEP results in comparison figures
-- ``nepkappa run input.yaml`` runs ``relax``, ``fc``, and ``kappa`` in sequence
+- ``nepkappa run input.yaml`` runs ``relax``, ``fc2fc3``, and ``kappa`` in sequence
 - ``nepkappa info input.yaml`` prints the parsed configuration without running
 
 Calculator backends

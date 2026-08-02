@@ -4,7 +4,15 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from nepkappa.cli import Tee, main
+from nepkappa.cli import Tee, build_parser, main
+
+
+def test_force_constant_commands_parse():
+    parser = build_parser()
+
+    assert parser.parse_args(["fc2", "input.yaml"]).command == "fc2"
+    assert parser.parse_args(["fc2fc3", "input.yaml"]).command == "fc2fc3"
+    assert parser.parse_args(["fc", "input.yaml"]).command == "fc"
 
 
 def test_info_command(capsys):

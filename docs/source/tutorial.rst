@@ -122,14 +122,15 @@ Alternatively, execute each calculation stage separately:
 .. code-block:: bash
 
    nepkappa relax input.yaml
-   nepkappa fc input.yaml
+   nepkappa fc2fc3 input.yaml
    nepkappa kappa input.yaml
    nepkappa plot input.yaml
 
-When ``relaxation.enabled`` is ``true``, a separately executed ``fc`` command
-expects ``POSCAR_relaxed`` in ``output.result_dir``. Run ``nepkappa relax``
-first, or use ``nepkappa run``. When relaxation is disabled, the force-constant
-stage reads ``structure.poscar`` directly.
+Use ``nepkappa fc2`` instead of ``fc2fc3`` when only harmonic FC2 data is
+needed. When ``relaxation.enabled`` is ``true``, separately executed ``fc2`` and
+``fc2fc3`` commands expect ``POSCAR_relaxed`` in ``output.result_dir``. Run
+``nepkappa relax`` first, or use ``nepkappa run``. When relaxation is disabled,
+the force-constant stage reads ``structure.poscar`` directly.
 
 The ``kappa`` stage requires ``phono3py_disp.yaml``, ``fc2.hdf5``, and
 ``fc3.hdf5`` in the result directory. This makes it possible to rerun only the
@@ -155,8 +156,8 @@ volume heat capacity, group velocity, relaxation time, and thermal conductivity
 figures, plus ``combined.png`` with all six panels.
 
 ``nepkappa run`` starts a new ``run.log``. Separately executed ``relax``,
-``fc``, ``kappa``, and ``plot`` commands append their output to the existing
-log, so the complete calculation history remains in one file.
+``fc2``, ``fc2fc3``, ``kappa``, and ``plot`` commands append their output to
+the existing log, so the complete calculation history remains in one file.
 
 For details on datasets in ``kappa-m*.hdf5``, see the
 `phono3py HDF5 documentation <https://phonopy.github.io/phono3py/hdf5_howto.html>`_.
@@ -179,8 +180,8 @@ Set ``use_hiphive: true`` and provide the training and cutoff settings:
 
 NEP-kappa generates rattled structures, calculates their forces with the
 selected calculator, fits a HiPhive force-constant potential, enforces the
-rotational sum rules, and exports ``fc2.hdf5`` and ``fc3.hdf5``. The fitted
-model is saved as ``hiphive_model.fcp``. See
+rotational sum rules, and exports ``fc2.hdf5`` and, in ``fc2fc3`` mode,
+``fc3.hdf5``. The fitted model is saved as ``hiphive_model.fcp``. See
 ``examples/2-bulk-nep-hiphive-rta.yaml`` for a complete input.
 
 Using VASP
@@ -271,7 +272,7 @@ For a large LBTE calculation on a Slurm cluster, add a ``parallel`` mapping:
        jobs: 32
        submit: false
 
-Run ``nepkappa fc`` first, then generate the Slurm workflow:
+Run ``nepkappa fc2fc3`` first, then generate the Slurm workflow:
 
 .. code-block:: bash
 

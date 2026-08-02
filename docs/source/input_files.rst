@@ -21,7 +21,8 @@ Command behavior
 .. code-block:: bash
 
    nepkappa relax input.yaml
-   nepkappa fc input.yaml
+   nepkappa fc2 input.yaml
+   nepkappa fc2fc3 input.yaml
    nepkappa kappa input.yaml
    nepkappa plot input.yaml
    nepkappa compare compare.yaml
@@ -29,14 +30,19 @@ Command behavior
    nepkappa info input.yaml
 
 - ``nepkappa relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
-- ``nepkappa fc`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa fc2`` generates ``phono3py_disp.yaml`` and ``fc2.hdf5`` only.
+- ``nepkappa fc2fc3`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa plot`` creates standard plots from ``fc2.hdf5`` and ``kappa-m*.hdf5``.
 - ``nepkappa compare`` overlays DFT and NEP result directories in the same standard figures.
-- ``nepkappa run`` executes ``relax``, ``fc``, and ``kappa`` in sequence.
+- ``nepkappa run`` executes ``relax``, ``fc2fc3``, and ``kappa`` in sequence.
 - ``nepkappa info`` prints the parsed configuration without running a calculation.
 
-When ``relaxation.enabled`` is ``true``, ``nepkappa fc`` reads
+``nepkappa fc2fc3`` computes and writes FC2 first, then starts the FC3
+displacement, force, and export stage.
+
+When ``relaxation.enabled`` is ``true``, ``nepkappa fc2`` and
+``nepkappa fc2fc3`` read
 ``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa relax`` first, or
 use ``nepkappa run``.
 

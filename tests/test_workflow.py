@@ -21,29 +21,42 @@ class FakePhono3pyForFC:
         self.fc3_nonzero_indices = None
         self.produce_fc2_compact = None
         self.produce_fc3_compact = None
+        self.generated_fc2_only = False
+        self.generated_fc2fc3 = False
+        self.events = []
         self.fc2 = None
         self.fc3 = None
 
     def generate_displacements(self):
-        pass
+        self.events.append("generate_fc3_displacements")
+        self.generated_fc2fc3 = True
+
+    def generate_fc2_displacements(self):
+        self.events.append("generate_fc2_displacements")
+        self.generated_fc2_only = True
 
     def save(self, filename):
+        self.events.append("save")
         Path(filename).write_text("disp", encoding="utf-8")
 
     def produce_fc2(self, is_compact_fc=True):
+        self.events.append("produce_fc2")
         self.produce_fc2_compact = is_compact_fc
         first_dim = 1 if is_compact_fc else 2
         self.fc2 = np.zeros((first_dim, 2, 3, 3), dtype="double")
 
     def symmetrize_fc2(self):
+        self.events.append("symmetrize_fc2")
         pass
 
     def produce_fc3(self, is_compact_fc=True):
+        self.events.append("produce_fc3")
         self.produce_fc3_compact = is_compact_fc
         first_dim = 1 if is_compact_fc else 2
         self.fc3 = np.zeros((first_dim, 2, 2, 3, 3, 3), dtype="double")
 
     def symmetrize_fc3(self):
+        self.events.append("symmetrize_fc3")
         pass
 
 
@@ -80,6 +93,16 @@ def test_finite_displacement_defaults_to_compact_fc(tmp_path):
 
     workflow.run_finite_disp_fitting()
 
+    assert ph3.events == [
+        "generate_fc2_displacements",
+        "save",
+        "produce_fc2",
+        "symmetrize_fc2",
+        "generate_fc3_displacements",
+        "save",
+        "produce_fc3",
+        "symmetrize_fc3",
+    ]
     assert ph3.produce_fc2_compact is True
     assert ph3.produce_fc3_compact is True
     with h5py.File(workflow.fc2_path, "r") as handle:
@@ -110,6 +133,26 @@ def test_finite_displacement_can_write_full_fc(tmp_path):
     with h5py.File(workflow.fc3_path, "r") as handle:
         assert handle["fc3"].shape == (2, 2, 2, 3, 3, 3)
         assert "p2s_map" not in handle
+
+
+def test_finite_displacement_fc2_only_skips_fc3(tmp_path):
+    cfg = SimpleNamespace(
+        result_dir=str(tmp_path),
+        progress=False,
+        compact_fc=True,
+    )
+    workflow = NEPPhononWorkflow(cfg)
+    ph3 = FakePhono3pyForFC()
+    workflow._make_phono3py = lambda: ph3
+
+    workflow.run_finite_disp_fitting(include_fc3=False)
+
+    assert ph3.generated_fc2_only is True
+    assert ph3.generated_fc2fc3 is False
+    assert ph3.produce_fc2_compact is True
+    assert ph3.produce_fc3_compact is None
+    assert workflow.fc2_path.exists()
+    assert not workflow.fc3_path.exists()
 
 
 def test_compute_kappa_generates_slurm_lbte_pipeline(tmp_path):

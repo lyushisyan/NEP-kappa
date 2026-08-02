@@ -10,7 +10,7 @@ NEP-kappa is an installable workflow package for lattice thermal conductivity
 calculations. It can:
 
 1. Relax an input structure.
-2. Generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`.
+2. Generate `fc2.hdf5` alone, or both `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`.
 3. Compute thermal conductivity with `phono3py`.
 4. Plot phonon and thermal-transport results from existing HDF5 outputs.
 
@@ -18,7 +18,8 @@ Available commands:
 
 ```bash
 nepkappa relax input.yaml
-nepkappa fc input.yaml
+nepkappa fc2 input.yaml
+nepkappa fc2fc3 input.yaml
 nepkappa kappa input.yaml
 nepkappa plot input.yaml
 nepkappa compare compare.yaml
@@ -27,11 +28,12 @@ nepkappa info input.yaml
 ```
 
 - `nepkappa relax`: relax the input structure
-- `nepkappa fc`: generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`
+- `nepkappa fc2`: generate `fc2.hdf5` and `phono3py_disp.yaml` only
+- `nepkappa fc2fc3`: generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`
 - `nepkappa kappa`: compute thermal conductivity from existing force constants
 - `nepkappa plot`: plot dispersion, DOS, volume heat capacity, group velocity, relaxation time, and thermal conductivity
 - `nepkappa compare`: compare DFT and NEP phonon/thermal-transport results
-- `nepkappa run`: run `relax`, `fc`, and `kappa` in sequence
+- `nepkappa run`: run `relax`, `fc2fc3`, and `kappa` in sequence
 - `nepkappa info`: print the parsed configuration without running
 
 ### Publication
@@ -116,12 +118,15 @@ Or run the stages separately:
 
 ```bash
 nepkappa relax examples/1-bulk-nep-rta.yaml
-nepkappa fc examples/1-bulk-nep-rta.yaml
+nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
 nepkappa kappa examples/1-bulk-nep-rta.yaml
 nepkappa plot examples/1-bulk-nep-rta.yaml
 ```
 
-When `relaxation.enabled: true`, `nepkappa fc` expects
+Use `nepkappa fc2` instead of `fc2fc3` when only harmonic FC2 data is needed.
+`nepkappa fc2fc3` also computes and writes FC2 first, then starts the FC3
+displacement and FC3 export stage.
+When `relaxation.enabled: true`, `nepkappa fc2` and `nepkappa fc2fc3` expect
 `POSCAR_relaxed` to already exist in `result_dir`. Use `nepkappa relax` first,
 or use `nepkappa run`.
 
@@ -346,7 +351,7 @@ For questions, please email sxliu98@gmail.com or yinfei0426@outlook.com.
 NEP-kappa 是一个可安装的软件包，用于晶格热导率计算。它可以：
 
 1. 弛豫输入结构。
-2. 生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`。
+2. 只生成 `fc2.hdf5`，或同时生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`。
 3. 调用 `phono3py` 计算热导率。
 4. 基于已有 HDF5 结果绘制声子和热输运图像。
 
@@ -354,7 +359,8 @@ NEP-kappa 是一个可安装的软件包，用于晶格热导率计算。它可�
 
 ```bash
 nepkappa relax input.yaml
-nepkappa fc input.yaml
+nepkappa fc2 input.yaml
+nepkappa fc2fc3 input.yaml
 nepkappa kappa input.yaml
 nepkappa plot input.yaml
 nepkappa compare compare.yaml
@@ -363,11 +369,12 @@ nepkappa info input.yaml
 ```
 
 - `nepkappa relax`：弛豫输入结构
-- `nepkappa fc`：生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`
+- `nepkappa fc2`：只生成 `fc2.hdf5` 和 `phono3py_disp.yaml`
+- `nepkappa fc2fc3`：生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`
 - `nepkappa kappa`：使用已有力常数计算热导率
 - `nepkappa plot`：绘制色散关系、态密度、体积热容、群速度、弛豫时间和热导率
 - `nepkappa compare`：对比 DFT 和 NEP 的声子及热输运结果
-- `nepkappa run`：连续执行 `relax`、`fc` 和 `kappa`
+- `nepkappa run`：连续执行 `relax`、`fc2fc3` 和 `kappa`
 - `nepkappa info`：只打印解析后的配置，不运行计算
 
 ### 论文引用
@@ -450,12 +457,15 @@ nepkappa run examples/1-bulk-nep-rta.yaml
 
 ```bash
 nepkappa relax examples/1-bulk-nep-rta.yaml
-nepkappa fc examples/1-bulk-nep-rta.yaml
+nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
 nepkappa kappa examples/1-bulk-nep-rta.yaml
 nepkappa plot examples/1-bulk-nep-rta.yaml
 ```
 
-当 `relaxation.enabled: true` 时，单独运行 `nepkappa fc` 会要求
+如果只需要谐性 FC2 数据，可以运行 `nepkappa fc2`，不计算 FC3。
+`nepkappa fc2fc3` 也会先计算并写出 FC2，然后再进入 FC3 位移和导出阶段。
+当 `relaxation.enabled: true` 时，单独运行 `nepkappa fc2` 或
+`nepkappa fc2fc3` 会要求
 `result_dir` 中已经存在 `POSCAR_relaxed`。这种情况下请先运行
 `nepkappa relax`，或者直接使用 `nepkappa run`。
 
