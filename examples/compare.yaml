@@ -1,19 +1,21 @@
-# Compare DFT and NEP results.
-reference:
-  dft_dir: results/dft
-  label: DFT
-
-candidate:
-  nep_dir: results/nep
-  label: NEP
+# Compare DFT with any number of machine-learning potentials.
+datasets:
+  - label: DFT
+    directory: calculations/example-runs/dft
+  - label: NEP-1
+    directory: calculations/example-runs/nep-1
+  - label: NEP-2
+    directory: calculations/example-runs/nep-2
+  - label: MACE
+    directory: calculations/example-runs/mace
 
 compare:
-  compare_dir: comparison
+  compare-dir: calculations/example-runs/comparison/multiple-models
 
 plot:
   layout: both
   path: seekpath
-  tau: total
+  tau: all
   temperature: 300
   kappa: all
   dpi: 300

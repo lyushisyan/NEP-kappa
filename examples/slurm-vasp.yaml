@@ -1,0 +1,71 @@
+# Distribute VASP forces with Slurm. Configure paths and site resources first.
+workflow:
+  preset: three-phonon
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: vasp
+  vasp_command: srun /path/to/vasp_std
+  vasp_path: /path/to/vasp_std
+  potcar_path: /path/to/potpaw_PBE
+
+relaxation:
+  enabled: false
+
+force-constant:
+  workdir: vasp-runs
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  fc3-backend: phono3py
+  compact-fc: true
+  format: phono3py
+  use_hiphive: false
+  vasp_kwargs:
+    encut: 600
+    ediff: 1.0e-8
+    nelm: 150
+    algo: Normal
+    ismear: 0
+    sigma: 0.05
+    kspacing: 0.20
+    kgamma: true
+    isym: 0
+    ncore: 4
+    lasph: true
+    lreal: false
+    addgrid: true
+    lwave: false
+    lcharg: false
+  parallel:
+    backend: slurm
+    jobs: 16
+    max-concurrent: 4
+    # partition: your-partition
+    nodes: 1
+    ntasks: 16
+    cpus-per-task: 1
+    time: "7-00:00:00"
+    memory: 96G
+    collect-time: "12:00:00"
+    collect-memory: 64G
+    collect-cpus-per-task: 8
+    job-name: nepkappa-fc
+    # Add your cluster's module/environment setup, visible to every compute node.
+    # preamble:
+    #   - module load your-vasp-module
+    # Safe default: inspect generated scripts, then change this to true.
+    submit: false
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: true
+  bfmp: 1.0e6
+
+output:
+  progress: true
+  result-dir: calculations/example-runs/slurm-vasp

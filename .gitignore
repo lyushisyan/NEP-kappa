@@ -26,9 +26,22 @@ env/
 # Sphinx / Read the Docs build
 # ------------------------------
 docs/build/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # ------------------------------
-# Generated examples and local scripts
+# Generated calculation outputs and local scripts
 # ------------------------------
-results/
-*.sh
+# Keep the directory guide public; research runs stay local.
+/calculations/*
+!/calculations/README.md
+/PAPER_ARCHIVE.md
+/RELEASE_2_0.md
+
+# Local verification suite and reference data
+/tests/
+/benchmarks/

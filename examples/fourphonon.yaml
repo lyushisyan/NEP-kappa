@@ -1,0 +1,62 @@
+# 3ph+4ph thermal conductivity with the FourPhonon ShengBTE extension.
+# First generate ShengBTE-format FC2, FC3 and FC4 in the same result directory.
+workflow:
+  preset: four-phonon
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep-model: potentials/Si/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  dim-fc4: [3, 3, 3]
+  format: both
+
+kappa:
+  mesh: [12, 12, 12]
+  temps: [300, 1000, 100]
+
+fourphonon:
+  command: ShengBTE_cpu
+  workdir: fourphonon
+  harmonic-format: shengbte
+  # rta, 3ph-iterative, or full-iterative
+  solver: rta
+  scalebroad: 1.0
+  isotopes: true
+  nonanalytic: false
+  # Sampling is strongly recommended for initial convergence studies.
+  sample-3ph: -1
+  sample-3ph-phase-space: -1
+  sample-4ph: 100000
+  sample-4ph-phase-space: 100000
+  mpi-launcher: [mpirun, -np, "{nproc}"]
+  mpi-processes: 4
+  omp-threads: 4
+  omp-stacksize: 1G
+  parallel:
+    backend: slurm
+    # partition: your-partition
+    nodes: 1
+    ntasks: 4
+    cpus-per-task: 4
+    time: "3-00:00:00"
+    memory: 96G
+    job-name: nepkappa-kappa4
+    # Set the MPI and Python environment required by your cluster.
+    # preamble:
+    #   - module load your-mpi-module
+    # Inspect CONTROL and run.sh before changing this to true.
+    submit: false
+
+output:
+  progress: true
+  result-dir: calculations/example-runs/fourphonon

@@ -34,9 +34,25 @@ DEFAULT_FIGURES = [
     "heat_capacity",
     "group_velocity",
     "relaxation_time",
+    "scattering_rate",
     "kappa",
 ]
 AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
+COMPARE_COLORS = [
+    "black",
+    "tab:blue",
+    "tab:orange",
+    "tab:green",
+    "tab:red",
+    "tab:purple",
+    "tab:brown",
+    "tab:pink",
+    "tab:gray",
+    "tab:olive",
+    "tab:cyan",
+]
+COMPARE_LINESTYLES = ["-", "--", "-.", ":"]
+COMPARE_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "<", ">", "*"]
 
 
 def plot_results(config):
@@ -55,7 +71,6 @@ def plot_results(config):
             + ", ".join(str(path) for path in missing)
         )
 
-    figures = DEFAULT_FIGURES
     layout = getattr(config, "plot_layout", "separate")
     dpi = int(getattr(config, "plot_dpi", 300))
 
@@ -65,11 +80,11 @@ def plot_results(config):
     print(f"  - Reading {kappa_path}")
     print(f"  - Plot layout: {layout}")
     print(f"  - Band path: {getattr(config, 'plot_path', 'seekpath')}")
-    print(f"  - Plot figures: {', '.join(figures)}")
-
     phono3py_yaml = load_phono3py_yaml(disp_path)
     phonon = make_phonopy(phono3py_yaml, fc2_path)
     plot_data = build_plot_data(phonon, phono3py_yaml.unitcell, kappa_path, config)
+    figures = available_figures([plot_data["transport"]])
+    print(f"  - Plot figures: {', '.join(figures)}")
     correction = plot_data["transport"]["geometry_correction"]
     if correction["factor"] != 1.0:
         print(f"  - Effective geometry: {correction['description']}")
@@ -88,29 +103,32 @@ def plot_results(config):
 
 
 def compare_results(config):
-    """Create DFT-vs-NEP comparison plots."""
-    dft_dir = Path(config.dft_dir).resolve()
-    nep_dir = Path(config.nep_dir).resolve()
+    """Create two-result or multi-model comparison plots."""
+    configured_datasets = getattr(config, "datasets", None) or [
+        {"directory": config.dft_dir, "label": config.reference_label},
+        {"directory": config.nep_dir, "label": config.candidate_label},
+    ]
     compare_dir = Path(config.compare_dir).resolve()
     plot_dir = compare_dir / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    figures = DEFAULT_FIGURES
     layout = getattr(config, "plot_layout", "separate")
     dpi = int(getattr(config, "plot_dpi", 300))
 
-    print("\n[Compare] Plot DFT vs NEP Results")
-    print(f"  - Reference ({config.reference_label}): {dft_dir}")
-    print(f"  - Candidate ({config.candidate_label}): {nep_dir}")
+    print("\n[Compare] Plot Multiple Phonon/Transport Results")
+    for dataset in configured_datasets:
+        print(f"  - Dataset ({dataset['label']}): {Path(dataset['directory']).resolve()}")
     print(f"  - Compare directory: {compare_dir}")
     print(f"  - Plot layout: {layout}")
     print(f"  - Band path: {getattr(config, 'plot_path', 'seekpath')}")
-    print(f"  - Plot figures: {', '.join(figures)}")
-
     datasets = [
-        load_result_plot_data(dft_dir, config, config.reference_label),
-        load_result_plot_data(nep_dir, config, config.candidate_label),
+        load_result_plot_data(
+            Path(dataset["directory"]).resolve(), config, dataset["label"]
+        )
+        for dataset in configured_datasets
     ]
+    figures = available_figures([dataset["transport"] for dataset in datasets])
+    print(f"  - Plot figures: {', '.join(figures)}")
     for dataset in datasets:
         correction = dataset["transport"]["geometry_correction"]
         if correction["factor"] != 1.0:
@@ -341,10 +359,16 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
             transport["gamma"]["normal"] = handle["gamma_N"][:]
         if "gamma_U" in handle:
             transport["gamma"]["umklapp"] = handle["gamma_U"][:]
+        if "mode_kappa" in handle:
+            transport["mode_kappa"] = handle["mode_kappa"][:]
 
     correction = effective_geometry_correction(config, primitive_cell, primitive_volume)
     effective_volume = primitive_volume / correction["factor"]
     transport["kappa"] = transport["kappa"] * correction["factor"]
+    if "mode_kappa" in transport:
+        transport["mode_kappa"] = mode_kappa_contributions(
+            transport["mode_kappa"], transport["mesh"], correction["factor"]
+        )
     transport["volume_heat_capacity"] = volume_heat_capacity(
         transport["heat_capacity"],
         transport["weight"],
@@ -358,6 +382,25 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
     transport["tau_mode"] = getattr(config, "plot_tau", "total")
     transport["kappa_mode"] = getattr(config, "plot_kappa", "all")
     return transport
+
+
+def mode_kappa_contributions(mode_kappa, mesh, geometry_factor=1.0):
+    """Return per-mode conductivity whose sum equals the reported tensor.
+
+    phono3py stores irreducible-grid weights inside ``mode_kappa`` and applies
+    the full-mesh normalization only when forming ``kappa``.
+    """
+    return np.asarray(mode_kappa, dtype=float) / int(np.prod(mesh)) * float(
+        geometry_factor
+    )
+
+
+def available_figures(transports):
+    """Return standard figures plus analyses supported by every dataset."""
+    figures = list(DEFAULT_FIGURES)
+    if transports and all("mode_kappa" in transport for transport in transports):
+        figures.append("cumulative_kappa")
+    return figures
 
 
 def volume_heat_capacity(heat_capacity, weight, mesh, volume_angstrom3):
@@ -451,6 +494,8 @@ def write_separate_figures(figures, plot_data, plot_dir, dpi):
         "heat_capacity": (5.8, 4.6),
         "group_velocity": (5.8, 4.6),
         "relaxation_time": (5.8, 4.6),
+        "scattering_rate": (5.8, 4.6),
+        "cumulative_kappa": (5.8, 4.6),
         "kappa": (5.8, 4.6),
     }
     for name in figures:
@@ -494,6 +539,8 @@ def write_compare_separate_figures(figures, datasets, plot_dir, dpi):
         "heat_capacity": (5.8, 4.6),
         "group_velocity": (5.8, 4.6),
         "relaxation_time": (5.8, 4.6),
+        "scattering_rate": (5.8, 4.6),
+        "cumulative_kappa": (5.8, 4.6),
         "kappa": (5.8, 4.6),
     }
     for name in figures:
@@ -540,6 +587,10 @@ def draw_figure(name, ax, plot_data):
         draw_group_velocity(ax, plot_data["transport"])
     elif name == "relaxation_time":
         draw_relaxation_time(ax, plot_data["transport"])
+    elif name == "scattering_rate":
+        draw_scattering_rate(ax, plot_data["transport"])
+    elif name == "cumulative_kappa":
+        draw_cumulative_kappa(ax, plot_data["transport"])
     elif name == "kappa":
         draw_kappa(ax, plot_data["transport"])
     else:
@@ -547,7 +598,7 @@ def draw_figure(name, ax, plot_data):
 
 
 def draw_compare_figure(name, ax, datasets):
-    """Draw one named DFT-vs-NEP comparison figure."""
+    """Draw one named multi-model comparison figure."""
     if name == "dispersion":
         draw_compare_dispersion(ax, datasets)
     elif name == "dos":
@@ -558,6 +609,10 @@ def draw_compare_figure(name, ax, datasets):
         draw_compare_group_velocity(ax, datasets)
     elif name == "relaxation_time":
         draw_compare_relaxation_time(ax, datasets)
+    elif name == "scattering_rate":
+        draw_compare_scattering_rate(ax, datasets)
+    elif name == "cumulative_kappa":
+        draw_compare_cumulative_kappa(ax, datasets)
     elif name == "kappa":
         draw_compare_kappa(ax, datasets)
     else:
@@ -671,6 +726,36 @@ def draw_relaxation_time(ax, transport):
     ax.grid(color="0.9", linewidth=0.9)
 
 
+def draw_scattering_rate(ax, transport):
+    """Draw total, Normal, and/or Umklapp scattering rates in ps^-1."""
+    frequency = transport["frequency"]
+    temp_index = transport["tau_temperature_index"]
+    channels = tau_channels(transport["tau_mode"], transport["gamma"])
+    colors = {
+        "total": "tab:orange",
+        "normal": "tab:blue",
+        "umklapp": "tab:green",
+    }
+    labels = {"total": "total", "normal": "N", "umklapp": "U"}
+    for name in channels:
+        rate = 4.0 * np.pi * transport["gamma"][name][temp_index]
+        valid = np.isfinite(frequency) & np.isfinite(rate) & (frequency > 0) & (rate > 0)
+        ax.scatter(
+            frequency[valid],
+            rate[valid],
+            s=12,
+            alpha=0.35,
+            color=colors[name],
+            label=labels[name],
+        )
+    ax.set_yscale("log")
+    ax.set_xlabel("Frequency (THz)")
+    ax.set_ylabel(r"Scattering rate (ps$^{-1}$)")
+    if len(channels) > 1:
+        ax.legend(frameon=False)
+    ax.grid(color="0.9", linewidth=0.9)
+
+
 def tau_channels(tau_mode, gamma_data):
     """Return relaxation-time channels requested by YAML."""
     if tau_mode == "all":
@@ -719,25 +804,77 @@ def draw_kappa(ax, transport):
     ax.grid(color="0.9", linewidth=0.9)
 
 
+def cumulative_kappa_curves(transport):
+    """Return frequency-sorted cumulative conductivity curves at plot T."""
+    frequency = np.asarray(transport["frequency"], dtype=float).ravel()
+    temp_index = transport["tau_temperature_index"]
+    mode_kappa = np.asarray(transport["mode_kappa"][temp_index], dtype=float)
+    values = {
+        "x": mode_kappa[..., 0].ravel(),
+        "y": mode_kappa[..., 1].ravel(),
+        "z": mode_kappa[..., 2].ravel(),
+    }
+    values["average"] = (values["x"] + values["y"] + values["z"]) / 3.0
+    valid = np.isfinite(frequency) & (frequency > 0)
+    order = np.argsort(frequency[valid])
+    frequencies = frequency[valid][order]
+    return {
+        name: (frequencies, np.cumsum(component[valid][order]))
+        for name, component in values.items()
+    }
+
+
+def draw_cumulative_kappa(ax, transport):
+    """Draw cumulative conductivity against phonon frequency."""
+    curves = cumulative_kappa_curves(transport)
+    mode = transport["kappa_mode"]
+    selected = ["x", "y", "z", "average"] if mode == "all" else [mode]
+    labels = {"x": "xx", "y": "yy", "z": "zz", "average": "average"}
+    for name in selected:
+        frequency, cumulative = curves[name]
+        ax.plot(frequency, cumulative, label=labels[name])
+    ax.set_xlabel("Frequency (THz)")
+    ax.set_ylabel(r"Cumulative thermal conductivity (W m$^{-1}$ K$^{-1}$)")
+    ax.legend(frameon=False)
+    ax.grid(color="0.9", linewidth=0.9)
+
+
 def draw_compare_dispersion(ax, datasets):
     """Draw overlaid phonon dispersions."""
-    colors = ["tab:blue", "tab:orange"]
-    linestyles = ["-", "--"]
     reference_band = datasets[0]["band"]
     set_band_ticks(ax, reference_band)
 
-    for dataset, color, linestyle in zip(datasets, colors, linestyles):
+    for index, dataset in enumerate(datasets):
+        color, linestyle, _ = comparison_style(index)
         band = dataset["band"]
         first_line = True
-        for distances, frequencies in zip(band["distances"], band["frequencies"]):
-            ax.plot(
-                np.asarray(distances),
+        for segment_index, (distances, frequencies) in enumerate(
+            zip(band["distances"], band["frequencies"])
+        ):
+            # Use the reference dataset's path coordinate so that small
+            # lattice-constant differences do not shift high-symmetry points.
+            reference_distances = np.asarray(
+                reference_band["distances"][segment_index]
+            )
+            distances = np.asarray(distances)
+            plot_distances = (
+                reference_distances
+                if reference_distances.shape == distances.shape
+                else distances
+            )
+            lines = ax.plot(
+                plot_distances,
                 np.asarray(frequencies),
                 color=color,
                 linestyle=linestyle,
                 linewidth=1.5,
-                label=dataset["label"] if first_line else None,
+                label="_nolegend_",
             )
+            # A two-dimensional frequency array makes Matplotlib create one
+            # Line2D per phonon branch.  Passing the dataset label to plot()
+            # assigns it to every branch, so attach it only to the first line.
+            if first_line and lines:
+                lines[0].set_label(dataset["label"])
             first_line = False
 
     ax.set_ylabel("Frequency (THz)")
@@ -774,9 +911,8 @@ def set_band_ticks(ax, band):
 
 def draw_compare_dos(ax, datasets):
     """Draw overlaid phonon DOS curves."""
-    colors = ["tab:blue", "tab:orange"]
-    linestyles = ["-", "--"]
-    for dataset, color, linestyle in zip(datasets, colors, linestyles):
+    for index, dataset in enumerate(datasets):
+        color, linestyle, _ = comparison_style(index)
         dos = dataset["dos"]
         ax.plot(
             dos["total_dos"],
@@ -793,9 +929,8 @@ def draw_compare_dos(ax, datasets):
 
 def draw_compare_heat_capacity(ax, datasets):
     """Draw overlaid volumetric heat capacities."""
-    colors = ["tab:blue", "tab:orange"]
-    markers = ["o", "s"]
-    for dataset, color, marker in zip(datasets, colors, markers):
+    for index, dataset in enumerate(datasets):
+        color, _, marker = comparison_style(index)
         transport = dataset["transport"]
         ax.plot(
             transport["temperature"],
@@ -812,9 +947,8 @@ def draw_compare_heat_capacity(ax, datasets):
 
 def draw_compare_group_velocity(ax, datasets):
     """Draw overlaid group-velocity scatter plots."""
-    colors = ["tab:blue", "tab:orange"]
-    markers = ["o", "x"]
-    for dataset, color, marker in zip(datasets, colors, markers):
+    for index, dataset in enumerate(datasets):
+        color, _, marker = comparison_style(index)
         transport = dataset["transport"]
         frequency = transport["frequency"]
         group_velocity = transport["group_velocity"] * THZ_ANGSTROM_TO_KM_PER_S
@@ -837,9 +971,8 @@ def draw_compare_group_velocity(ax, datasets):
 
 def draw_compare_relaxation_time(ax, datasets):
     """Draw overlaid relaxation-time data."""
-    colors = ["tab:blue", "tab:orange"]
-    markers = ["o", "x"]
-    for dataset, color, marker in zip(datasets, colors, markers):
+    for index, dataset in enumerate(datasets):
+        color, _, marker = comparison_style(index)
         transport = dataset["transport"]
         frequency = transport["frequency"]
         temp_index = transport["tau_temperature_index"]
@@ -868,14 +1001,49 @@ def draw_compare_relaxation_time(ax, datasets):
     ax.grid(color="0.9", linewidth=0.9)
 
 
+def draw_compare_scattering_rate(ax, datasets):
+    """Draw overlaid scattering rates for every configured dataset."""
+    for index, dataset in enumerate(datasets):
+        color, _, marker = comparison_style(index)
+        transport = dataset["transport"]
+        frequency = transport["frequency"]
+        temp_index = transport["tau_temperature_index"]
+        channels = tau_channels(transport["tau_mode"], transport["gamma"])
+        for channel in channels:
+            rate = 4.0 * np.pi * transport["gamma"][channel][temp_index]
+            valid = (
+                np.isfinite(frequency)
+                & np.isfinite(rate)
+                & (frequency > 0)
+                & (rate > 0)
+            )
+            label = (
+                dataset["label"]
+                if len(channels) == 1
+                else f"{dataset['label']} {channel}"
+            )
+            ax.scatter(
+                frequency[valid],
+                rate[valid],
+                s=12,
+                alpha=0.35,
+                marker=marker,
+                color=color,
+                label=label,
+            )
+    ax.set_yscale("log")
+    ax.set_xlabel("Frequency (THz)")
+    ax.set_ylabel(r"Scattering rate (ps$^{-1}$)")
+    ax.legend(frameon=False)
+    ax.grid(color="0.9", linewidth=0.9)
+
+
 def draw_compare_kappa(ax, datasets):
     """Draw overlaid thermal-conductivity components."""
-    colors = ["tab:blue", "tab:orange"]
-    linestyles = ["-", "--"]
-    markers = ["o", "s"]
     component_markers = {"xx": "o", "yy": "s", "zz": "^", "average": "D"}
 
-    for dataset, color, linestyle, marker in zip(datasets, colors, linestyles, markers):
+    for index, dataset in enumerate(datasets):
+        color, linestyle, marker = comparison_style(index)
         transport = dataset["transport"]
         temperature = transport["temperature"]
         kappa = transport["kappa"]
@@ -917,3 +1085,36 @@ def draw_compare_kappa(ax, datasets):
     ax.set_ylabel(r"Thermal conductivity (W m$^{-1}$ K$^{-1}$)")
     ax.legend(frameon=False, ncol=2 if datasets[0]["transport"]["kappa_mode"] == "all" else 1)
     ax.grid(color="0.9", linewidth=0.9)
+
+
+def draw_compare_cumulative_kappa(ax, datasets):
+    """Draw cumulative conductivity for every configured dataset."""
+    for index, dataset in enumerate(datasets):
+        color, linestyle, _ = comparison_style(index)
+        transport = dataset["transport"]
+        curves = cumulative_kappa_curves(transport)
+        mode = transport["kappa_mode"]
+        selected = ["x", "y", "z", "average"] if mode == "all" else [mode]
+        labels = {"x": "xx", "y": "yy", "z": "zz", "average": "average"}
+        for name in selected:
+            frequency, cumulative = curves[name]
+            ax.plot(
+                frequency,
+                cumulative,
+                color=color,
+                linestyle=linestyle,
+                label=f"{dataset['label']} {labels[name]}",
+            )
+    ax.set_xlabel("Frequency (THz)")
+    ax.set_ylabel(r"Cumulative thermal conductivity (W m$^{-1}$ K$^{-1}$)")
+    ax.legend(frameon=False, ncol=2)
+    ax.grid(color="0.9", linewidth=0.9)
+
+
+def comparison_style(index):
+    """Return a stable color, line style, and marker for any dataset count."""
+    return (
+        COMPARE_COLORS[index % len(COMPARE_COLORS)],
+        COMPARE_LINESTYLES[index % len(COMPARE_LINESTYLES)],
+        COMPARE_MARKERS[index % len(COMPARE_MARKERS)],
+    )

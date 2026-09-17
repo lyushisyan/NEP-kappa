@@ -1,0 +1,49 @@
+# Full NEP -> Phonopy SSCHA -> phono3py example.
+# These compact settings are a smoke test; converge snapshots and iterations
+# before using the result quantitatively.
+workflow:
+  preset: scph
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep_model: potentials/Si/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [2, 2, 2]
+  dim-fc3: [2, 2, 2]
+  compact-fc: true
+  format: phono3py
+
+scph:
+  workdir: phonopy-sscha
+  temps: [300, 900, 300]
+  snapshots: 200
+  iterations: 4
+  transient: 1
+  sscha-mesh: [12, 12, 12]
+  random-seed: 271828
+  cutoff-frequency: 0.01
+  fc-calculator: symfc
+  save-datasets: false
+  run-transport: true
+
+# Used once per SSCHA temperature when run-transport is true. The SSCHA
+# temperature overrides kappa.temps for each individual phono3py call.
+kappa:
+  mesh: [21, 21, 21]
+  temps: [300]
+  method: rta
+  isotope: false
+  bfmp: 1.0e6
+  wigner: false
+
+output:
+  progress: true
+  result-dir: calculations/example-runs/sscha

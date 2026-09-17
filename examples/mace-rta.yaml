@@ -1,0 +1,36 @@
+# Bulk example using a locally trained MACE checkpoint for force evaluation.
+# Install MACE with: python -m pip install -e '.[mace]'
+# Replace the model path before running force calculations.
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: mace
+  model: /path/to/Si_MACE.model
+  device: cpu
+  dtype: float64
+  # Extra MACECalculator options may be passed through kwargs:
+  # kwargs:
+  #   enable_cueq: true
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  use_hiphive: false
+  compact-fc: true
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: false
+  bfmp: 1.0e6
+  wigner: false
+
+output:
+  progress: true
+  result_dir: calculations/example-runs/mace-rta

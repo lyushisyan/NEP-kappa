@@ -1,0 +1,51 @@
+# BAs example: calculate pure 3ph transport and 3+4ph transport from one IFC set.
+# Run from the repository root. Thirdorder/Fourthorder and FourPhonon must be in PATH.
+workflow:
+  preset: custom
+  steps: [fc2fc3, kappa, fc4, kappa4]
+
+structure:
+  poscar: examples/structures/BAs/POSCAR
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep-model: potentials/BAs/nep_BAs.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [4, 4, 4]
+  dim-fc3: [4, 4, 4]
+  fc3-backend: thirdorder
+  cutoff-fc3: -3
+  thirdorder-command: thirdorder_vasp.py
+  dim-fc4: [4, 4, 4]
+  cutoff-fc4: -2
+  fourthorder-command: Fourthorder_vasp.py
+  compact-fc: true
+  format: both
+  parallel:
+    backend: none
+
+kappa:
+  mesh: [16, 16, 16]
+  temps: [300]
+  method: rta
+  isotope: true
+
+fourphonon:
+  command: ShengBTE_cpu
+  solver: rta
+  mesh: [16, 16, 16]
+  temps: [300]
+  mpi-launcher: [mpirun, -np, "{nproc}"]
+  mpi-processes: 1
+  omp-threads: 1
+  parallel:
+    backend: none
+
+output:
+  progress: true
+  result-dir: calculations/example-runs/bas-three-four-phonon

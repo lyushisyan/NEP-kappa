@@ -1,704 +1,146 @@
 # NEP-kappa
 
-[![Docs](https://readthedocs.org/projects/nep-kappa/badge/?version=latest)](https://nep-kappa.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/nep-kappa/badge/?version=latest)](https://nep-kappa.readthedocs.io/en/latest/)
 
-[English](#english-version) | [中文](#中文版)
+**Phonons and lattice thermal transport with first-principles and machine-learning potentials.**
 
-## English Version
+NEP-kappa connects NEP, VASP, MACE, and ASE calculators to force-constant generation,
+Phonopy/phono3py, and FourPhonon. Describe a calculation in YAML and run it with
+`nepkappa run input.yaml`.
 
-NEP-kappa is an installable workflow package for lattice thermal conductivity
-calculations. It can:
+Current version: **2.0.0**. See the [release notes](CHANGELOG.md).
+[Quick start](docs/source/starting.rst) · [Examples](examples/README.md) ·
+[Input reference](docs/source/input_files.rst) · [中文上手](#中文上手)
 
-1. Relax an input structure.
-2. Generate `fc2.hdf5` alone, or both `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`.
-3. Compute thermal conductivity with `phono3py`.
-4. Plot phonon and thermal-transport results from existing HDF5 outputs.
+## Start here
 
-Available commands:
-
-```bash
-nepkappa relax input.yaml
-nepkappa fc2 input.yaml
-nepkappa fc2fc3 input.yaml
-nepkappa kappa input.yaml
-nepkappa plot input.yaml
-nepkappa compare compare.yaml
-nepkappa run input.yaml
-nepkappa info input.yaml
-```
-
-- `nepkappa relax`: relax the input structure
-- `nepkappa fc2`: generate `fc2.hdf5` and `phono3py_disp.yaml` only
-- `nepkappa fc2fc3`: generate `fc2.hdf5`, `fc3.hdf5`, and `phono3py_disp.yaml`
-- `nepkappa kappa`: compute thermal conductivity from existing force constants
-- `nepkappa plot`: plot dispersion, DOS, volume heat capacity, group velocity, relaxation time, and thermal conductivity
-- `nepkappa compare`: compare DFT and NEP phonon/thermal-transport results
-- `nepkappa run`: run `relax`, `fc2fc3`, and `kappa` in sequence
-- `nepkappa info`: print the parsed configuration without running
-
-### Publication
-
-If you use **NEP-kappa** in your research, please cite:
-
-[1] F. Yin, et al.,
-*Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
-Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.0324012
-
-### Repository Layout
-
-- `pyproject.toml`: package metadata and install configuration
-- `src/nepkappa/`: installable Python package
-- `examples/`: repository-provided POSCAR and YAML examples
-- `potentials/`: repository-provided Si NEP model files
-- `tests/`: parser and CLI smoke tests
-- `docs/`: Sphinx documentation
-
-Generated outputs are written to the configured `result_dir`, commonly
-`results/...`, and are not tracked by the repository.
-
-### Requirements
-
-Python dependencies:
-
-- `python>=3.9`
-- `numpy`
-- `h5py`
-- `ase`
-- `calorine`
-- `hiphive`
-- `trainstation`
-- `phonopy`
-- `phono3py>=4.0.1`
-- `seekpath`
-- `matplotlib`
-- `tqdm`
-- `PyYAML`
-
-Install from the repository root:
+The package requires Python 3.9 or newer; Python 3.11 is a practical starting
+environment. From a terminal:
 
 ```bash
+git clone https://github.com/lyushisyan/NEP-kappa.git
+cd NEP-kappa
+python -m venv .venv
+source .venv/bin/activate
 python -m pip install -e .
-nepkappa --help
+nepkappa --version
 ```
 
-If an older `phono3py` is already installed:
+Run the bundled bulk-Si example from the **repository root**:
 
 ```bash
-python -m pip install --upgrade -e .
+nepkappa validate examples/nep-rta.yaml
+nepkappa run examples/nep-rta.yaml
+nepkappa plot examples/nep-rta.yaml
+nepkappa report examples/nep-rta.yaml
 ```
 
-### Example Inputs
+Results go to `calculations/example-runs/nep-rta/`. This demonstrates the workflow;
+its supercell and q mesh are starting settings, not a convergence claim.
+Validation checks the configuration, not every external program or the accuracy
+of a potential.
 
-The repository-provided examples are:
-
-- `examples/1-bulk-nep-rta.yaml`: bulk, NEP forces, finite displacement, RTA
-- `examples/2-bulk-nep-hiphive-rta.yaml`: bulk, NEP forces, HiPhive, RTA
-- `examples/3-bulk-nep-lbte.yaml`: bulk, NEP forces, finite displacement, LBTE
-- `examples/4-bulk-nep-rta-wigner.yaml`: bulk, NEP forces, finite displacement, Wigner transport
-- `examples/5-bulk-vasp-rta.yaml`: bulk, VASP relaxation and VASP forces, finite displacement, RTA
-- `examples/6-bulk-vasp-hiphive-rta.yaml`: bulk, VASP relaxation and VASP forces, HiPhive, RTA
-- `examples/7-film-nep-rta.yaml`: film, NEP forces, finite displacement, RTA
-- `examples/8-film-nep-hiphive-rta.yaml`: film, NEP forces, HiPhive, RTA
-- `examples/9-bulk-nep-lbte-slurm.yaml`: bulk LBTE distributed over Slurm array jobs
-- `examples/compare.yaml`: DFT-vs-NEP comparison plotting
-
-Use `info` before running an expensive calculation:
+For your own material, create a separate input:
 
 ```bash
-nepkappa info examples/1-bulk-nep-rta.yaml
-```
-
-Run the complete workflow:
-
-```bash
-nepkappa run examples/1-bulk-nep-rta.yaml
-```
-
-Or run the stages separately:
-
-```bash
-nepkappa relax examples/1-bulk-nep-rta.yaml
-nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
-nepkappa kappa examples/1-bulk-nep-rta.yaml
-nepkappa plot examples/1-bulk-nep-rta.yaml
-```
-
-Use `nepkappa fc2` instead of `fc2fc3` when only harmonic FC2 data is needed.
-`nepkappa fc2fc3` also computes and writes FC2 first, then starts the FC3
-displacement and FC3 export stage.
-When `relaxation.enabled: true`, `nepkappa fc2` and `nepkappa fc2fc3` expect
-`POSCAR_relaxed` to already exist in `result_dir`. Use `nepkappa relax` first,
-or use `nepkappa run`.
-
-Compare completed DFT and NEP result directories:
-
-```bash
-nepkappa compare examples/compare.yaml
-```
-
-### YAML Structure
-
-The recommended YAML structure is:
-
-```yaml
-structure:
-  poscar: examples/POSCAR_bulk
-  dimensionality: 3
-
-calculator:
-  name: nep
-  nep_model: potentials/Si_Bulk_Fan.txt
-
-relaxation:
-  enabled: true
-
-force-constant:
-  dim-fc2: [3, 3, 3]
-  dim-fc3: [3, 3, 3]
-  use_hiphive: false
-  compact-fc: true
-
-kappa:
-  mesh: [21, 21, 21]
-  temps: [100, 1000, 50]
-  method: rta
-  isotope: false
-  bfmp: 1.0e6
-  wigner: false
-
-plot:
-  layout: both
-  path: seekpath
-  tau: total
-  kappa: all
-  temperature: 300
-  dpi: 300
-
-output:
-  progress: true
-  result_dir: results/1-bulk-nep-rta
-```
-
-For VASP calculations, use `calculator.name: vasp` and set
-`vasp_command` or `vasp_path`, plus `potcar_path`. If `potcar_path` is a
-directory, NEP-kappa assembles a combined `POTCAR` in POSCAR element order.
-
-### Key Options
-
-- `calculator.name`: `nep` or `vasp`
-- `structure.dimensionality`: `3` for bulk, `2` for films, or `1` for nanowires
-- `structure.effective_thickness`: effective film thickness in Angstrom; required when `dimensionality: 2`
-- `structure.effective_area`: effective nanowire cross-sectional area in Angstrom^2; required when `dimensionality: 1`
-- `structure.vacuum_axis`: film vacuum direction, `x`, `y`, or `z`; default is `z`
-- `structure.periodic_axis`: nanowire periodic direction, `x`, `y`, or `z`; default is `z`
-- `calculator.nep_model`: NEP model path; required for `nep`
-- `calculator.vasp_command`: full VASP command, e.g. with `mpirun`
-- `calculator.vasp_path`: VASP executable path
-- `calculator.potcar_path`: POTCAR file or potential-library directory
-- `relaxation.enabled`: whether to run structure relaxation
-- `force-constant.dim-fc2`: phonon supercell dimension for FC2
-- `force-constant.dim-fc3`: supercell dimension for FC3
-- `force-constant.use_hiphive`: `false` for finite displacement, `true` for HiPhive
-- `force-constant.compact-fc`: write compact phono3py v4 FC2/FC3 arrays by default; set `false` to write full supercell arrays
-- `kappa.method`: `rta` or `lbte`
-- `kappa.isotope`: include isotope scattering, `true` or `false`
-- `kappa.bfmp`: boundary mean free path in micrometer; phono3py CLI default is `1.0e6`
-- `kappa.wigner`: use `phono3py-wte` via `--tt wte`
-- `kappa.command`: full custom `phono3py` command run in `output.result_dir`; when set, it overrides the automatic `mesh`/`method`/scattering command builder
-- `kappa.parallel`: optional Slurm settings for distributed LBTE calculations
-- `plot.layout`: `separate`, `combined`, or `both`
-- `plot.path`: high-symmetry path source, `seekpath` or `custom`
-- `plot.tau`: relaxation-time channel; `nu` plots N and U together; available values are `total`, `normal`, `umklapp`, `nu`, and `all`
-- `plot.kappa`: thermal-conductivity component, `x`, `y`, `z`, or `all`
-- `plot.temperature`: target temperature for relaxation-time plots
-- `plot.dpi`: output figure resolution
-- `output.result_dir`: directory for generated files and `run.log`
-
-The older `force-constant.dim` key is still accepted for compatibility and is
-interpreted as both `dim-fc2` and `dim-fc3`.
-
-For a custom dispersion path, define fractional reciprocal coordinates:
-
-```yaml
-plot:
-  path: custom
-  path_points:
-    G: [0.0, 0.0, 0.0]
-    X: [0.5, 0.0, 0.5]
-    U: [0.625, 0.25, 0.625]
-    K: [0.375, 0.375, 0.75]
-    L: [0.5, 0.5, 0.5]
-    W: [0.5, 0.25, 0.75]
-  path_segments:
-    - [G, X]
-    - [X, U]
-    - [K, G]
-    - [G, L]
-    - [L, W]
-    - [W, X]
-```
-
-Disconnected neighboring segments are shown with a combined label, e.g.
-`[X, U]` followed by `[K, G]` is plotted as `U|K`.
-
-### Custom phono3py command
-
-Advanced users can bypass NEP-kappa's automatic kappa command builder and write
-the phono3py command directly:
-
-```yaml
-kappa:
-  command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --tmin 100 --tmax 1000 --tstep 50
-```
-
-The command is executed inside `output.result_dir`, so relative paths such as
-`phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5` refer to files in the result
-directory. This command is split like a normal command line, but shell features
-such as pipes and redirects are not interpreted.
-
-### Parallel LBTE with Slurm
-
-Set `kappa.method: lbte` and add a `parallel` mapping:
-
-```yaml
-kappa:
-  mesh: [21, 21, 21]
-  temps: [300]
-  method: lbte
-  parallel:
-    backend: slurm
-    jobs: 32
-```
-
-The normal command remains unchanged:
-
-```bash
-nepkappa kappa examples/9-bulk-nep-lbte-slurm.yaml
-```
-
-NEP-kappa obtains the irreducible grid points, writes shared phonon data, splits
-the ph-ph interaction calculation into a Slurm array, and submits a final
-collection job with `afterok` dependencies. Scripts, grid-point lists, logs, and
-job IDs are stored in `output.result_dir/lbte-slurm`. Set `submit: false` to
-generate and inspect the files without calling `sbatch`. The result directory
-must be visible from every allocated node. Slurm's defaults are used for time,
-memory, CPUs, partition, and account unless those values are explicitly set.
-The default number of grid-point array tasks is 32; override `jobs` only when
-needed.
-
-### Plotting
-
-`nepkappa plot input.yaml` reads `phono3py_disp.yaml`, `fc2.hdf5`, and
-`kappa-m*.hdf5` from `output.result_dir`. It always generates six standard
-figures: phonon dispersion, DOS, volume heat capacity, group velocity,
-relaxation time, and thermal conductivity.
-
-For low-dimensional systems, `plot` applies the effective-geometry correction
-specified in the `structure` section. For a film, use `dimensionality: 2` with
-`effective_thickness`; the cell-normalized heat capacity and kappa are scaled
-by the cell thickness along `vacuum_axis` divided by the effective thickness.
-For a nanowire, use `dimensionality: 1` with `effective_area`; the results are
-scaled by the cell cross-sectional area divided by the effective area. The
-original `kappa-m*.hdf5` file is not modified.
-
-The `plot` section controls figure layout and selected data channels. Use
-`layout: separate` for individual PNG files, `layout: combined` for one 2-by-3
-summary figure, or `layout: both` for both outputs. Group velocity is plotted
-in km/s. The figures use large axis and tick labels for publication use and do
-not add subplot titles.
-
-### DFT-vs-NEP Comparison
-
-`nepkappa compare compare.yaml` overlays DFT and NEP results in the same six
-standard figures. Each result directory must already contain
-`phono3py_disp.yaml`, `fc2.hdf5`, and `kappa-m*.hdf5`.
-
-```yaml
-reference:
-  dft_dir: results/dft
-  label: DFT
-
-candidate:
-  nep_dir: results/nep
-  label: NEP
-
-compare:
-  compare_dir: comparison
-
-plot:
-  layout: both
-  path: seekpath
-  tau: total
-  temperature: 300
-  kappa: all
-  dpi: 300
-```
-
-Comparison figures are written to `compare.compare_dir/plots`. The same
-`layout`, `path`, `tau`, `temperature`, `kappa`, and `dpi` plot options are
-supported.
-
-### Typical Outputs
-
-- `run.log`
-- `POSCAR_relaxed`
-- `phono3py_disp.yaml`
-- `fc2.hdf5`
-- `fc3.hdf5`
-- `hiphive_model.fcp` when HiPhive is used
-- `vasp-relax/` and `vasp-runs/` when VASP is used
-- `kappa-m{mesh}.hdf5`
-- `plots/dispersion.png`
-- `plots/dos.png`
-- `plots/heat_capacity.png`
-- `plots/group_velocity.png` with group velocity in km/s
-- `plots/relaxation_time.png`
-- `plots/kappa.png`
-- `plots/combined.png` when `plot.layout` is `combined` or `both`
-
-### Contact
-
-For questions, please email sxliu98@gmail.com or yinfei0426@outlook.com.
-
----
-
-## 中文版
-
-NEP-kappa 是一个可安装的软件包，用于晶格热导率计算。它可以：
-
-1. 弛豫输入结构。
-2. 只生成 `fc2.hdf5`，或同时生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`。
-3. 调用 `phono3py` 计算热导率。
-4. 基于已有 HDF5 结果绘制声子和热输运图像。
-
-可用命令为：
-
-```bash
-nepkappa relax input.yaml
-nepkappa fc2 input.yaml
-nepkappa fc2fc3 input.yaml
-nepkappa kappa input.yaml
-nepkappa plot input.yaml
-nepkappa compare compare.yaml
+nepkappa init input.yaml
+nepkappa validate input.yaml
 nepkappa run input.yaml
-nepkappa info input.yaml
 ```
 
-- `nepkappa relax`：弛豫输入结构
-- `nepkappa fc2`：只生成 `fc2.hdf5` 和 `phono3py_disp.yaml`
-- `nepkappa fc2fc3`：生成 `fc2.hdf5`、`fc3.hdf5` 和 `phono3py_disp.yaml`
-- `nepkappa kappa`：使用已有力常数计算热导率
-- `nepkappa plot`：绘制色散关系、态密度、体积热容、群速度、弛豫时间和热导率
-- `nepkappa compare`：对比 DFT 和 NEP 的声子及热输运结果
-- `nepkappa run`：连续执行 `relax`、`fc2fc3` 和 `kappa`
-- `nepkappa info`：只打印解析后的配置，不运行计算
+Use your material's structure and matching potential. Ordinary input paths are
+relative to the directory where you launch the command.
 
-### 论文引用
+## Choose a calculation
 
-如果你在科研工作中使用了 **NEP-kappa**，请引用：
+| Goal | Start from | Backend / prerequisite |
+| --- | --- | --- |
+| Three-phonon RTA or LBTE | [nep-rta.yaml](examples/nep-rta.yaml) | NEP + phono3py; change `kappa.method` for LBTE |
+| DFT forces and transport | [vasp-rta.yaml](examples/vasp-rta.yaml) | Your VASP executable and licensed POTCAR library |
+| MACE forces and transport | [mace-rta.yaml](examples/mace-rta.yaml) | `pip install -e '.[mace]'` and a checkpoint |
+| Wigner transport | [wigner.yaml](examples/wigner.yaml) | phono3py SMM19 |
+| Thermal expansion (QHA) | [qha.yaml](examples/qha.yaml) | Phonopy volume scan |
+| Fixed-volume renormalization | [sscha.yaml](examples/sscha.yaml) | Phonopy stochastic SSCHA; CLI name `scph` |
+| QHA + SSCHA and optional transport | [qha-sscha.yaml](examples/qha-sscha.yaml) | SSCHA at QHA equilibrium volumes |
+| Both 3ph and 3ph+4ph conductivity | [bas-three-four-phonon.yaml](examples/bas-three-four-phonon.yaml) | Thirdorder, Fourthorder, FourPhonon |
+| Compare models / check convergence | [Example catalog](examples/README.md) | Completed results / a base input |
 
-[1] F. Yin, et al.,
-*Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
-Journal of Applied Physics **139**, 135103 (2026). https://doi.org/10.1063/5.0324012
+The catalog also covers HiPhive fitting, films, FC3/FC4 generation, and Slurm.
+Optional executables are installed separately; see
+[installation](docs/source/installation.rst). SSCHA here is the Phonopy route
+implemented in this package. Transport with renormalized FC2 does not by itself
+include every higher-order anharmonic correction.
 
-### 仓库结构
+## The commands most users need
 
-- `pyproject.toml`：软件包元数据和安装配置
-- `src/nepkappa/`：可安装的 Python 软件包
-- `examples/`：仓库提供的 POSCAR 和 YAML 示例
-- `potentials/`：仓库提供的 Si NEP 势函数
-- `tests/`：解析器和 CLI 基础测试
-- `docs/`：Sphinx 文档
+| Command | Purpose |
+| --- | --- |
+| `nepkappa init input.yaml` | Create an input interactively |
+| `nepkappa validate input.yaml` | Check input syntax and supported settings |
+| `nepkappa run input.yaml` | Run the selected workflow |
+| `nepkappa status input.yaml` | Inspect stored job state and the Slurm queue |
+| `nepkappa plot input.yaml` | Plot completed phono3py outputs |
+| `nepkappa report input.yaml` | Write a result summary |
 
-计算输出会写入 YAML 中的 `result_dir`，通常为 `results/...`，
-仓库不会跟踪这些本地运行产物。
+Stage commands allow restarts and reuse of existing force constants.
+See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
+Slurm templates start with `submit: false`; configure the cluster and inspect
+generated scripts before enabling submission.
 
-Python 依赖：
+## Input assistant
 
-- `python>=3.9`
-- `numpy`
-- `h5py`
-- `ase`
-- `calorine`
-- `hiphive`
-- `trainstation`
-- `phonopy`
-- `phono3py>=4.0.1`
-- `seekpath`
-- `matplotlib`
-- `tqdm`
-- `PyYAML`
+The repository includes [nepkappa-input](.agents/skills/nepkappa-input/SKILL.md).
+In a compatible assistant opened in this checkout, ask:
 
-在仓库根目录安装：
+> Use $nepkappa-input to prepare bulk Si NEP RTA at 300 K, using
+> examples/structures/Si/POSCAR_bulk and potentials/Si/Si_Bulk_Fan.txt.
+> Write input.yaml and validate it without starting the calculation.
+
+It checks the installed schema, model species and paths, and distinguishes
+configuration validity from numerical convergence.
+[Skill usage](docs/source/input_assistant.rst)
+
+## Repository layout
+
+| Directory | Contents |
+| --- | --- |
+| `src/nepkappa/` | Installable source code |
+| `examples/` | Reusable input templates and small structures |
+| `potentials/` | Models and provenance notes |
+| `docs/` | User and developer documentation |
+| `tests/` | Local automated checks; ignored by Git |
+| `benchmarks/` | Local frozen reference data; ignored by Git |
+| `calculations/` | Local research inputs and results; ignored except its guide |
+| `.agents/skills/` | Maintained input-assistant skill |
+
+Follow the [development guide](docs/source/development.rst) for local testing
+and documentation builds. Tests and reference data are maintained locally and
+are not included in a fresh GitHub checkout.
+
+## 中文上手
+
+NEP-kappa 用一个 YAML 输入文件组织声子和晶格热输运计算。
+安装后在项目根目录运行：
 
 ```bash
-python -m pip install -e .
-nepkappa --help
+nepkappa init input.yaml       # 交互式生成自己的输入文件
+nepkappa validate input.yaml   # 检查配置
+nepkappa run input.yaml        # 执行所选流程
+nepkappa report input.yaml     # 汇总已有结果
 ```
 
-如果环境中已有旧版 `phono3py`：
+初次体验可用上面的 Si 算例。计算其他材料时必须替换为对应的结构和势函数。
+常规路径相对于命令启动目录；结果统一放在 `calculations/`。
+QHA、SSCHA、QHA+SSCHA、三/四声子、Wigner 和 Slurm 的入口见
+[示例目录](examples/README.md)，参数含义见 [输入参考](docs/source/input_files.rst)。
+`tests`、`benchmarks` 和实际计算结果保留在本地，不随代码提交。
 
-```bash
-python -m pip install --upgrade -e .
-```
+## Citation
 
-### 示例输入
+F. Yin et al., *Accelerated phonon transport calculations for nanostructures:
+Combining neuroevolution potentials and compressed sensing*,
+Journal of Applied Physics **139**, 135103 (2026).
+[DOI: 10.1063/5.0324012](https://doi.org/10.1063/5.0324012)
 
-当前提供的 YAML 示例为：
-
-- `examples/1-bulk-nep-rta.yaml`：bulk，NEP 力，有限位移，RTA
-- `examples/2-bulk-nep-hiphive-rta.yaml`：bulk，NEP 力，HiPhive，RTA
-- `examples/3-bulk-nep-lbte.yaml`：bulk，NEP 力，有限位移，LBTE
-- `examples/4-bulk-nep-rta-wigner.yaml`：bulk，NEP 力，有限位移，Wigner 输运
-- `examples/5-bulk-vasp-rta.yaml`：bulk，VASP 弛豫和 VASP 力，有限位移，RTA
-- `examples/6-bulk-vasp-hiphive-rta.yaml`：bulk，VASP 弛豫和 VASP 力，HiPhive，RTA
-- `examples/7-film-nep-rta.yaml`：film，NEP 力，有限位移，RTA
-- `examples/8-film-nep-hiphive-rta.yaml`：film，NEP 力，HiPhive，RTA
-- `examples/9-bulk-nep-lbte-slurm.yaml`：通过 Slurm 作业数组并行计算 bulk LBTE
-- `examples/compare.yaml`：DFT 和 NEP 结果对比绘图
-
-正式运行前建议先检查配置：
-
-```bash
-nepkappa info examples/1-bulk-nep-rta.yaml
-```
-
-运行完整流程：
-
-```bash
-nepkappa run examples/1-bulk-nep-rta.yaml
-```
-
-也可以分步运行：
-
-```bash
-nepkappa relax examples/1-bulk-nep-rta.yaml
-nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
-nepkappa kappa examples/1-bulk-nep-rta.yaml
-nepkappa plot examples/1-bulk-nep-rta.yaml
-```
-
-如果只需要谐性 FC2 数据，可以运行 `nepkappa fc2`，不计算 FC3。
-`nepkappa fc2fc3` 也会先计算并写出 FC2，然后再进入 FC3 位移和导出阶段。
-当 `relaxation.enabled: true` 时，单独运行 `nepkappa fc2` 或
-`nepkappa fc2fc3` 会要求
-`result_dir` 中已经存在 `POSCAR_relaxed`。这种情况下请先运行
-`nepkappa relax`，或者直接使用 `nepkappa run`。
-
-### YAML 结构
-
-推荐 YAML 结构为：
-
-```yaml
-structure:
-  poscar: examples/POSCAR_bulk
-  dimensionality: 3
-
-calculator:
-  name: nep
-  nep_model: potentials/Si_Bulk_Fan.txt
-
-relaxation:
-  enabled: true
-
-force-constant:
-  dim-fc2: [3, 3, 3]
-  dim-fc3: [3, 3, 3]
-  use_hiphive: false
-  compact-fc: true
-
-kappa:
-  mesh: [21, 21, 21]
-  temps: [100, 1000, 50]
-  method: rta
-  isotope: false
-  bfmp: 1.0e6
-  wigner: false
-
-plot:
-  layout: both
-  path: seekpath
-  tau: total
-  kappa: all
-  temperature: 300
-  dpi: 300
-
-output:
-  progress: true
-  result_dir: results/1-bulk-nep-rta
-```
-
-VASP 计算使用 `calculator.name: vasp`，并设置 `vasp_command` 或
-`vasp_path`，以及 `potcar_path`。如果 `potcar_path` 是目录，NEP-kappa
-会按照 POSCAR 元素顺序自动拼接 `POTCAR`。
-
-### 关键选项
-
-- `calculator.name`：`nep` 或 `vasp`
-- `structure.dimensionality`：`3` 表示体材料，`2` 表示薄膜，`1` 表示纳米线
-- `structure.effective_thickness`：薄膜有效厚度，单位 Angstrom；`dimensionality: 2` 时必须设置
-- `structure.effective_area`：纳米线有效横截面积，单位 Angstrom^2；`dimensionality: 1` 时必须设置
-- `structure.vacuum_axis`：薄膜真空方向，可选 `x`、`y` 或 `z`，默认 `z`
-- `structure.periodic_axis`：纳米线周期方向，可选 `x`、`y` 或 `z`，默认 `z`
-- `calculator.nep_model`：NEP 势函数路径；使用 `nep` 时必需
-- `calculator.vasp_command`：完整 VASP 命令，例如带 `mpirun`
-- `calculator.vasp_path`：VASP 可执行文件路径
-- `calculator.potcar_path`：POTCAR 文件或势函数库目录
-- `relaxation.enabled`：是否进行结构弛豫
-- `force-constant.dim-fc2`：二阶力常数 FC2 的声子超胞尺寸
-- `force-constant.dim-fc3`：三阶力常数 FC3 的超胞尺寸
-- `force-constant.use_hiphive`：`false` 为有限位移，`true` 为 HiPhive
-- `force-constant.compact-fc`：默认写出 phono3py v4 的紧凑 FC2/FC3 数组；设为 `false` 时写出完整超胞数组
-- `kappa.method`：`rta` 或 `lbte`
-- `kappa.isotope`：是否包含同位素散射，`true` 或 `false`
-- `kappa.bfmp`：边界平均自由程，单位 micrometer；phono3py CLI 默认值为 `1.0e6`
-- `kappa.wigner`：通过 `phono3py-wte` 使用 `--tt wte`
-- `kappa.command`：完整自定义 `phono3py` 命令，会在 `output.result_dir` 中执行；设置后会覆盖自动的 `mesh`、`method` 和散射参数命令拼接
-- `kappa.parallel`：用于分布式 LBTE 计算的可选 Slurm 设置
-- `plot.layout`：`separate`、`combined` 或 `both`
-- `plot.path`：高对称路径来源，`seekpath` 或 `custom`
-- `plot.tau`：弛豫时间通道；`nu` 同时绘制 N 和 U，可选 `total`、`normal`、`umklapp`、`nu` 或 `all`
-- `plot.kappa`：热导率方向，`x`、`y`、`z` 或 `all`
-- `plot.temperature`：弛豫时间图使用的目标温度
-- `plot.dpi`：输出图片分辨率
-- `output.result_dir`：结果文件和 `run.log` 的输出目录
-
-旧的 `force-constant.dim` 仍可作为兼容输入使用，会同时解释为
-`dim-fc2` 和 `dim-fc3`。
-
-如果需要自定义色散路径，可以写分数倒空间坐标：
-
-```yaml
-plot:
-  path: custom
-  path_points:
-    G: [0.0, 0.0, 0.0]
-    X: [0.5, 0.0, 0.5]
-    U: [0.625, 0.25, 0.625]
-    K: [0.375, 0.375, 0.75]
-    L: [0.5, 0.5, 0.5]
-    W: [0.5, 0.25, 0.75]
-  path_segments:
-    - [G, X]
-    - [X, U]
-    - [K, G]
-    - [G, L]
-    - [L, W]
-    - [W, X]
-```
-
-相邻两段如果不连续，会在横坐标断点处合并显示，例如 `[X, U]`
-后接 `[K, G]` 会显示为 `U|K`。
-
-### 自定义 phono3py 命令
-
-高级用户可以跳过 NEP-kappa 自动拼接的 kappa 命令，直接手写 phono3py
-命令：
-
-```yaml
-kappa:
-  command: phono3py phono3py_disp.yaml --fc2 --fc3 --br --nu --mesh 21 21 21 --tmin 100 --tmax 1000 --tstep 50
-```
-
-这条命令会在 `output.result_dir` 中执行，因此相对路径
-`phono3py_disp.yaml`、`fc2.hdf5` 和 `fc3.hdf5` 都指向结果目录中的文件。
-该命令会像普通命令行一样拆分参数，但不解释管道和重定向等 shell 语法。
-
-### 使用 Slurm 并行计算 LBTE
-
-设置 `kappa.method: lbte`，并增加 `parallel`：
-
-```yaml
-kappa:
-  mesh: [21, 21, 21]
-  temps: [300]
-  method: lbte
-  parallel:
-    backend: slurm
-    jobs: 32
-```
-
-命令保持不变：
-
-```bash
-nepkappa kappa examples/9-bulk-nep-lbte-slurm.yaml
-```
-
-程序会读取不可约网格点、生成共享声子数据作业、拆分 ph-ph interaction
-Slurm 作业数组，并通过 `afterok` 依赖提交最终汇总作业。脚本、网格点列表、
-日志和作业编号保存在 `output.result_dir/lbte-slurm`。使用 `submit: false`
-可以只生成文件而不调用 `sbatch`。所有计算节点必须能够访问同一个结果目录。
-未显式设置时间、内存、CPU、分区和账户时，程序使用 Slurm 集群默认值。
-网格点作业数组默认包含 32 个任务，只在需要时设置 `jobs` 覆盖它。
-
-### 绘图功能
-
-`nepkappa plot input.yaml` 会从 `output.result_dir` 读取
-`phono3py_disp.yaml`、`fc2.hdf5` 和 `kappa-m*.hdf5`。它固定生成六类标准图：
-声子色散、态密度、体积热容、群速度、弛豫时间和热导率。
-
-对于低维体系，`plot` 会根据 `structure` 中的有效几何参数进行后处理修正。
-薄膜使用 `dimensionality: 2` 和 `effective_thickness`，程序会用
-`vacuum_axis` 方向的晶胞厚度除以有效厚度来修正体积热容和热导率。纳米线使用
-`dimensionality: 1` 和 `effective_area`，程序会用晶胞横截面积除以有效横截面积来修正。
-原始的 `kappa-m*.hdf5` 文件不会被改写。
-
-`plot` 部分用于控制图像布局和数据通道。`layout: separate` 会分别输出 PNG，
-`layout: combined` 会输出一个 2 行 3 列的总图，`layout: both` 会同时输出两种。
-群速度单位为 km/s。图像采用较大的坐标轴和刻度字号，适合论文排版，并且不添加子图小标题。
-
-### DFT 和 NEP 对比
-
-`nepkappa compare compare.yaml` 会把 DFT 和 NEP 的结果叠加到同一组图中。
-两个结果目录都需要已经包含 `phono3py_disp.yaml`、`fc2.hdf5` 和
-`kappa-m*.hdf5`。
-
-```yaml
-reference:
-  dft_dir: results/dft
-  label: DFT
-
-candidate:
-  nep_dir: results/nep
-  label: NEP
-
-compare:
-  compare_dir: comparison
-
-plot:
-  layout: both
-  path: seekpath
-  tau: total
-  temperature: 300
-  kappa: all
-  dpi: 300
-```
-
-对比图会写入 `compare.compare_dir/plots`。`layout`、`path`、`tau`、
-`temperature`、`kappa` 和 `dpi` 的用法与普通 `plot` 命令一致。
-
-### 常见输出
-
-- `run.log`
-- `POSCAR_relaxed`
-- `phono3py_disp.yaml`
-- `fc2.hdf5`
-- `fc3.hdf5`
-- 使用 HiPhive 时的 `hiphive_model.fcp`
-- 使用 VASP 时的 `vasp-relax/` 和 `vasp-runs/`
-- `kappa-m{mesh}.hdf5`
-- `plots/dispersion.png`
-- `plots/dos.png`
-- `plots/heat_capacity.png`
-- `plots/group_velocity.png`，群速度单位为 km/s
-- `plots/relaxation_time.png`
-- `plots/kappa.png`
-- `plots/combined.png`，当 `plot.layout` 为 `combined` 或 `both` 时生成
-
-### 联系我们
-
-如果您有任何问题，请联系 sxliu98@gmail.com 或者 yinfei0426@outlook.com。
-
-也可加入 QQ 群交流：
-
-![QQ Group](assets/qrcode.png)
+Also cite the electronic-structure, potential, and transport methods used in
+your calculation; see [references](docs/source/reference.rst).

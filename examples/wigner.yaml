@@ -1,0 +1,27 @@
+# Bulk Si example using finite displacement.
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+
+calculator:
+  name: nep
+  nep_model: potentials/Si/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: true
+
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  use_hiphive: false
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: false
+  bfmp: 1.0e6
+  wigner: true
+
+output:
+  progress: true
+  result_dir: calculations/example-runs/wigner

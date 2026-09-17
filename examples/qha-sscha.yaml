@@ -1,0 +1,70 @@
+# Coupled thermal-expansion and temperature-renormalization example.
+# Compact FC/SSCHA settings are a smoke test and require convergence studies.
+workflow:
+  preset: qha-sscha
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep_model: potentials/Si/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [2, 2, 2]
+  dim-fc3: [2, 2, 2]
+  dim-fc4: [2, 2, 2]
+  cutoff-fc4: -2
+  compact-fc: true
+  format: phono3py
+
+qha:
+  volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
+  dim-fc2: [2, 2, 2]
+  mesh: [15, 15, 15]
+  temps: [0, 900, 10]
+  eos: vinet
+  relax-internal: true
+
+scph:
+  workdir: phonopy-sscha
+  temps: [300, 900, 300]
+  snapshots: 200
+  iterations: 4
+  transient: 1
+  sscha-mesh: [12, 12, 12]
+  random-seed: 271828
+  cutoff-frequency: 0.01
+  fc-calculator: symfc
+  save-datasets: false
+
+qha-sscha:
+  three-phonon: true
+  # FC4 generation is expensive. Change to true after convergence tests.
+  four-phonon: false
+
+kappa:
+  mesh: [21, 21, 21]
+  temps: [300]
+  method: rta
+  isotope: false
+  bfmp: 1.0e6
+  wigner: false
+
+# Required only when qha-sscha.four-phonon is true.
+fourphonon:
+  command: ShengBTE-FourPhonon
+  solver: rta
+  mesh: [21, 21, 21]
+  mpi-processes: 1
+  omp-threads: 1
+  parallel:
+    backend: none
+
+output:
+  progress: true
+  result-dir: calculations/example-runs/qha-sscha

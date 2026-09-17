@@ -1,0 +1,16 @@
+# Prepare a q-point mesh convergence study from one normal workflow input.
+base: nep-rta.yaml
+parameter: kappa.mesh
+values:
+  - [15, 15, 15]
+  - [21, 21, 21]
+  - [27, 27, 27]
+  - [31, 31, 31]
+
+study:
+  directory: ../calculations/example-runs/studies/qmesh
+  # Keep false to prepare inputs only; change to true to run every case.
+  execute: false
+  temperature: 300
+  component: average
+  tolerance: 0.02

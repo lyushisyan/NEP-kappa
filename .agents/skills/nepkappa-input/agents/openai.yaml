@@ -1,0 +1,4 @@
+interface:
+  display_name: "NEP-kappa Input Assistant"
+  short_description: "Create and validate NEP-kappa YAML inputs"
+  default_prompt: "Use $nepkappa-input to choose a minimal template for my material and workflow, check model identity and input paths, and validate the YAML without starting a calculation."

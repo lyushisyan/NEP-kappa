@@ -1,87 +1,78 @@
-Quick Start
-===========
+Quick start
+=============
 
-Install the package
--------------------
+Run the bundled Si calculation
+--------------------------------
 
-From the repository root:
-
-.. code-block:: bash
-
-   python -m pip install -e .
-
-Check that the command is available:
+After :doc:`installation`, run these commands from the repository root:
 
 .. code-block:: bash
 
-   nepkappa --help
+   nepkappa validate examples/nep-rta.yaml
+   nepkappa run examples/nep-rta.yaml
+   nepkappa plot examples/nep-rta.yaml
+   nepkappa report examples/nep-rta.yaml
 
-Inspect an example
-------------------
+The calculation relaxes bulk Si, generates FC2/FC3, and computes three-phonon
+RTA conductivity. Plots and a report are generated separately.
+Results appear in ``calculations/example-runs/nep-rta/``:
 
-The example inputs are in ``examples/``. Before starting a calculation,
-inspect the parsed settings:
+- ``run.log``: progress and errors.
+- ``fc2.hdf5``, ``fc3.hdf5``, ``phono3py_disp.yaml``: force constants and metadata.
+- ``kappa-m*.hdf5``: conductivity and mode data.
+- ``plots/``: figures.
+- ``report.md`` and ``report.yaml``: result summaries.
 
-.. code-block:: bash
+The template demonstrates the workflow. Converge supercell size, q mesh, and
+force-constant settings before using a result quantitatively.
 
-   nepkappa info examples/1-bulk-nep-rta.yaml
-
-Run a complete workflow
+Create your own input
 -----------------------
 
-For the default bulk NEP finite-displacement RTA example:
+.. code-block:: bash
+
+   nepkappa init input.yaml
+   nepkappa validate input.yaml
+   nepkappa info input.yaml
+   nepkappa run input.yaml
+
+The initializer asks for the calculation type, structure, calculator, numerical
+settings, and output directory. Provide a structure and potential for the same
+material. Existing input files are preserved unless ``--force`` is supplied.
+
+Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
+directory. To work elsewhere, use suitable relative paths or absolute paths.
+Convergence study ``base`` and ``study.directory`` are exceptions: they resolve
+from the study YAML's directory.
+
+For scripts, create a non-interactive input:
 
 .. code-block:: bash
 
-   nepkappa run examples/1-bulk-nep-rta.yaml
+   nepkappa init input.yaml --non-interactive \
+     --preset three-phonon --calculator nep \
+     --structure examples/structures/Si/POSCAR_bulk \
+     --model potentials/Si/Si_Bulk_Fan.txt \
+     --dim 3 3 3 --mesh 21 21 21
 
-Run stages separately
----------------------
+Choose another workflow
+-------------------------
 
-The same workflow can be split into stages:
+Select a template from :doc:`examples` and run it with the same ``run`` command.
+The presets are ``three-phonon``, ``four-phonon``, ``qha``, ``scph``, and
+``qha-sscha``. ``scph`` selects the implemented Phonopy stochastic SSCHA route.
 
-.. code-block:: bash
-
-   nepkappa relax examples/1-bulk-nep-rta.yaml
-   nepkappa fc2fc3 examples/1-bulk-nep-rta.yaml
-   nepkappa kappa examples/1-bulk-nep-rta.yaml
-   nepkappa plot examples/1-bulk-nep-rta.yaml
-
-Use ``nepkappa fc2`` instead of ``fc2fc3`` when only harmonic FC2 data is
-needed.
-
-If ``relaxation.enabled`` is ``false``, the ``relax`` stage copies the input
-structure to ``POSCAR_relaxed``.
-
-For VASP examples, edit the VASP executable, MPI command, and POTCAR path before
-running on your own machine or cluster.
-
-Compare completed DFT and NEP results
--------------------------------------
-
-After both result directories contain ``phono3py_disp.yaml``, ``fc2.hdf5``,
-and ``kappa-m*.hdf5``, compare them with:
+For analysis or restarts, use a stage command instead:
 
 .. code-block:: bash
 
-   nepkappa compare examples/compare.yaml
+   nepkappa validate input.yaml --for kappa
+   nepkappa kappa input.yaml
 
-Comparison figures are written under ``compare.compare_dir/plots`` from the
-comparison YAML file.
+This recalculates transport from existing matching FC2, FC3, and phono3py
+metadata. See :doc:`tutorial` for stage prerequisites, QHA/SSCHA, and Slurm.
 
-Typical outputs
----------------
-
-Generated files are written under ``output.result_dir`` from the YAML file.
-Typical outputs include:
-
-- ``run.log``
-- ``POSCAR_relaxed`` (a relaxed structure, or a copy of the input when relaxation is disabled)
-- ``phono3py_disp.yaml``
-- ``fc2.hdf5``
-- ``fc3.hdf5``
-- ``hiphive_model.fcp`` for HiPhive runs
-- ``vasp-runs/`` and ``vasp-relax/`` for VASP runs
-- ``kappa-mXXXXX.hdf5`` from ``phono3py``
-- ``plots/`` with dispersion, DOS, volume heat capacity, group velocity in km/s, relaxation time, and kappa figures
-- ``comparison/plots/`` for DFT-vs-NEP comparison figures
+Validation checks supported settings; it does not test model accuracy or
+external executables. ``nepkappa status input.yaml`` reads saved submission
+state and, where available, Slurm queue state. For a traceback, put ``--debug``
+before the command.

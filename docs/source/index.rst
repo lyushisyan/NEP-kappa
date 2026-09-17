@@ -1,35 +1,38 @@
-NEP-kappa Documentation
-=======================
+NEP-kappa
+===========
 
-Welcome to the documentation of **NEP-kappa**.
+Phonons and lattice thermal transport with first-principles and
+machine-learning potentials. This documentation describes the
+**2.0.0 release**.
 
-Source code repository:
-`GitHub <https://github.com/lyushisyan/NEP-kappa>`_
-
-**NEP-kappa v1.1.0** is an installable workflow package for lattice thermal
-conductivity calculations based on **NEP**, **VASP**, **HiPhive**, and
-**phono3py**.
-
-It supports:
-
-- staged commands: ``info``, ``relax``, ``fc2``, ``fc2fc3``, ``kappa``, ``plot``, ``compare``, and ``run``
-- optional NEP or VASP structure relaxation
-- force-constant generation by finite displacement or HiPhive
-- thermal conductivity calculations with phono3py
-- plotting for dispersion, DOS, heat capacity, group velocity, relaxation time, and kappa
-- DFT-vs-NEP comparison plots
-- repository-provided YAML examples for bulk and film systems
+New users: follow :doc:`installation`, then :doc:`starting`.
+Choose a calculation in :doc:`examples`; look up exact YAML keys in
+:doc:`input_files`.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Table of contents
-   :numbered:
+   :caption: Getting started
 
-   introduction
-   requirements
    installation
    starting
-   input_files
+   examples
+   introduction
+   requirements
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Calculation guide
+
    tutorial
-   reference
+   input_files
+   input_assistant
    troubleshooting
+   reference
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Development
+
+   development
+   architecture
+   release_baseline

@@ -1,0 +1,41 @@
+# Bulk Si VASP example for generating FourPhonon fourth-order force constants.
+# Change calculator.name to nep and provide calculator.nep_model to use NEP
+# forces with the same Fourthorder sow/reap workflow.
+#
+# Requirements:
+# - FourPhonon/Fourthorder provides Fourthorder_vasp.py in PATH, or set
+#   force-constant.fourthorder-command explicitly.
+# - VASP must write vasprun.xml for every displaced structure.
+
+workflow:
+  preset: custom
+  steps: [fc4]
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: vasp
+  vasp_command: mpirun -np 56 /path/to/vasp_std
+  vasp_path: /path/to/vasp_std
+  potcar_path: /path/to/potpaw_PBE
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc4: [2, 2, 2]
+  cutoff-fc4: -2
+  fourthorder-command: Fourthorder_vasp.py
+  fc4-workdir: fc4-runs
+  vasp_kwargs:
+    encut: 650
+    kspacing: 0.2
+    kgamma: true
+    ncore: 4
+    lreal: false
+
+output:
+  progress: true
+  result_dir: calculations/example-runs/vasp-fc4

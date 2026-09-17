@@ -8,133 +8,45 @@
 # ==============================================================================
 
 import subprocess
+import hashlib
 import shlex
 import shutil
-import sys
-import threading
 import time
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 import numpy as np
 
 # ASE & Calorine
 from ase.io import read, write
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 from calorine.calculators import CPUNEP
 from calorine.tools import relax_structure
 
 # HiPhive
-from hiphive import ClusterSpace, StructureContainer, ForceConstantPotential, ForceConstants
+from hiphive import ForceConstants
 from hiphive.structure_generation import generate_mc_rattled_structures
-from hiphive.utilities import prepare_structures
-from hiphive import enforce_rotational_sum_rules
-from trainstation import Optimizer
 
 # Phonopy / Phono3py
-from phonopy import Phonopy
-from phonopy.structure.atoms import PhonopyAtoms
-import phono3py as phono3py_module
+from phonopy.file_IO import write_FORCE_CONSTANTS
+from phonopy.harmonic.force_constants import compact_fc_to_full_fc
 from phono3py import Phono3py
 from phono3py.file_IO import write_fc2_to_hdf5, write_fc3_to_hdf5
+from phono3py.phonon3.fc3 import compact_fc3_to_full_fc3
 
-try:
-    from tqdm.auto import tqdm
-except ImportError:
-    tqdm = None
-
-# --- Helper Functions ---
-def format_duration(seconds):
-    """Format elapsed seconds as a compact human-readable duration."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    if hours:
-        return f"{hours}h {minutes}m {secs:.2f}s"
-    if minutes:
-        return f"{minutes}m {secs:.2f}s"
-    return f"{secs:.2f}s"
-
-def format_activity_elapsed(seconds):
-    """Format elapsed seconds like tqdm's compact clock."""
-    total = int(seconds)
-    hours, remainder = divmod(total, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
-
-def progress_iter(iterable, enabled=True, **kwargs):
-    """Return a tqdm iterator when available and enabled."""
-    if enabled and tqdm is not None:
-        return tqdm(iterable, **kwargs)
-    return iterable
-
-def run_activity_task(label, func, enabled=True, update_interval=1.0, log_interval=30.0):
-    """Run a blocking task while showing elapsed activity feedback."""
-    if not enabled:
-        return func()
-
-    result = {}
-
-    def worker():
-        try:
-            result["value"] = func()
-        except BaseException as exc:
-            result["error"] = exc
-
-    thread = threading.Thread(target=worker)
-    thread.start()
-    start = time.time()
-    progress_stream = getattr(sys.stderr, "terminal_stream", sys.stderr)
-
-    if tqdm is not None:
-        with tqdm(
-            total=None,
-            desc=label,
-            unit="s",
-            bar_format="{desc}: {elapsed} elapsed",
-            file=progress_stream,
-            leave=False,
-        ) as bar:
-            while thread.is_alive():
-                thread.join(update_interval)
-                bar.update(update_interval)
-    else:
-        last_log = start
-        while thread.is_alive():
-            thread.join(update_interval)
-            now = time.time()
-            if now - last_log >= log_interval:
-                print(
-                    f"\r{label}: {format_activity_elapsed(now - start)} elapsed",
-                    end="",
-                    file=progress_stream,
-                    flush=True,
-                )
-                last_log = now
-
-    thread.join()
-    if "error" in result:
-        raise result["error"]
-    print(f"{label}: {format_activity_elapsed(time.time() - start)} elapsed")
-    return result.get("value")
-
-def ase_to_phonopy(ase_atoms):
-    """Convert ASE Atoms object to PhonopyAtoms object."""
-    return PhonopyAtoms(
-        symbols=ase_atoms.get_chemical_symbols(),
-        scaled_positions=ase_atoms.get_scaled_positions(),
-        cell=ase_atoms.cell,
-    )
-
-def phonopy_to_ase(ph_atoms):
-    """Convert PhonopyAtoms object to ASE Atoms object."""
-    return Atoms(
-        symbols=ph_atoms.symbols,
-        positions=ph_atoms.positions,
-        cell=ph_atoms.cell,
-        pbc=True
-    )
+from nepkappa import __version__
+from nepkappa.calculators import calculator_backend_from_config
+from nepkappa.provenance import (
+    canonical_data,
+    data_sha256,
+    file_identity,
+    installed_versions,
+)
+from nepkappa.runtime import (
+    ase_to_phonopy,
+    format_duration,
+    phonopy_to_ase,
+)
 
 # --- Main Logic Class ---
 class NEPPhononWorkflow:
@@ -152,14 +64,25 @@ class NEPPhononWorkflow:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.fc2_path = self.output_dir / "fc2.hdf5"
         self.fc3_path = self.output_dir / "fc3.hdf5"
+        self.shengbte_fc2_path = self.output_dir / "FORCE_CONSTANTS_2ND"
+        self.shengbte_fc3_path = self.output_dir / "FORCE_CONSTANTS_3RD"
+        self.fc4_path = self.output_dir / "FORCE_CONSTANTS_4TH"
         self.disp_path = self.output_dir / "phono3py_disp.yaml"
         self.relaxed_poscar_path = self.output_dir / "POSCAR_relaxed"
         self.hiphive_model_path = self.output_dir / "hiphive_model.fcp"
         self.vasp_root = self.output_dir / getattr(config, "vasp_workdir", "vasp-runs")
+        self.fc3_root = self.output_dir / getattr(
+            config, "fc3_workdir", "fc3-thirdorder-runs"
+        )
+        self.fc4_root = self.output_dir / getattr(config, "fc4_workdir", "fc4-runs")
         self.vasp_relax_root = self.output_dir / getattr(
             config, "vasp_relax_workdir", "vasp-relax"
         )
         self._nep_calc = None
+        self._external_backend = None
+        self._vasp_backend = None
+        self._force_store = None
+        self._cache_software_versions = None
         self.prim = None 
 
     def _run_timed_stage(self, label, func):
@@ -194,33 +117,175 @@ class NEPPhononWorkflow:
                 print(line, end="")
         return process.wait()
 
+    def _run_command_with_input(self, cmd, input_text, cwd=None):
+        """Run a subprocess with stdin while forwarding output to terminal/log."""
+        process = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        output, _ = process.communicate(input_text)
+        if output:
+            print(output, end="")
+        return process.returncode
+
     def _phono3py_command(self):
         """Return a robust phono3py executable command."""
-        configured = getattr(self.cfg, "phono3py_command", None)
+        from nepkappa.transport import resolve_phono3py_command
+
+        return resolve_phono3py_command(self.cfg)
+
+    def _fourthorder_command(self):
+        """Return a robust Fourthorder executable command."""
+        configured = getattr(self.cfg, "fourthorder_command", None)
         if configured:
             return shlex.split(str(configured))
 
-        executable = shutil.which("phono3py")
+        for executable_name in ("Fourthorder_vasp.py", "fourthorder_vasp.py"):
+            executable = shutil.which(executable_name)
+            if executable:
+                return [executable]
+
+        return ["Fourthorder_vasp.py"]
+
+    def _thirdorder_command(self):
+        """Return a robust thirdorder executable command."""
+        configured = getattr(self.cfg, "thirdorder_command", None)
+        if configured:
+            return shlex.split(str(configured))
+
+        executable = shutil.which("thirdorder_vasp.py")
         if executable:
             return [executable]
 
-        sibling_script = Path(sys.executable).with_name("phono3py")
-        if sibling_script.exists():
-            return [str(sibling_script)]
+        return ["thirdorder_vasp.py"]
 
-        return ["phono3py"]
+    def _format_fourthorder_value(self, value):
+        """Format Fourthorder numeric arguments without unnecessary .0 suffixes."""
+        value = float(value)
+        if value.is_integer():
+            return str(int(value))
+        return f"{value:g}"
+
+    def _fourthorder_args(self, mode):
+        """Build Fourthorder_vasp.py sow/reap command arguments."""
+        nx, ny, nz = self.cfg.dim_fc4
+        return [
+            *self._fourthorder_command(),
+            mode,
+            str(nx),
+            str(ny),
+            str(nz),
+            self._format_fourthorder_value(self.cfg.cutoff_fc4),
+        ]
+
+    def _thirdorder_args(self, mode):
+        """Build thirdorder_vasp.py sow/reap command arguments."""
+        nx, ny, nz = self.cfg.dim_fc3
+        return [
+            *self._thirdorder_command(),
+            mode,
+            str(nx),
+            str(ny),
+            str(nz),
+            self._format_fourthorder_value(self.cfg.cutoff_fc3),
+        ]
+
+    def _fc3_backend(self):
+        """Return the selected FC3 generation backend."""
+        return getattr(self.cfg, "fc3_backend", "phono3py")
+
+    def _fc_format(self):
+        """Return requested FC2/FC3 export format."""
+        return getattr(self.cfg, "fc_format", "phono3py")
+
+    def _write_phono3py_fc2(self, fc2, p2s_map=None):
+        """Write FC2 in phono3py/phonopy HDF5 format."""
+        write_fc2_to_hdf5(fc2, filename=str(self.fc2_path), p2s_map=p2s_map)
+        print(f"  - Generated: {self.fc2_path}")
+
+    def _write_phono3py_fc3(self, fc3, p2s_map=None, fc3_nonzero_indices=None):
+        """Write FC3 in phono3py HDF5 format."""
+        write_fc3_to_hdf5(
+            fc3,
+            fc3_nonzero_indices=fc3_nonzero_indices,
+            filename=str(self.fc3_path),
+            p2s_map=p2s_map,
+        )
+        print(f"  - Generated: {self.fc3_path}")
+
+    def _write_shengbte_fc2(self, fc2_full):
+        """Write FC2 in ShengBTE/phonopy text format."""
+        write_FORCE_CONSTANTS(fc2_full, filename=str(self.shengbte_fc2_path))
+        print(f"  - Generated: {self.shengbte_fc2_path}")
+
+    def _write_shengbte_fc3(self, fc3_full, supercell, primitive):
+        """Write FC3 in ShengBTE text format."""
+        fcs = ForceConstants.from_arrays(supercell, fc3_array=fc3_full)
+        fcs.write_to_shengBTE(str(self.shengbte_fc3_path), primitive)
+        print(f"  - Generated: {self.shengbte_fc3_path}")
+
+    def _write_fc2_exports(
+        self,
+        fc2,
+        *,
+        p2s_map=None,
+        fc2_full=None,
+        phonopy_primitive=None,
+    ):
+        """Write FC2 in the requested output format(s)."""
+        fc_format = self._fc_format()
+        if fc_format in {"phono3py", "both"}:
+            self._write_phono3py_fc2(fc2, p2s_map=p2s_map)
+        if fc_format in {"shengbte", "both"}:
+            if fc2_full is None:
+                if p2s_map is not None and phonopy_primitive is not None:
+                    fc2_full = compact_fc_to_full_fc(phonopy_primitive, fc2)
+                else:
+                    fc2_full = fc2
+            self._write_shengbte_fc2(fc2_full)
+
+    def _write_fc3_exports(
+        self,
+        fc3,
+        *,
+        p2s_map=None,
+        fc3_nonzero_indices=None,
+        fc3_full=None,
+        supercell_atoms=None,
+        primitive_atoms=None,
+        phono3py_primitive=None,
+    ):
+        """Write FC3 in the requested output format(s)."""
+        fc_format = self._fc_format()
+        if fc_format in {"phono3py", "both"}:
+            self._write_phono3py_fc3(
+                fc3,
+                p2s_map=p2s_map,
+                fc3_nonzero_indices=fc3_nonzero_indices,
+            )
+        if fc_format in {"shengbte", "both"}:
+            if supercell_atoms is None or primitive_atoms is None:
+                raise ValueError("ShengBTE FC3 export requires supercell and primitive")
+            if fc3_full is None:
+                if p2s_map is not None:
+                    if phono3py_primitive is None:
+                        raise ValueError(
+                            "Compact ShengBTE FC3 export requires phono3py primitive"
+                        )
+                    fc3_full = compact_fc3_to_full_fc3(phono3py_primitive, fc3)
+                else:
+                    fc3_full = fc3
+            self._write_shengbte_fc3(fc3_full, supercell_atoms, primitive_atoms)
 
     def _phono3py_needs_fc_flags(self):
         """Return True when the phono3py CLI needs explicit --fc2/--fc3 flags."""
-        try:
-            major = int(str(phono3py_module.__version__).split(".", 1)[0])
-        except (AttributeError, TypeError, ValueError):
-            return True
-        return major < 4
+        from nepkappa.transport import phono3py_needs_fc_flags
 
-    def _expected_kappa_name(self):
-        mx, my, mz = self.cfg.mesh
-        return f"kappa-m{mx}{my}{mz}.hdf5"
+        return phono3py_needs_fc_flags()
 
     def _make_phono3py(self):
         """Create a Phono3py object with the workflow's structure settings."""
@@ -248,314 +313,174 @@ class NEPPhononWorkflow:
             self._nep_calc = CPUNEP(self.cfg.nep_model)
         return self._nep_calc
 
+    def _make_external_backend(self):
+        """Return the configured generic ASE/plugin calculator backend."""
+        if self._external_backend is None:
+            self._external_backend = calculator_backend_from_config(self.cfg)
+        return self._external_backend
+
+    def _make_vasp_backend(self):
+        """Create and cache the extracted VASP adapter."""
+        if self._vasp_backend is None:
+            from nepkappa.adapters.vasp import VaspBackend
+
+            self._vasp_backend = VaspBackend(
+                self.cfg,
+                output_dir=self.output_dir,
+                force_root=self.vasp_root,
+                relax_root=self.vasp_relax_root,
+                relaxed_structure=self.relaxed_poscar_path,
+                run_command=lambda command, cwd=None: self._run_command(
+                    command, cwd=cwd
+                ),
+            )
+        return self._vasp_backend
+
+    def _make_force_store(self):
+        """Create and cache the force-job artifact store."""
+        if self._force_store is None:
+            from nepkappa.artifacts import ForceArtifactStore
+
+            self._force_store = ForceArtifactStore(
+                vasp_root=self.vasp_root,
+                generic_root=self.output_dir / "force-jobs",
+            )
+        return self._force_store
+
     def _vasp_command(self):
-        """Resolve the VASP command from YAML or common server locations."""
-        if getattr(self.cfg, "vasp_command", None):
-            return shlex.split(self.cfg.vasp_command)
-        if getattr(self.cfg, "vasp_path", None):
-            return [self.cfg.vasp_path]
-        detected = self._detect_vasp_path()
-        if detected is not None:
-            print(f"  - Detected VASP executable: {detected}")
-            return [str(detected)]
-        raise FileNotFoundError(
-            "VASP executable not found. Set calculator.vasp_path or "
-            "calculator.vasp_command in the YAML file."
-        )
+        """Compatibility proxy for the VASP adapter command resolver."""
+        return self._make_vasp_backend().command()
 
     def _detect_vasp_path(self):
-        """Find a likely VASP executable on common local/server paths."""
-        candidates = [
-            Path("/root/software/vasp.6.4.3/bin/vasp_std"),
-            Path("/root/software/vasp.6.4.3/build/std/vasp"),
-        ]
-        for candidate in candidates:
-            if candidate.is_file():
-                return candidate
-        for candidate in sorted(Path("/root/software").glob("vasp*/bin/vasp_std")):
-            if candidate.is_file():
-                return candidate
-        resolved = shutil.which("vasp_std")
-        if resolved:
-            return Path(resolved)
-        return None
+        """Compatibility proxy for VASP executable discovery."""
+        return self._make_vasp_backend().detect_path()
 
     def _resolve_potcar_path(self, atoms):
-        """Resolve a POTCAR file or assemble one from a potential directory."""
-        configured = getattr(self.cfg, "potcar_path", None)
-        symbols = []
-        for symbol in atoms.get_chemical_symbols():
-            if symbol not in symbols:
-                symbols.append(symbol)
-
-        if configured:
-            path = Path(configured)
-            if path.is_file():
-                return path, (path,)
-            if path.is_dir():
-                return self._assemble_potcar_from_library(path, symbols)
-            raise FileNotFoundError(f"POTCAR path not found: {path}")
-
-        detected = self._detect_potcar_path(symbols)
-        if detected is not None:
-            print(f"  - Detected POTCAR source: {detected}")
-            return detected
-        raise FileNotFoundError(
-            "POTCAR not found. Set calculator.potcar_path in the YAML file."
-        )
+        """Compatibility proxy for POTCAR resolution."""
+        return self._make_vasp_backend().resolve_potcar(atoms)
 
     def _detect_potcar_path(self, symbols):
-        """Find a likely POTCAR source under /root/software."""
-        if len(symbols) == 1:
-            symbol = symbols[0]
-            candidates = [
-                Path(f"/root/software/potpaw_PBE.64/{symbol}/POTCAR"),
-                Path(f"/root/software/vasp.6.4.3/testsuite/POTCARS/POTCAR.{symbol}"),
-                Path(f"/root/software/vasp.6.4.3/potpaw_PBE/{symbol}/POTCAR"),
-                Path(f"/root/software/potpaw_PBE/{symbol}/POTCAR"),
-            ]
-            for candidate in candidates:
-                if candidate.is_file():
-                    return candidate, (candidate,)
-        for library in (
-            Path("/root/software/potpaw_PBE.64"),
-            Path("/root/software/vasp.6.4.3/potpaw_PBE"),
-            Path("/root/software/potpaw_PBE"),
-            Path("/root/software/vasp.6.4.3/testsuite/POTCARS"),
-        ):
-            if library.is_dir():
-                try:
-                    return self._assemble_potcar_from_library(library, symbols)
-                except FileNotFoundError:
-                    pass
-        return None
+        """Compatibility proxy for POTCAR discovery."""
+        return self._make_vasp_backend().detect_potcar(symbols)
 
     def _assemble_potcar_from_library(self, library, symbols):
-        """Return a single POTCAR file or create a combined POTCAR in result_dir."""
-        chunks = []
-        chosen = []
-        for symbol in symbols:
-            potcar = self._find_potcar_for_symbol(library, symbol)
-            if potcar is None:
-                raise FileNotFoundError(
-                    f"missing POTCAR for {symbol} under {library}"
-                )
-            chunks.append(potcar.read_bytes())
-            chosen.append(str(potcar))
-
-        if len(chunks) == 1:
-            path = Path(chosen[0])
-            return path, (path,)
-
-        combined = self.output_dir / "POTCAR.combined"
-        combined.write_bytes(b"\n".join(chunks))
-        spec = self.output_dir / "POTCAR.spec"
-        spec.write_text("\n".join(chosen) + "\n", encoding="utf-8")
-        return combined, tuple(Path(path) for path in chosen)
+        """Compatibility proxy for multi-species POTCAR assembly."""
+        return self._make_vasp_backend().assemble_potcar(library, symbols)
 
     def _find_potcar_for_symbol(self, library, symbol):
-        candidates = [
-            library / symbol / "POTCAR",
-            library / f"{symbol}" / "POTCAR",
-            library / f"{symbol}_sv" / "POTCAR",
-            library / f"{symbol}_pv" / "POTCAR",
-            library / f"POTCAR.{symbol}",
-            library / "POTCAR",
-        ]
-        for candidate in candidates:
-            if candidate.is_file():
-                return candidate
-        return None
+        return self._make_vasp_backend().find_potcar(library, symbol)
 
     def _write_vasp_run_inputs(self, run_dir, atoms, incar_overrides=None, system=None):
-        """Write POSCAR, INCAR, KPOINTS, POTCAR, and POTCAR.spec for one VASP run."""
-        run_dir.mkdir(parents=True, exist_ok=True)
-        write(str(run_dir / "POSCAR"), atoms, format="vasp", direct=True, vasp5=True)
-        vasp_kwargs = self._combined_vasp_kwargs(incar_overrides, system=system)
-        self._write_vasp_incar(run_dir / "INCAR", vasp_kwargs)
-        self._write_vasp_kpoints(run_dir / "KPOINTS", vasp_kwargs)
-        potcar_path, potcar_sources = self._resolve_potcar_path(atoms)
-        shutil.copyfile(potcar_path, run_dir / "POTCAR")
-        (run_dir / "POTCAR.spec").write_text(
-            "\n".join(str(source) for source in potcar_sources) + "\n",
-            encoding="utf-8",
+        """Compatibility proxy for VASP input generation."""
+        return self._make_vasp_backend().write_run_inputs(
+            run_dir,
+            atoms,
+            incar_overrides=incar_overrides,
+            system=system,
         )
 
     def _run_vasp_forces(self, atoms, label, index):
-        """Run one VASP single-point force calculation and return forces."""
-        run_dir = self.vasp_root / label.lower() / f"{index:05d}"
-        self._write_vasp_run_inputs(run_dir, atoms, system="NEP-kappa VASP single point")
+        """Compatibility proxy for one VASP force calculation."""
+        return self._make_vasp_backend().run_forces(atoms, label, index)
 
-        cmd = self._vasp_command()
-        print(f"    VASP {label.upper()} #{index}: {run_dir}")
-        ret = self._run_command(cmd, cwd=run_dir)
-        if ret != 0:
-            raise RuntimeError(f"VASP failed in {run_dir} with return code {ret}")
-        return self._read_vasp_forces(run_dir)
+    def _run_vasp_forces_in_dir(self, run_dir, atoms, label, index):
+        """Compatibility proxy for a VASP force calculation directory."""
+        return self._make_vasp_backend().run_forces_in_dir(
+            run_dir, atoms, label, index
+        )
+
+    def _run_vasp_fc4_job(self, atoms, job_dir, index):
+        """Compatibility proxy for a Fourthorder VASP job."""
+        return self._make_vasp_backend().run_order_job(
+            atoms, job_dir, "fc4", consumer="Fourthorder reap"
+        )
+
+    def _run_vasp_thirdorder_job(self, atoms, job_dir, index):
+        """Compatibility proxy for a thirdorder VASP job."""
+        return self._make_vasp_backend().run_order_job(
+            atoms, job_dir, "fc3-thirdorder", consumer="thirdorder reap"
+        )
+
+    def _run_vasp_force_xml_job(self, atoms, job_dir, label):
+        """Compatibility proxy for an externally consumed VASP XML job."""
+        consumer = "Fourthorder reap" if label == "fc4" else "thirdorder reap"
+        return self._make_vasp_backend().run_order_job(
+            atoms, job_dir, label, consumer=consumer
+        )
+
+    def _write_vasp_force_xml(self, filename, forces):
+        """Write the minimal VASP XML force block parsed by *order scripts."""
+        force_array = np.asarray(forces, dtype="double")
+        if force_array.ndim != 2 or force_array.shape[1] != 3:
+            raise ValueError(
+                "forces must have shape (number_of_atoms, 3)"
+            )
+        if not np.all(np.isfinite(force_array)):
+            raise ValueError("forces contain non-finite values")
+
+        root = ET.Element("modeling")
+        calculation = ET.SubElement(root, "calculation")
+        varray = ET.SubElement(calculation, "varray", {"name": "forces"})
+        for force in force_array:
+            vector = ET.SubElement(varray, "v")
+            vector.text = " ".join(f"{component:.16e}" for component in force)
+
+        filename = Path(filename)
+        filename.parent.mkdir(parents=True, exist_ok=True)
+        ET.ElementTree(root).write(filename, encoding="utf-8", xml_declaration=True)
+        return filename
+
+    def _run_nep_thirdorder_job(self, atoms, job_dir, index):
+        """Evaluate NEP forces and expose them through thirdorder's VASP parser."""
+        atoms.calc = self._make_nep_calculator()
+        forces = atoms.get_forces()
+        vasprun_path = job_dir / "vasprun.xml"
+        return self._write_vasp_force_xml(vasprun_path, forces)
+
+    def _run_nep_fc4_job(self, atoms, job_dir, index):
+        """Evaluate NEP forces and expose them through Fourthorder's parser."""
+        atoms.calc = self._make_nep_calculator()
+        forces = atoms.get_forces()
+        vasprun_path = job_dir / "vasprun.xml"
+        return self._write_vasp_force_xml(vasprun_path, forces)
+
+    def _run_external_order_job(self, atoms, job_dir):
+        """Expose external ASE calculator forces through the order-script XML API."""
+        forces = self._make_external_backend().calculate_forces(atoms)
+        return self._write_vasp_force_xml(job_dir / "vasprun.xml", forces)
 
     def _combined_vasp_kwargs(self, overrides=None, system=None):
-        """Merge global VASP kwargs, workflow defaults, and stage-specific overrides."""
-        kwargs = dict(getattr(self.cfg, "vasp_kwargs", {}) or {})
-        defaults = {
-            "system": system or "PESMaker single point",
-            "gga": "PE",
-            "lreal": "Auto",
-            "ibrion": -1,
-            "nsw": 0,
-            "algo": "Normal",
-            "ediff": 1.0e-6,
-            "sigma": 0.02,
-            "ismear": 0,
-            "prec": "Accurate",
-            "nelm": 150,
-            "lwave": False,
-            "lcharg": False,
-        }
-        for key, value in defaults.items():
-            kwargs.setdefault(key, value)
-        if overrides:
-            kwargs.update(overrides)
-        return kwargs
+        """Compatibility proxy for normalized VASP parameters."""
+        return self._make_vasp_backend().combined_kwargs(overrides, system)
 
     def _write_vasp_incar(self, path, kwargs=None):
-        if kwargs is None:
-            kwargs = self._combined_vasp_kwargs()
-        skip = {"kpts", "gamma", "txt", "directory", "command", "xc"}
-        with path.open("w", encoding="utf-8") as handle:
-            for key, value in kwargs.items():
-                if key.lower() in skip:
-                    continue
-                handle.write(f"{key.upper()} = {self._format_vasp_value(value)}\n")
+        return self._make_vasp_backend().write_incar(path, kwargs)
 
     def _write_vasp_kpoints(self, path, kwargs=None):
-        if kwargs is None:
-            kwargs = self._combined_vasp_kwargs()
-        if "kspacing" in {str(key).lower() for key in kwargs}:
-            if path.exists():
-                path.unlink()
-            return
-        kpts = kwargs.get("kpts", [1, 1, 1])
-        if isinstance(kpts, int):
-            kpts = [kpts, kpts, kpts]
-        if len(kpts) != 3:
-            raise ValueError("vasp_kwargs.kpts must be an integer or a length-3 list")
-        mode = "Gamma" if kwargs.get("gamma", True) else "Monkhorst-Pack"
-        path.write_text(
-            "Automatic mesh\n"
-            "0\n"
-            f"{mode}\n"
-            f"{int(kpts[0])} {int(kpts[1])} {int(kpts[2])}\n"
-            "0 0 0\n",
-            encoding="utf-8",
-        )
+        return self._make_vasp_backend().write_kpoints(path, kwargs)
 
     def _format_vasp_value(self, value):
-        if isinstance(value, bool):
-            return ".TRUE." if value else ".FALSE."
-        if isinstance(value, (list, tuple)):
-            return " ".join(self._format_vasp_value(item) for item in value)
-        return str(value)
+        return self._make_vasp_backend().format_value(value)
 
     def _read_vasp_forces(self, run_dir):
-        for filename in ("vasprun.xml", "OUTCAR"):
-            path = run_dir / filename
-            if not path.exists():
-                continue
-            try:
-                atoms = read(str(path), index=-1)
-                return atoms.get_forces()
-            except Exception as exc:
-                last_error = exc
-        raise RuntimeError(
-            f"Could not read VASP forces from {run_dir / 'vasprun.xml'} "
-            f"or {run_dir / 'OUTCAR'}"
-        ) from locals().get("last_error")
+        return self._make_vasp_backend().read_forces(run_dir)
 
     def _default_vasp_relax_stages(self):
-        return {
-            "coarse": {
-                "system": "NEP-kappa VASP coarse relaxation",
-                "nsw": 80,
-                "ibrion": 2,
-                "isif": 3,
-                "ediff": 1.0e-5,
-                "ediffg": -0.05,
-                "prec": "Normal",
-            },
-            "fine": {
-                "system": "NEP-kappa VASP fine relaxation",
-                "nsw": 150,
-                "ibrion": 2,
-                "isif": 3,
-                "ediff": 1.0e-6,
-                "ediffg": -0.01,
-                "prec": "Accurate",
-            },
-        }
+        return self._make_vasp_backend().default_relax_stages()
 
     def _vasp_relax_stages(self):
-        stages = getattr(self.cfg, "vasp_relax_stages", None)
-        if not stages:
-            stages = self._default_vasp_relax_stages()
-        if not isinstance(stages, dict):
-            raise ValueError("vasp_relax.stages must be a mapping")
-        ordered = []
-        for name in ("coarse", "fine"):
-            if name in stages:
-                value = stages[name] or {}
-                if not isinstance(value, dict):
-                    raise ValueError(f"vasp_relax.stages.{name} must be a mapping")
-                ordered.append((name, value))
-        for name, value in stages.items():
-            if name in {"coarse", "fine"}:
-                continue
-            if not isinstance(value, dict):
-                raise ValueError(f"vasp_relax.stages.{name} must be a mapping")
-            ordered.append((name, value))
-        return ordered
+        return self._make_vasp_backend().relax_stages()
 
     def _read_vasp_relaxed_structure(self, run_dir):
-        for filename in ("CONTCAR", "vasprun.xml", "OUTCAR"):
-            path = run_dir / filename
-            if not path.exists() or path.stat().st_size == 0:
-                continue
-            try:
-                return read(str(path), index=-1)
-            except Exception as exc:
-                last_error = exc
-        raise RuntimeError(
-            f"Could not read relaxed VASP structure from {run_dir}"
-        ) from locals().get("last_error")
+        return self._make_vasp_backend().read_relaxed_structure(run_dir)
 
     def _run_vasp_relax_stage(self, atoms, stage_name, stage_index, overrides):
-        run_dir = self.vasp_relax_root / f"{stage_index:02d}-{stage_name}"
-        system = overrides.get(
-            "system", f"NEP-kappa VASP {stage_name} relaxation"
+        return self._make_vasp_backend().run_relax_stage(
+            atoms, stage_name, stage_index, overrides
         )
-        self._write_vasp_run_inputs(
-            run_dir,
-            atoms,
-            incar_overrides=overrides,
-            system=system,
-        )
-        cmd = self._vasp_command()
-        print(f"    VASP relax {stage_name}: {run_dir}")
-        ret = self._run_command(cmd, cwd=run_dir)
-        if ret != 0:
-            raise RuntimeError(f"VASP relaxation failed in {run_dir} with return code {ret}")
-        relaxed = self._read_vasp_relaxed_structure(run_dir)
-        write(str(run_dir / "POSCAR_next"), relaxed, format="vasp", direct=True, vasp5=True)
-        return relaxed
 
     def _run_vasp_relaxation(self, atoms):
-        print("  - Relaxing structure using VASP")
-        current = atoms.copy()
-        for index, (stage_name, overrides) in enumerate(self._vasp_relax_stages(), 1):
-            print(f"  - VASP relaxation stage {index}: {stage_name}")
-            current = self._run_vasp_relax_stage(current, stage_name, index, overrides)
-        write(str(self.relaxed_poscar_path), current, format="vasp", direct=True, vasp5=True)
-        print(f"  - Relaxed structure saved to {self.relaxed_poscar_path}")
-        return current
+        return self._make_vasp_backend().relax(atoms)
 
     def _calculate_forces(self, atoms, label, index):
         """Calculate forces with the configured backend."""
@@ -566,28 +491,99 @@ class NEPPhononWorkflow:
         elif calculator == "vasp":
             return self._run_vasp_forces(atoms, label, index)
         else:
-            raise ValueError(f"Unsupported calculator: {calculator}")
+            return self._make_external_backend().calculate_forces(atoms)
+
+    def _force_job_dir(self, label, index):
+        """Return the stable work directory for one displaced structure."""
+        return self._make_force_store().job_dir(
+            label,
+            index,
+            calculator=self._calculator_name(),
+        )
+
+    def _validated_force_array(self, forces, atom_count, source):
+        """Normalize forces and reject incomplete or corrupt cache entries."""
+        return self._make_force_store().validate_forces(
+            forces, atom_count, source
+        )
+
+    def _force_structures_match(self, first, second, atol=1.0e-8):
+        """Return whether two force-job structures are numerically equivalent."""
+        return self._make_force_store().structures_match(first, second, atol)
+
+    def _calculate_forces_cached(self, atoms, label, index):
+        """Calculate or reuse forces for one structure using audited inputs."""
+        return self._make_force_store().calculate_or_reuse(
+            atoms,
+            label,
+            index,
+            calculator=self._calculator_name(),
+            fingerprint=self._job_input_fingerprint,
+            calculate=self._calculate_forces,
+        )
+
+    def _stage_force_job(self, atoms, label, index):
+        """Persist one displaced structure and return its Slurm task record."""
+        return self._make_force_store().stage_structure(
+            atoms,
+            label,
+            index,
+            calculator=self._calculator_name(),
+        )
+
+    def _prepare_force_slurm_jobs(self, include_fc3=True):
+        """Generate all structures needed by a native FC or HiPhive route."""
+        cfg = self.cfg
+        # The collection job reconstructs displacements from POSCAR_relaxed.
+        # Round-trip through that persisted structure before staging the array
+        # jobs so both processes hash byte-identical displaced POSCAR files.
+        if self.relaxed_poscar_path.is_file():
+            self.prim = read(str(self.relaxed_poscar_path))
+        jobs = []
+        if cfg.use_hiphive:
+            np.random.seed(42)
+            self._save_phono3py_metadata()
+            dimensions = cfg.dim_fc3 if include_fc3 else cfg.dim_fc2
+            ideal = self.prim.repeat(tuple(dimensions))
+            structures = generate_mc_rattled_structures(
+                ideal, cfg.n_structures, cfg.rattle_std, cfg.min_dist
+            )
+            for index, atoms in enumerate(structures, 1):
+                jobs.append(self._stage_force_job(atoms, "hiphive", index))
+            return jobs
+
+        ph3 = self._make_phono3py()
+        ph3.generate_fc2_displacements()
+        ph3.save(str(self.disp_path))
+        for index, supercell in enumerate(ph3.phonon_supercells_with_displacements, 1):
+            jobs.append(
+                self._stage_force_job(phonopy_to_ase(supercell), "fc2", index)
+            )
+        if include_fc3:
+            pair_cutoff = getattr(self.cfg, "pair_cutoff_fc3", None)
+            if pair_cutoff is None:
+                ph3.generate_displacements()
+            else:
+                ph3.generate_displacements(cutoff_pair_distance=pair_cutoff)
+            ph3.save(str(self.disp_path))
+            for index, supercell in enumerate(ph3.supercells_with_displacements, 1):
+                jobs.append(
+                    self._stage_force_job(phonopy_to_ase(supercell), "fc3", index)
+                )
+        return jobs
+
+    def _submit_force_slurm(self, include_fc3=True):
+        """Prepare displaced structures and dispatch their force calculations."""
+        from nepkappa.slurm import run_force_slurm
+
+        jobs = self._prepare_force_slurm_jobs(include_fc3=include_fc3)
+        return run_force_slurm(self.cfg, self.output_dir, jobs)
 
     def relax_structure_stage(self):
-        """Step 1: Load and optionally relax the primitive cell."""
-        print("\n[Step 1] Relax Structure")
-        print(f"  - Reading from {self.cfg.poscar}")
-        self.prim = read(self.cfg.poscar)
+        """Load and relax through the extracted structure stage."""
+        from nepkappa.stages.structure import StructureRelaxationStage
 
-        if self.cfg.do_relax:
-            if self._calculator_name() == "vasp":
-                self.prim = self._run_vasp_relaxation(self.prim)
-            else:
-                print(f"  - Relaxing structure using NEP: {self.cfg.nep_model}")
-                self.prim.calc = self._make_nep_calculator()
-                relax_structure(self.prim, fmax=1e-3)
-                relax_structure(self.prim, fmax=1e-5)
-                write(str(self.relaxed_poscar_path), self.prim)
-                print(f"  - Relaxed structure saved to {self.relaxed_poscar_path}")
-        else:
-            write(str(self.relaxed_poscar_path), self.prim, format="vasp", direct=True, vasp5=True)
-            print("  - Relaxation disabled; copied input structure for downstream steps")
-            print(f"  - Structure saved to {self.relaxed_poscar_path}")
+        return StructureRelaxationStage(self, ase_relax=relax_structure).run()
 
     def load_force_constant_structure(self):
         """Load the structure used by the force-constant stage."""
@@ -608,279 +604,225 @@ class NEPPhononWorkflow:
             self.prim = read(self.cfg.poscar)
 
     def run_hiphive_fitting(self, include_fc3=True):
-        """Step 1 (Path A): Fit Force Constants using HiPhive (Compressive Sensing)."""
-        print("\n[Step 2 - HiPhive] Generating Training Data & Fitting")
-        cfg = self.cfg
-        np.random.seed(42)
-        self._save_phono3py_metadata()
+        """Fit force constants through the extracted HiPhive stage."""
+        from nepkappa.stages.force_constants import HiPhiveStage
 
-        # 1. Create supercell
-        nx, ny, nz = cfg.dim_fc3 if include_fc3 else cfg.dim_fc2
-        atoms_ideal = self.prim.repeat((nx, ny, nz))
-        
-        # 2. Generate rattled structures
-        print(f"  - Generating {cfg.n_structures} rattled structures (std={cfg.rattle_std}, min_dist={cfg.min_dist})")   
-        structures = generate_mc_rattled_structures(
-            atoms_ideal, 
-            cfg.n_structures, 
-            cfg.rattle_std, 
-            cfg.min_dist
-        )
-
-        # 3. Compute forces
-        print(
-            f"  - Computing forces with {self._calculator_name().upper()} "
-            f"for {len(structures)} structures..."
-        )
-        for i, at in enumerate(progress_iter(
-            structures,
-            enabled=self.show_progress,
-            total=len(structures),
-            desc=self._force_desc("HiPhive"),
-            unit="structure"
-        )):
-            f = self._calculate_forces(at, "hiphive", i + 1)
-            at.calc = SinglePointCalculator(at, forces=f)
-            at.get_forces()
-            if (i+1) % 50 == 0:
-                print(f"    Processed {i+1}/{len(structures)}")
-
-        # 4. Train HiPhive Potential
-        cutoffs = cfg.cutoffs if include_fc3 else cfg.cutoffs[:1]
-        print(f"  - Fitting Force Constants (Cutoffs: {cutoffs})")
-        cs = ClusterSpace(self.prim, cutoffs)
-        sc = StructureContainer(cs)
-        for s in prepare_structures(structures, atoms_ideal):
-            sc.add_structure(s)
-            
-        opt = Optimizer(sc.get_fit_data())
-        opt.train()
-        print(f"    RMSE: {opt.rmse_train:.6f}")
-
-        # 5. Enforce sum rules and save
-        params = enforce_rotational_sum_rules(cs, opt.parameters, ['Huang', 'Born-Huang'])
-        fcp = ForceConstantPotential(cs, params)
-        fcp.write(str(self.hiphive_model_path))
-        print(f"  - HiPhive model saved to {self.hiphive_model_path}")
-
-        # 6. Export to Phono3py FC2 and optionally FC3
-        export_label = "FC2 and FC3" if include_fc3 else "FC2"
-        print(f"  - Exporting {export_label} from HiPhive model")
-        phonopy_fc2 = Phonopy(
-            ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc2)
-        )
-        fcs_fc2 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc2.supercell))
-        fcs_fc2.write_to_phonopy(str(self.fc2_path))
-
-        if include_fc3:
-            phonopy_fc3 = Phonopy(
-                ase_to_phonopy(self.prim), supercell_matrix=np.diag(cfg.dim_fc3)
-            )
-            fcs_fc3 = fcp.get_force_constants(phonopy_to_ase(phonopy_fc3.supercell))
-            fcs_fc3.write_to_phono3py(str(self.fc3_path))
-            print(f"  - Generated: {self.fc2_path}, {self.fc3_path}")
-        else:
-            print(f"  - Generated: {self.fc2_path}")
+        return HiPhiveStage(self, include_fc3=include_fc3).run()
 
     def run_finite_disp_fitting(self, include_fc3=True):
-        """Step 1 (Path B): Standard Finite Displacement Method using Phono3py."""
-        print("\n[Step 2 - FiniteDisp] Phono3py Finite Displacement Method")
-        cfg = self.cfg
-        
-        # 1. Initialize Phono3py
-        ph3 = self._make_phono3py()
-        
-        # 2. Generate FC2 displacements first.
-        ph3.generate_fc2_displacements()
-        ph3.save(str(self.disp_path))
-        
-        fc2_scs = ph3.phonon_supercells_with_displacements
-        print(f"  - Generated {len(fc2_scs)} FC2 supercells")
+        """Generate FC2/FC3 through the extracted finite-displacement stage."""
+        from nepkappa.stages.force_constants import FiniteDisplacementStage
 
-        # 3. Compute forces for FC2
-        print("  - Computing forces for FC2...")
-        forces_fc2 = []
-        for i, sc in enumerate(progress_iter(
-            fc2_scs,
-            enabled=self.show_progress,
-            total=len(fc2_scs),
-            desc=self._force_desc("FC2"),
-            unit="structure"
-        )):
-            atoms = phonopy_to_ase(sc)
-            forces_fc2.append(self._calculate_forces(atoms, "fc2", i + 1))
-        ph3.phonon_forces = np.array(forces_fc2)
+        return FiniteDisplacementStage(self, include_fc3=include_fc3).run()
 
-        # 4. Produce and save FC2 before starting FC3.
-        print("  - Producing force constants with phono3py finite differences")
-        print("  - Producing FC2...")
-        compact_fc = getattr(cfg, "compact_fc", True)
-        layout = "compact" if compact_fc else "full"
-        print(f"  - Force-constant layout: {layout}")
-        run_activity_task(
-            "Producing FC2",
-            lambda: ph3.produce_fc2(is_compact_fc=compact_fc),
-            enabled=self.show_progress,
-        )
-        print("  - Symmetrizing FC2...")
-        ph3.symmetrize_fc2()
-        fc2_p2s_map = ph3.phonon_primitive.p2s_map if compact_fc else None
-        write_fc2_to_hdf5(
-            ph3.fc2,
-            filename=str(self.fc2_path),
-            p2s_map=fc2_p2s_map,
-        )
-        print(f"  - Generated: {self.fc2_path}")
-        if include_fc3:
-            # 5. Generate FC3 displacements only after FC2 has been written.
-            ph3.generate_displacements()
-            ph3.save(str(self.disp_path))
+    def _displacement_pattern_sort_key(self, path):
+        """Sort thirdorder/Fourthorder pattern files by embedded numbers."""
+        return [
+            int(part) if part.isdigit() else part
+            for part in re.split(r"(\d+)", path.name)
+        ]
 
-            fc3_scs = ph3.supercells_with_displacements
-            print(f"  - Generated {len(fc3_scs)} FC3 supercells")
+    def _clear_displacement_patterns(self, root, pattern):
+        """Remove generated sow patterns so changed settings cannot leave stale files."""
+        for path in root.glob(pattern):
+            if path.is_file():
+                path.unlink()
 
-            # 6. Compute forces for FC3.
-            print("  - Computing forces for FC3...")
-            forces_fc3 = []
-            for i, sc in enumerate(progress_iter(
-                fc3_scs,
-                enabled=self.show_progress,
-                total=len(fc3_scs),
-                desc=self._force_desc("FC3"),
-                unit="structure"
-            )):
-                atoms = phonopy_to_ase(sc)
-                forces_fc3.append(self._calculate_forces(atoms, "fc3", i + 1))
-            ph3.forces = np.array(forces_fc3)
+    def _pattern_digest(self, pattern):
+        """Return a stable fingerprint for one displaced structure."""
+        return hashlib.sha256(Path(pattern).read_bytes()).hexdigest()
 
-            # 7. Produce and save FC3.
-            print("  - Producing FC3...")
-            run_activity_task(
-                "Producing FC3",
-                lambda: ph3.produce_fc3(is_compact_fc=compact_fc),
-                enabled=self.show_progress,
+    def _command_cache_identity(self, command):
+        """Describe a configured external command and its executable, if resolvable."""
+        tokens = list(command)
+        executable = None
+        for token in reversed(tokens):
+            candidate = Path(token).expanduser()
+            if candidate.is_file():
+                executable = candidate
+                break
+            resolved = shutil.which(token)
+            if resolved:
+                executable = Path(resolved)
+                break
+        return {
+            "tokens": tokens,
+            "executable": file_identity(executable) if executable else None,
+        }
+
+    def _potcar_cache_inputs(self, atoms):
+        """Return identities of the exact POTCAR sources selected for a VASP job."""
+        configured = getattr(self.cfg, "potcar_path", None)
+        symbols = list(dict.fromkeys(atoms.get_chemical_symbols()))
+        sources = []
+        if configured:
+            path = Path(configured).expanduser()
+            if path.is_file():
+                sources = [path]
+            elif path.is_dir():
+                sources = [self._find_potcar_for_symbol(path, symbol) for symbol in symbols]
+        else:
+            detected = self._detect_potcar_path(symbols)
+            if detected is not None:
+                _, detected_sources = detected
+                sources = list(detected_sources)
+        return [
+            file_identity(source) if source is not None else {"exists": False}
+            for source in sources
+        ] or [{"path": str(configured) if configured else None, "exists": False}]
+
+    def _job_input_payload(self, pattern, backend):
+        """Build all scientifically relevant inputs used to calculate one force job."""
+        calculator = self._calculator_name()
+        payload = {
+            "schema_version": 2,
+            "code": {
+                "nepkappa_version": __version__,
+                "workflow_sha256": file_identity(__file__)["sha256"],
+            },
+            "backend": backend,
+            "displacement_sha256": self._pattern_digest(pattern),
+            "calculator": calculator,
+        }
+        if self._cache_software_versions is None:
+            self._cache_software_versions = installed_versions()
+        payload["software"] = self._cache_software_versions
+        if backend == "thirdorder":
+            payload["order_settings"] = {
+                "command": self._command_cache_identity(self._thirdorder_command()),
+                "dimension": list(self.cfg.dim_fc3),
+                "cutoff": float(self.cfg.cutoff_fc3),
+            }
+        elif backend == "fourthorder":
+            payload["order_settings"] = {
+                "command": self._command_cache_identity(self._fourthorder_command()),
+                "dimension": list(self.cfg.dim_fc4),
+                "cutoff": float(self.cfg.cutoff_fc4),
+            }
+
+        if calculator == "nep":
+            model = getattr(self.cfg, "nep_model", None)
+            payload["calculator_inputs"] = {
+                "model": file_identity(model) if model else None,
+            }
+        elif calculator == "vasp":
+            command = getattr(self.cfg, "vasp_command", None)
+            if command:
+                command = shlex.split(str(command))
+            elif getattr(self.cfg, "vasp_path", None):
+                command = [str(self.cfg.vasp_path)]
+            else:
+                detected = self._detect_vasp_path()
+                command = [str(detected)] if detected else ["vasp_std"]
+            atoms = read(str(pattern), format="vasp")
+            payload["calculator_inputs"] = {
+                "command": self._command_cache_identity(command),
+                "incar": canonical_data(self._combined_vasp_kwargs()),
+                "potcar_sources": self._potcar_cache_inputs(atoms),
+            }
+        else:
+            payload["calculator_inputs"] = (
+                self._make_external_backend().cache_inputs()
             )
-            print("  - Symmetrizing FC3...")
-            ph3.symmetrize_fc3()
-            fc3_p2s_map = ph3.primitive.p2s_map if compact_fc else None
-            fc3_nonzero_indices = ph3.fc3_nonzero_indices if compact_fc else None
-            write_fc3_to_hdf5(
-                ph3.fc3,
-                fc3_nonzero_indices=fc3_nonzero_indices,
-                filename=str(self.fc3_path),
-                p2s_map=fc3_p2s_map,
-            )
-            print(f"  - Generated: {self.fc3_path}")
-        
+        return canonical_data(payload)
+
+    def _job_input_fingerprint(self, pattern, backend):
+        """Return the full cache digest and its auditable input payload."""
+        payload = self._job_input_payload(pattern, backend)
+        return data_sha256(payload), payload
+
+    def _job_matches_inputs(self, job_dir, input_digest):
+        return self._make_force_store().matches_inputs(job_dir, input_digest)
+
+    def _record_job_inputs(self, job_dir, input_digest, payload):
+        """Record both a fast cache marker and the inputs used to derive it."""
+        return self._make_force_store().record_inputs(
+            job_dir, input_digest, payload
+        )
+
+    def _thirdorder_pattern_paths(self):
+        return sorted(
+            self.fc3_root.glob("3RD.POSCAR.*"),
+            key=self._displacement_pattern_sort_key,
+        )
+
+    def _fc4_pattern_paths(self):
+        return sorted(
+            self.fc4_root.glob("4TH.POSCAR.*"),
+            key=self._displacement_pattern_sort_key,
+        )
+
+    def _export_thirdorder_fc3(self, generated):
+        """Export a thirdorder FORCE_CONSTANTS_3RD in requested format(s)."""
+        fc_format = self._fc_format()
+        if fc_format in {"shengbte", "both"}:
+            if generated.resolve() != self.shengbte_fc3_path.resolve():
+                shutil.copyfile(generated, self.shengbte_fc3_path)
+            print(f"  - Generated: {self.shengbte_fc3_path}")
+
+        if fc_format in {"phono3py", "both"}:
+            ph3 = self._make_phono3py()
+            supercell = phonopy_to_ase(ph3.supercell)
+            try:
+                fcs = ForceConstants.read_shengBTE(
+                    supercell,
+                    str(generated),
+                    self.prim,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    "Could not convert thirdorder FORCE_CONSTANTS_3RD to "
+                    "phono3py fc3.hdf5. Check that dim-fc3 is large enough "
+                    "for cutoff-fc3 and matches the thirdorder sow/reap run."
+                ) from exc
+            self._write_phono3py_fc3(fcs.get_fc_array(3))
+
+    def run_thirdorder_fc3_fitting(self):
+        """Generate FC3 through the extracted thirdorder stage."""
+        from nepkappa.stages.force_constants import ThirdOrderStage
+
+        return ThirdOrderStage(self).run()
+
+    def run_fc4_fitting(self):
+        """Generate FC4 through the extracted Fourthorder stage."""
+        from nepkappa.stages.force_constants import FourthOrderStage
+
+        return FourthOrderStage(self).run()
+
 
     def compute_kappa(self):
-        """Step 2: Run phono3py CLI to compute thermal conductivity."""
-        print("\n[Step 3] Compute Kappa with Phono3py CLI")
-        cfg = self.cfg
-        
-        mx, my, mz = cfg.mesh
+        """Run the extracted phono3py thermal-transport stage."""
+        from nepkappa.transport import Phono3pyTransportWorkflow
 
-        missing_fc = [
-            path for path in (self.fc2_path, self.fc3_path, self.disp_path)
-            if not path.exists()
-        ]
-        if missing_fc:
-            missing = ", ".join(str(path) for path in missing_fc)
-            raise FileNotFoundError(
-                f"Missing required phono3py file(s): {missing}. "
-                f"Run `nepkappa fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
-                f"and {self.disp_path.name} in {self.output_dir}."
-            )
-
-        custom_command = getattr(cfg, "kappa_command", None)
-        if custom_command:
-            cmd = shlex.split(custom_command)
-            print("  - Method: custom phono3py command")
-            print(f"  - Output directory: {self.output_dir}")
-            print(f"  - Running command: {shlex.join(cmd)}")
-            ret = self._run_command(cmd, cwd=self.output_dir)
-            if ret == 0:
-                print("\n[Done] Custom phono3py command finished successfully.")
-            else:
-                print(f"\n[Error] Custom phono3py command failed with return code {ret}")
-                raise RuntimeError(
-                    f"Custom phono3py command failed with return code {ret}"
-                )
-            return
-        
-        parallel = getattr(cfg, "lbte_parallel", {}) or {}
-        if cfg.method == "lbte" and str(parallel.get("backend", "none")).lower() == "slurm":
-            print("  - Method: distributed LBTE with Slurm")
-            from nepkappa.slurm import run_lbte_slurm
-
-            return run_lbte_slurm(
-                cfg,
-                self.output_dir,
-                self.disp_path,
-                self._phono3py_command(),
-                self._phono3py_needs_fc_flags(),
-                self._run_command,
-            )
-
-        if cfg.method == 'lbte':
-            method_flags = ["--lbte"]
-            print("  - Method: LBTE (Linearized Boltzmann Transport Equation)")
-        else:
-            method_flags = ["--br", "--nu"]
-            print("  - Method: RTA (Relaxation Time Approximation)")
-
-        cmd = [
-            *self._phono3py_command(),
-            self.disp_path.name,
-        ]
-        if self._phono3py_needs_fc_flags():
-            cmd.extend(["--fc2", "--fc3"])
-        cmd.extend([*method_flags, "--mesh", str(mx), str(my), str(mz)])
-
-        if cfg.wigner:
-            print("  - Wigner transport: enabled via phono3py-wte (--tt wte)")
-            cmd.extend(["--tt", "wte"])
-
-        if cfg.isotope:
-            print("  - Isotope scattering: enabled")
-            cmd.append("--isotope")
-
-        if cfg.bfmp is not None:
-            print(f"  - Boundary mean free path: {cfg.bfmp:g} micrometer")
-            cmd.extend(["--boundary-mfp", str(cfg.bfmp)])
-
-        if len(cfg.temps) == 3:
-            tmin, tmax, tstep = cfg.temps
-            cmd.extend(["--tmin", str(tmin), "--tmax", str(tmax), "--tstep", str(tstep)])
-        else:
-            cmd.extend(["--ts", str(cfg.temps[0])])
-        
-        print(f"  - Output directory: {self.output_dir}")
-        print(f"  - Running command: {shlex.join(cmd)}")
-        ret = self._run_command(cmd, cwd=self.output_dir)
-        
-        if ret == 0:
-            print("\n[Done] Phono3py finished successfully.")
-            print(f"Check {self.output_dir / self._expected_kappa_name()} for results.")
-        else:
-            print(f"\n[Error] Phono3py failed with return code {ret}")
-            raise RuntimeError(f"Phono3py failed with return code {ret}")
+        transport = Phono3pyTransportWorkflow(
+            self.cfg,
+            self.output_dir,
+            run_command=self._run_command,
+            command_resolver=self._phono3py_command,
+            needs_fc_flags=self._phono3py_needs_fc_flags,
+        )
+        return transport.run()
 
     def generate_force_constants(self, include_fc3=True):
-        """Generate FC2 only or both FC2 and FC3 files."""
-        print("\n[Step 2] Generate Force Constants")
-        self.load_force_constant_structure()
+        """Generate FC2/FC3 through the extracted strategy layer."""
+        from nepkappa.force_constants import ForceConstantsWorkflow
 
-        if self.cfg.use_hiphive:
-            self._run_timed_stage(
-                "HiPhive fitting",
-                lambda: self.run_hiphive_fitting(include_fc3=include_fc3),
-            )
-        else:
-            self._run_timed_stage(
-                "Finite displacement",
-                lambda: self.run_finite_disp_fitting(include_fc3=include_fc3),
-            )
+        workflow = ForceConstantsWorkflow(
+            self.cfg,
+            prepare_structure=self.load_force_constant_structure,
+            timed_stage=self._run_timed_stage,
+            submit_slurm=self._submit_force_slurm,
+            run_finite_displacement=self.run_finite_disp_fitting,
+            run_hiphive=self.run_hiphive_fitting,
+            run_thirdorder=self.run_thirdorder_fc3_fitting,
+        )
+        return workflow.run(include_fc3=include_fc3)
+
+    def generate_fc4_force_constants(self):
+        """Generate fourth-order force constants."""
+        print("\n[Step 2] Generate Fourth-Order Force Constants")
+        self.load_force_constant_structure()
+        self._run_timed_stage("FourPhonon FC4", self.run_fc4_fitting)
 
     def calculate_kappa(self):
         """Compute thermal conductivity from existing force constants."""
@@ -893,7 +835,13 @@ class NEPPhononWorkflow:
 
     def run_force_constants(self, include_fc3=True):
         """Execute only the force-constant generation stage."""
-        self.generate_force_constants(include_fc3=include_fc3)
+        result = self.generate_force_constants(include_fc3=include_fc3)
+        self._print_timing_summary()
+        return result
+
+    def run_fc4(self):
+        """Execute only fourth-order force-constant generation."""
+        self.generate_fc4_force_constants()
         self._print_timing_summary()
 
     def run_kappa(self):
@@ -904,6 +852,13 @@ class NEPPhononWorkflow:
     def run(self):
         """Execute relaxation, force-constant generation, and kappa."""
         self._run_timed_stage("Relax structure", self.relax_structure_stage)
-        self.generate_force_constants()
+        force_result = self.generate_force_constants()
+        if force_result is not None:
+            print(
+                "  - Kappa is deferred until the Slurm force array and FC fitting "
+                "job complete."
+            )
+            self._print_timing_summary()
+            return force_result
         self.calculate_kappa()
         self._print_timing_summary()

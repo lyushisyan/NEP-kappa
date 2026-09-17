@@ -1,0 +1,36 @@
+workflow:
+  preset: qha
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep_model: potentials/Si/Si_Bulk_Fan.txt
+
+# QHA scans cells around an already reasonable zero-temperature structure.
+# Internal coordinates are relaxed at each fixed volume by the qha stage.
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [3, 3, 3]
+
+qha:
+  volume-ratios: [0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06]
+  dim-fc2: [3, 3, 3]
+  mesh: [31, 31, 31]
+  temps: [0, 1000, 10]
+  eos: vinet
+  pressure: 0.0
+  relax-internal: true
+  relax-fmax: 0.001
+  relax-steps: 200
+  displacement-distance: 0.01
+  imaginary-frequency-tolerance: -0.1
+  cutoff-frequency: 0.0001
+
+output:
+  progress: true
+  result_dir: calculations/example-runs/qha

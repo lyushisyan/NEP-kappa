@@ -1,0 +1,32 @@
+# Bulk Si example: phono3py FC2 followed by ShengBTE thirdorder FC3.
+# Install thirdorder.py first and make thirdorder_vasp.py available on PATH.
+
+workflow:
+  preset: custom
+  steps: [fc2fc3]
+
+structure:
+  poscar: examples/structures/Si/POSCAR_bulk
+  dimensionality: 3
+
+calculator:
+  name: nep
+  nep_model: potentials/Si/Si_Bulk_Fan.txt
+
+relaxation:
+  enabled: false
+
+force-constant:
+  dim-fc2: [4, 4, 4]
+  dim-fc3: [4, 4, 4]
+  fc3-backend: thirdorder
+  cutoff-fc3: -3
+  thirdorder-command: thirdorder_vasp.py
+  fc3-workdir: fc3-thirdorder-runs
+  format: shengbte
+  use_hiphive: false
+  compact-fc: true
+
+output:
+  progress: true
+  result_dir: calculations/example-runs/thirdorder
