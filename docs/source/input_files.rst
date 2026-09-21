@@ -15,6 +15,7 @@ grouping settings into the same stages used by the command line:
 - ``kappa``: thermal-conductivity settings passed to ``phono3py``
 - ``fourphonon``: combined three-plus-four-phonon transport settings
 - ``plot``: plot layout, band path, relaxation-time channel, and kappa component
+- ``tdbte``: experimental dynamics from an existing energy-shell kernel; see :doc:`tdbte`
 - ``output``: progress display and result directory
 
 The ``compare`` command uses a smaller YAML file with ``datasets``, ``compare``,
@@ -47,7 +48,9 @@ following commands expose individual stages for advanced use:
    nepkappa fc4 input.yaml
    nepkappa qha input.yaml
    nepkappa scph input.yaml
+   nepkappa bubble input.yaml
    nepkappa qha-sscha input.yaml
+   nepkappa tdbte input.yaml
    nepkappa kappa input.yaml
    nepkappa kappa4 input.yaml
    nepkappa plot input.yaml
@@ -64,7 +67,9 @@ following commands expose individual stages for advanced use:
 - ``nepkappa qha-sscha`` runs SSCHA at volumes interpolated from a completed QHA fit.
 - ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
 - ``nepkappa kappa4`` runs FourPhonon with existing ShengBTE-format force constants.
-- ``nepkappa plot`` creates standard plots from ``fc2.hdf5`` and ``kappa-m*.hdf5``.
+- ``nepkappa plot`` creates harmonic plots from FC2 and matching metadata, adding transport panels when compatible conductivity data exist.
+- ``nepkappa bubble`` postprocesses completed SSCHA results with diagonal on-shell frequency shifts; it does not update transport.
+- ``nepkappa tdbte`` evolves populations from a prebuilt kernel; it is experimental, not independently validated physical dynamics.
 - ``nepkappa compare`` overlays DFT and multiple potential-model result directories in the same standard figures.
 - ``nepkappa converge`` generates and analyzes a parameter sweep from one base workflow YAML.
 - ``nepkappa report`` writes ``report.yaml`` and ``report.md`` from an existing result tree.
@@ -316,6 +321,24 @@ For VASP calculations:
 set, NEP-kappa uses ``vasp_path``. ``potcar_path`` may point to a ready POTCAR
 file or a potential-library directory. For multi-element POSCAR files, NEP-kappa
 concatenates POTCAR chunks in POSCAR element order.
+
+Changing the VASP installation does not require editing Python source. Update
+``calculator.vasp_command`` in the input. If both ``vasp_command`` and
+``vasp_path`` are present, the command wins: changing only ``vasp_path`` has
+no effect. Using only ``vasp_path`` does not automatically launch MPI ranks.
+Prefer absolute executable and POTCAR paths on the actual execution host.
+
+The command is split into arguments, not evaluated by a shell. Put environment
+setup such as ``module load`` in the batch script or force-job
+``force-constant.parallel.preamble``, not in ``vasp_command``. Shell variables,
+``~``, pipes and redirections are not expanded there. Force-job preambles do
+not configure separately launched relaxation or QHA stages.
+
+On the target host, ``command -v vasp_std`` checks the current PATH; no result
+may mean a module has not been loaded. VASP and licensed POTCAR files are not
+bundled with NEP-kappa. Parser validation does not establish executable,
+MPI-library or compute-node availability. The :doc:`input_assistant` can help
+inspect these separately without launching a calculation.
 
 MACE is available as a native backend. A local checkpoint uses:
 
@@ -623,7 +646,93 @@ and method. phono3py is run separately with each FC2(T) and the fixed FC3. This
 fixed-FC3 treatment is an approximation and should be stated when reporting
 temperature-renormalized transport.
 
-For the coupled QHA+SSCHA workflow, use explicit transport switches:
+.. important::
+
+   The exported FC2 is an **auxiliary harmonic** matrix. This workflow does not
+   calculate the free-energy Hessian. Bubble postprocessing is off by default;
+   the optional approximation below does not change the exported FC2.
+   Three-phonon scattering in the subsequent transport step does not automatically
+   correct the phonon frequencies by the real part of that self-energy.
+   The historical command name ``scph`` remains for input compatibility; it does
+   not select an FC4-based SCPH-plus-bubble solver.
+
+Optional on-shell bubble frequency correction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add these keys to the existing ``scph`` section (do not create a second section):
+
+.. code-block:: yaml
+
+   scph:
+     bubble: true
+     bubble-mesh: [9, 9, 9]
+     bubble-epsilons: [0.05, 0.1]  # THz, principal-value regularization
+     # bubble-grid-points: [0]    # Optional phono3py BZ grid indices for a pilot
+
+``nepkappa run input.yaml`` / ``nepkappa scph input.yaml`` applies the correction
+after each SSCHA temperature when ``bubble`` is true. To reuse already completed
+SSCHA results without evaluating an ASE calculator or running transport:
+
+.. code-block:: bash
+
+   nepkappa validate input.yaml --for bubble
+   nepkappa bubble input.yaml
+   nepkappa report input.yaml
+
+The explicit ``bubble`` command runs postprocessing regardless of the automatic
+``scph.bubble`` switch. It uses ``scph.temps`` and ``scph.workdir`` to locate
+``T####K/fc2.hdf5``, ``phonopy_sscha.yaml``, and a completed ``summary.yaml``.
+The usual ``scph.transport-metadata`` and ``scph.transport-fc3`` overrides select
+matching phono3py metadata and FC3, otherwise those files are taken from
+``output.result-dir``. For a ``qha-sscha`` preset/section, the command instead
+selects the matching FC3 and metadata inside each ``qha-sscha/T####K`` case;
+fixed-volume overrides are not used. No sampling or force-constant generation
+is triggered by this postprocessing command.
+
+The calculation evaluates the real part of the cubic bubble on the auxiliary
+frequencies, using the supplied FC3. All modes are retained together so that
+phono3py's degenerate-mode averaging is preserved. This is an **input-FC3,
+diagonal, one-shot on-shell approximation**, not an SSCHA ensemble-averaged
+cubic vertex or a free-energy Hessian. It does not include off-diagonal mode
+mixing, solve a frequency-dependent Dyson equation, or calculate a spectral
+function. In ordinary-frequency THz units the saved estimates are
+``frequency_linear = nu + Delta`` and
+``frequency_on_shell = sqrt(nu**2 + 2*nu*Delta)``. No extra ``2*pi`` is applied
+to phono3py's THz output. The square-root estimate is not a self-consistent root.
+
+Outputs are isolated under ``T####K/bubble/<input-hash>/``:
+
+- ``inputs.yaml``: input hashes, settings and backend versions;
+- ``gp-*.hdf5``: restartable per-q checkpoints;
+- ``bubble.hdf5``: auxiliary frequencies, Delta, both frequency estimates,
+  q coordinates, epsilons and validity masks;
+- ``bubble-summary.yaml``: method limits and diagnostic warnings, included in
+  ``nepkappa report``.
+
+Delta and corrected arrays have axes ``(epsilon, grid_point, band)``; auxiliary
+frequencies have axes ``(grid_point, band)``. The squared-frequency array has
+units THz squared. Modes below ``scph.cutoff-frequency`` are excluded from
+frequency estimates, and nonpositive corrected squared frequencies are saved
+as invalid/NaN, not clipped. Meshes with imaginary auxiliary frequencies below
+-1e-4 THz are rejected. NAC parameters are taken only from the saved SSCHA YAML;
+there is no directional LO limit at Gamma in this first implementation.
+
+The default mesh and epsilon values are pilot settings, not convergence results.
+Converge both together. Explicit grid-point selection is not a full-BZ integral;
+otherwise all irreducible mesh points and their weights are saved. A conservative
+2 GiB bound on the dense interaction array rejects oversized jobs before FC3
+loading; this does not bound total RSS. Large-cell calculations need a tiled
+backend instead of silently reducing the physical model.
+
+**No bubble linewidth is added to an existing three-phonon scattering rate.**
+Neither FC2 nor existing thermal conductivity is modified. Consistent
+bubble-corrected transport requires further development, not simply feeding
+these shifted numbers into an unchanged group velocity and scattering table.
+See the `phono3py self-energy conventions
+<https://phonopy.github.io/phono3py/command-options.html#imaginary-and-real-parts-of-self-energy>`_
+and the `SSCHA spectral tutorial <https://sscha.eu/Tutorials/tutorial_spectral/>`_.
+
+For SSCHA at QHA equilibrium volumes, use explicit transport switches:
 
 .. code-block:: yaml
 
@@ -654,6 +763,28 @@ and runs FourPhonon. Outputs are stored under
 ``qha-sscha/T####K/``. Nested force-constant Slurm arrays are not supported;
 neither are nested FourPhonon submissions. Submit the entire ``nepkappa run``
 as one batch job instead.
+
+Interpretation of the volume coupling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The legacy name ``QHA+SSCHA`` denotes **SSCHA at QHA equilibrium volumes**.
+No QHA and SSCHA frequencies, force constants, or conductivities are added.
+The potential is sampled again at each rescaled structure. Nevertheless, the
+volume is prescribed by QHA: the SSCHA free energy does not feed back into the
+equilibrium volume, lattice shape, or finite-temperature centroid optimization.
+Optional ``qha.relax-internal`` is a static fixed-cell relaxation, not a thermal
+SSCHA centroid optimization.
+
+This is a sequential approximation, not fully self-consistent anharmonic thermal
+expansion. Validate the QHA volumes against SSCHA free-energy/stress calculations
+or suitable experimental data before claiming quantitative accuracy. Adding a
+bubble spectral correction would not, by itself, correct these QHA volumes.
+Once a cell is optimized using SSCHA free energy, an additional QHA expansion
+correction must not be applied to it.
+
+New summaries record these limitations in ``approximation``. Reports preserve
+that metadata; older results without it are marked as unrecorded rather than
+being silently reclassified as a more complete calculation.
 
 ``kappa``
 -----------
@@ -748,10 +879,40 @@ filesystem visible to all Slurm nodes.
 - ``combined``: write one automatically arranged multi-panel ``combined.png`` figure
 - ``both``: write separate PNG files and ``combined.png``
 
-NEP-kappa always generates the seven standard plots: ``dispersion``, ``dos``,
-``heat_capacity``, ``group_velocity``, ``relaxation_time``,
-``scattering_rate``, and ``kappa``. When every input HDF5 contains
-``mode_kappa``, ``cumulative_kappa`` is added automatically.
+NEP-kappa chooses plots from the available data. With ``fc2.hdf5`` and matching
+structure metadata (``phono3py_disp.yaml``, ``phonopy.yaml``, or
+``phonopy_disp.yaml``), it generates ``dispersion``, ``dos``, ``heat_capacity``
+and ``group_velocity`` without requiring FC3 or a kappa HDF5 file. A bare FC2
+array is insufficient: matching cell, primitive and supercell information is
+required. Four harmonic figures use a 2-by-2 combined layout.
+
+For harmonic-only plotting, ``kappa.mesh`` controls DOS, group-velocity and
+thermal-property sampling, and ``kappa.temps`` specifies the heat-capacity
+temperatures as ``[T]`` or ``[start, stop, step]``. These settings do not launch
+a conductivity calculation. Heat capacity is converted from Phonopy's molar
+units to J m^-3 K^-1 using the primitive-cell volume (and the configured film
+or wire effective geometry). Imaginary modes are retained in the dispersion;
+if present, a warning explains that the heat capacity excludes nonpositive
+modes and must not be interpreted as stable-phase thermodynamics.
+
+When transport data are present, ``relaxation_time``, ``scattering_rate`` and
+``kappa`` are included. ``cumulative_kappa`` additionally requires
+``mode_kappa``. Comparisons use the figures supported by every dataset, so
+harmonic-only datasets can also be compared. ``layout: separate``,
+``combined`` and ``both`` apply to both harmonic-only and transport plots.
+For harmonic-only comparisons with no configured mesh, the fallback is
+21-by-21-by-21 and heat-capacity temperatures are 100--1000 K in 100 K steps;
+these are plotting defaults, not convergence claims.
+
+Transport-file selection is explicit: a configured mesh must match an existing
+``kappa-m*.hdf5`` filename when conductivity files are present. Without a mesh,
+multiple candidate files raise an ambiguity error instead of selecting one
+silently. If linewidths are absent, scattering-rate and lifetime plots are
+omitted while other supported plots remain available. A requested plot
+temperature not in the file uses the nearest stored temperature with a warning.
+Unsupported tensor dimensions, split-grid files and incomplete transport
+datasets produce explicit errors rather than silently mixing incompatible data.
+The generic plot reader does not yet interpret Wigner-only HDF5 schemas.
 
 ``path`` controls the high-symmetry path used for phonon dispersion:
 
@@ -820,8 +981,9 @@ also saved to ``run.log`` in that directory.
 ``plot`` output
 -----------------
 
-``nepkappa plot`` reads ``phono3py_disp.yaml``, ``fc2.hdf5``, and
-``kappa-m*.hdf5`` from ``output.result_dir`` and writes figures under
+``nepkappa plot`` reads matching phonon metadata and ``fc2.hdf5`` from
+``output.result_dir``. A compatible ``kappa-m*.hdf5`` adds transport panels;
+it is not required for harmonic-only figures. The command writes figures under
 ``output.result_dir/plots``. The figures follow a publication-oriented style
 with larger axis labels, tick labels, line widths, and marker sizes. Subplot
 titles are intentionally omitted so the figures are easier to compose in papers.
@@ -830,8 +992,8 @@ titles are intentionally omitted so the figures are easier to compose in papers.
 - ``dos.png``: phonon density of states
 - ``heat_capacity.png``: volume heat capacity
 - ``group_velocity.png``: group velocity magnitude in km/s
-- ``relaxation_time.png``: relaxation time near 300 K
-- ``scattering_rate.png``: total, Normal, and/or Umklapp scattering rate near 300 K
+- ``relaxation_time.png``: relaxation time at the nearest available ``plot.temperature`` (default 300 K), when linewidths exist
+- ``scattering_rate.png``: available total, Normal, and/or Umklapp scattering rates at that temperature
 - ``cumulative_kappa.png``: cumulative conductivity against phonon frequency when ``mode_kappa`` is available
 - ``kappa.png``: selected thermal conductivity component or all diagonal components plus average
 - ``combined.png``: automatically arranged multi-panel figure when ``layout`` is ``combined`` or ``both``
@@ -840,9 +1002,11 @@ Multi-model comparison
 ------------------------
 
 ``nepkappa compare compare.yaml`` reads completed DFT and machine-learning
-potential result directories, then overlays any number of them in the same
-seven standard figures. Each result directory must contain ``phono3py_disp.yaml``,
-``fc2.hdf5``, and ``kappa-m*.hdf5``.
+potential result directories, then overlays the figures supported by every
+dataset. Each directory needs matching phonon metadata and ``fc2.hdf5``.
+Transport figures additionally require compatible ``kappa-m*.hdf5`` data;
+FC2-only comparisons are supported. If one dataset lacks transport data,
+the shared comparison contains harmonic figures only.
 
 .. code-block:: yaml
 

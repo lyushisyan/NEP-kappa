@@ -17,7 +17,9 @@ results and record artifacts and provenance.
           +-- structure relaxation
           +-- FC2 / FC3 / FC4 generation
           +-- QHA / Phonopy SSCHA / QHA+SSCHA
+          +-- optional on-shell bubble postprocessing
           +-- phono3py / FourPhonon transport
+          +-- experimental TD-BTE (prebuilt kernel)
           +-- plotting / reports
 
    Shared services: calculators, scheduler, artifacts, provenance, run state
@@ -39,6 +41,10 @@ still a larger module, as is the centralized parser.
 ``adapters/vasp.py`` owns VASP-specific inputs, execution, and output parsing.
 ``transport.py`` and ``fourphonon.py`` isolate transport interfaces.
 Temperature workflows are in ``qha.py``, ``sscha.py``, and ``qha_sscha.py``.
+``bubble.py`` writes separate diagonal on-shell frequency corrections;
+``approximations.py`` records interpretation limits. ``tdbte.py`` consumes
+prebuilt energy-shell artifacts and audits occupation dynamics, independently
+of force generation. It is not a physically validated FC2/FC3-to-dynamics pipeline.
 
 ``scheduler.py`` and ``slurm.py`` manage batch submission. ``run_state.py``
 records deferred execution; ``status`` can combine it with live queue state.

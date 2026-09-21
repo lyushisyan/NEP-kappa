@@ -179,6 +179,10 @@ class SCPHConfig:
     run_transport: bool
     transport_fc3: Optional[str]
     transport_metadata: Optional[str]
+    bubble: bool
+    bubble_mesh: Int3
+    bubble_epsilons: FloatValues
+    bubble_grid_points: Optional[tuple[int, ...]]
 
 
 @dataclass(frozen=True)
@@ -195,6 +199,18 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class TDBTEConfig:
+    kernel: Optional[str]
+    experimental: bool
+    temperature: float
+    duration_ps: float
+    max_step_ps: float
+    excitation: float
+    branches: Tuple[int, ...]
+    samples: int
+
+
+@dataclass(frozen=True)
 class WorkflowSections:
     workflow: WorkflowPlanConfig
     structure: StructureConfig
@@ -208,11 +224,22 @@ class WorkflowSections:
     scph: SCPHConfig
     qha_sscha: QHASSCHAConfig
     output: OutputConfig
+    tdbte: TDBTEConfig
 
     @classmethod
     def from_flat(cls, cfg):
         """Build typed immutable sections from a validated flat config."""
         return cls(
+            tdbte=TDBTEConfig(
+                kernel=cfg.tdbte_kernel,
+                experimental=cfg.tdbte_experimental,
+                temperature=cfg.tdbte_temperature,
+                duration_ps=cfg.tdbte_duration_ps,
+                max_step_ps=cfg.tdbte_max_step_ps,
+                excitation=cfg.tdbte_excitation,
+                branches=tuple(cfg.tdbte_branches or []),
+                samples=cfg.tdbte_samples,
+            ),
             workflow=WorkflowPlanConfig(
                 preset=cfg.workflow_preset,
                 steps=_tuple(cfg.workflow_steps),
@@ -353,6 +380,13 @@ class WorkflowSections:
                 run_transport=cfg.scph_run_transport,
                 transport_fc3=cfg.scph_transport_fc3,
                 transport_metadata=cfg.scph_transport_metadata,
+                bubble=cfg.scph_bubble,
+                bubble_mesh=_tuple(cfg.scph_bubble_mesh),
+                bubble_epsilons=_tuple(cfg.scph_bubble_epsilons),
+                bubble_grid_points=(
+                    _tuple(cfg.scph_bubble_grid_points)
+                    if cfg.scph_bubble_grid_points is not None else None
+                ),
             ),
             qha_sscha=QHASSCHAConfig(
                 enabled=cfg.qha_sscha_enabled,

@@ -200,6 +200,12 @@ class FiniteDisplacementStage(HostStage):
             ),
             1,
         ):
+            # phono3py retains cutoff-excluded pairs as None placeholders.
+            # Preserve their indices in the force dataset; the solver ignores
+            # these entries according to the displacement inclusion flags.
+            if supercell is None:
+                forces_fc3.append(np.zeros((len(ph3.supercell), 3), dtype="double"))
+                continue
             forces_fc3.append(
                 workflow._calculate_forces_cached(
                     phonopy_to_ase(supercell), "fc3", index

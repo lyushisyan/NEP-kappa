@@ -48,12 +48,14 @@ class WorkflowStageRunner:
     def run(self, step):
         """Execute one named plan step through an explicit stage constructor."""
         handlers = {
+            "tdbte": self.tdbte,
             "relax": self.relax,
             "fc2": lambda: self.force_constants(include_fc3=False),
             "fc2fc3": lambda: self.force_constants(include_fc3=True),
             "fc4": self.fourth_order,
             "qha": self.qha,
             "scph": self.scph,
+            "bubble": self.bubble,
             "qha-sscha": self.qha_sscha,
             "kappa": self.kappa,
             "kappa4": self.kappa4,
@@ -64,6 +66,11 @@ class WorkflowStageRunner:
         except KeyError as exc:
             raise ValueError(f"Unsupported workflow command: {step}") from exc
         return handler()
+
+    def tdbte(self):
+        from nepkappa.tdbte import run_tdbte
+
+        return self.execution.run_stage("Experimental time-dependent BTE", lambda: run_tdbte(self.config))
 
     def relax(self):
         from nepkappa.stages.structure import StructureRelaxationStage
@@ -118,6 +125,13 @@ class WorkflowStageRunner:
         return self.execution.run_stage(
             "Phonopy SSCHA",
             PhonopySSCHAWorkflow(self.config, workflow=self.core).run,
+        )
+
+    def bubble(self):
+        from nepkappa.bubble import run_existing_sscha_bubble
+
+        return self.execution.run_stage(
+            "SSCHA on-shell bubble", lambda: run_existing_sscha_bubble(self.config)
         )
 
     def qha_sscha(self):

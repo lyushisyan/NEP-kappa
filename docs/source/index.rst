@@ -1,13 +1,14 @@
 NEP-kappa
 ===========
 
-Phonons and lattice thermal transport with first-principles and
-machine-learning potentials. This documentation describes the
-**2.0.0 release**.
+NEP-kappa calculates phonons and lattice thermal transport using DFT or
+machine-learning potentials.
 
-New users: follow :doc:`installation`, then :doc:`starting`.
-Choose a calculation in :doc:`examples`; look up exact YAML keys in
-:doc:`input_files`.
+Start with :doc:`installation` and :doc:`starting`. Calculation templates are
+listed in :doc:`examples`; parameters and units are defined in :doc:`input_files`.
+
+These pages describe the current checkout (package version 2.0.0), including
+development features not present in the published 2.0.0 tag.
 
 .. toctree::
    :maxdepth: 1
@@ -25,6 +26,7 @@ Choose a calculation in :doc:`examples`; look up exact YAML keys in
 
    tutorial
    input_files
+   tdbte
    input_assistant
    troubleshooting
    reference

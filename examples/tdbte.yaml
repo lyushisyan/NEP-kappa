@@ -1,0 +1,16 @@
+# Experimental artifact-reuse stage. Paths are relative to the launch directory.
+# Requires kernel.npz AND kernel.json; see docs/source/tdbte.rst.
+workflow:
+  preset: custom
+  steps: [tdbte]
+tdbte:
+  experimental: true
+  kernel: calculations/3C-SiC/tdbte/kernel.npz
+  temperature: 300
+  branches: [3, 4, 5]  # Zero-based indices supplied by this kernel's metadata.
+  excitation: 0.01    # Relative occupation increase, NOT kelvin or energy.
+  duration-ps: 20
+  max-step-ps: 0.5
+  samples: 201
+output:
+  result-dir: calculations/3C-SiC/tdbte/results

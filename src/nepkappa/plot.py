@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 from pathlib import Path
 
 cache_dir = Path(tempfile.gettempdir()) / "nepkappa-matplotlib"
@@ -20,6 +21,7 @@ matplotlib.set_loglevel("error")
 import matplotlib.pyplot as plt
 import numpy as np
 import seekpath
+from scipy.constants import Avogadro
 from phono3py.interface.phono3py_yaml import Phono3pyYaml
 from phonopy import Phonopy
 from phonopy.file_IO import read_force_constants_hdf5
@@ -61,10 +63,10 @@ def plot_results(config):
     plot_dir = result_dir / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    disp_path = result_dir / "phono3py_disp.yaml"
+    disp_path = find_phonon_metadata(result_dir)
     fc2_path = result_dir / "fc2.hdf5"
     kappa_path = find_kappa_file(result_dir, config.mesh)
-    missing = [path for path in (disp_path, fc2_path, kappa_path) if not path.exists()]
+    missing = [path for path in (disp_path, fc2_path) if not path.exists()]
     if missing:
         raise FileNotFoundError(
             "Missing file(s) required for plotting: "
@@ -77,7 +79,10 @@ def plot_results(config):
     print("\n[Step 4] Plot Results")
     print(f"  - Reading {disp_path}")
     print(f"  - Reading {fc2_path}")
-    print(f"  - Reading {kappa_path}")
+    if kappa_path.exists():
+        print(f"  - Reading {kappa_path}")
+    else:
+        print("  - No kappa file: plotting harmonic properties from FC2 only")
     print(f"  - Plot layout: {layout}")
     print(f"  - Band path: {getattr(config, 'plot_path', 'seekpath')}")
     phono3py_yaml = load_phono3py_yaml(disp_path)
@@ -181,10 +186,24 @@ def find_kappa_file(result_dir, mesh=None):
             return expected
     candidates = sorted(result_dir.glob("kappa-m*.hdf5"))
     if candidates:
-        return candidates[-1]
+        if mesh is not None:
+            raise ValueError(f"No conductivity file matches mesh {list(mesh)}. Available: "
+                             + ", ".join(p.name for p in candidates))
+        if len(candidates) != 1:
+            raise ValueError("Multiple conductivity files found; select an explicit mesh")
+        return candidates[0]
     if mesh is None:
         return result_dir / "kappa-m*.hdf5"
     return expected
+
+
+def find_phonon_metadata(result_dir):
+    """FC2 still requires its matching cell/supercell metadata."""
+    for name in ("phono3py_disp.yaml", "phonopy.yaml", "phonopy_disp.yaml"):
+        path = Path(result_dir) / name
+        if path.is_file():
+            return path
+    return Path(result_dir) / "phono3py_disp.yaml"
 
 
 def load_phono3py_yaml(path):
@@ -196,36 +215,42 @@ def load_phono3py_yaml(path):
 
 def make_phonopy(ph3yml, fc2_path):
     """Create a Phonopy object from phono3py metadata and fc2.hdf5."""
+    matrix = getattr(ph3yml, "phonon_supercell_matrix", None)
+    if matrix is None:
+        matrix = ph3yml.supercell_matrix
     phonon = Phonopy(
         ph3yml.unitcell,
-        supercell_matrix=ph3yml.supercell_matrix,
+        supercell_matrix=matrix,
         primitive_matrix=ph3yml.primitive_matrix,
     )
     phonon.force_constants = read_force_constants_hdf5(str(fc2_path))
+    if getattr(ph3yml, "nac_params", None) is not None:
+        phonon.nac_params = ph3yml.nac_params
     return phonon
 
 
 def build_plot_data(phonon, unitcell, kappa_path, config):
     """Build all data needed by the plotting functions."""
+    transport = (
+        read_transport_data(kappa_path, phonon.primitive.volume,
+                            phonon.primitive.cell, config)
+        if kappa_path is not None and Path(kappa_path).exists()
+        else build_harmonic_properties(phonon, config)
+    )
     data = {
         "band": build_band_data(phonon, unitcell, config),
-        "dos": build_dos_data(phonon, config.mesh),
-        "transport": read_transport_data(
-            kappa_path,
-            phonon.primitive.volume,
-            phonon.primitive.cell,
-            config,
-        ),
+        "dos": build_dos_data(phonon, transport["mesh"]),
+        "transport": transport,
     }
     return data
 
 
 def load_result_plot_data(result_dir, config, label):
     """Load one completed result directory for plotting or comparison."""
-    disp_path = result_dir / "phono3py_disp.yaml"
+    disp_path = find_phonon_metadata(result_dir)
     fc2_path = result_dir / "fc2.hdf5"
     kappa_path = find_kappa_file(result_dir, getattr(config, "mesh", None))
-    missing = [path for path in (disp_path, fc2_path, kappa_path) if not path.exists()]
+    missing = [path for path in (disp_path, fc2_path) if not path.exists()]
     if missing:
         raise FileNotFoundError(
             f"Missing file(s) required for {label}: "
@@ -234,22 +259,12 @@ def load_result_plot_data(result_dir, config, label):
 
     print(f"  - Reading {label}: {disp_path}")
     print(f"  - Reading {label}: {fc2_path}")
-    print(f"  - Reading {label}: {kappa_path}")
+    print(f"  - {label}: {'transport data' if kappa_path.exists() else 'harmonic-only data'}")
 
     phono3py_yaml = load_phono3py_yaml(disp_path)
     phonon = make_phonopy(phono3py_yaml, fc2_path)
-    transport = read_transport_data(
-        kappa_path,
-        phonon.primitive.volume,
-        phonon.primitive.cell,
-        config,
-    )
-    data = {
-        "label": label,
-        "band": build_band_data(phonon, phono3py_yaml.unitcell, config),
-        "dos": build_dos_data(phonon, transport["mesh"]),
-        "transport": transport,
-    }
+    data = build_plot_data(phonon, phono3py_yaml.unitcell, kappa_path, config)
+    data["label"] = label
     return data
 
 
@@ -263,7 +278,9 @@ def make_band_paths(unitcell, config, points_per_segment=51):
     if getattr(config, "plot_path", "seekpath") == "custom":
         return make_custom_band_paths(config, points_per_segment)
 
-    sp_path = seekpath.get_path(seekpath_structure(unitcell))
+    # Frequencies are evaluated in this actual primitive basis, not seekpath's
+    # independently standardized primitive basis.
+    sp_path = seekpath.get_path_orig_cell(seekpath_structure(unitcell))
     point_coords = sp_path["point_coords"]
     paths = []
     labels = []
@@ -304,6 +321,10 @@ def make_custom_band_paths(config, points_per_segment):
         end = np.array(point_coords[end_label], dtype=float)
         if start.shape != (3,) or end.shape != (3,):
             raise ValueError("Custom q-points must be three fractional coordinates.")
+        if not np.isfinite(start).all() or not np.isfinite(end).all():
+            raise ValueError("Custom q-points must be finite")
+        if np.allclose(start, end, rtol=0, atol=1e-12):
+            raise ValueError("Custom path segments must have distinct endpoints")
         qpoints = [
             start + (end - start) * i / (points_per_segment - 1)
             for i in range(points_per_segment)
@@ -325,7 +346,7 @@ def format_label(label):
 
 def build_band_data(phonon, unitcell, config):
     """Compute band-structure data."""
-    paths, labels = make_band_paths(unitcell, config)
+    paths, labels = make_band_paths(phonon.primitive, config)
     phonon.run_band_structure(paths, with_group_velocities=True)
     band = phonon.get_band_structure_dict()
     band["labels"] = labels
@@ -342,6 +363,15 @@ def build_dos_data(phonon, mesh):
 def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
     """Read kappa HDF5 data and prepare derived transport quantities."""
     with h5py.File(kappa_path, "r") as handle:
+        required = {"temperature", "kappa", "heat_capacity", "group_velocity",
+                    "frequency", "weight", "mesh"}
+        missing = required - set(handle.keys())
+        if missing:
+            raise ValueError(
+                f"Unsupported or incomplete transport file {kappa_path}: missing "
+                + ", ".join(sorted(missing))
+                + ". Wigner-only datasets and split grid-point files are not standard kappa inputs."
+            )
         temperature = handle["temperature"][:]
         transport = {
             "temperature": temperature,
@@ -351,16 +381,38 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
             "frequency": handle["frequency"][:],
             "weight": handle["weight"][:],
             "mesh": handle["mesh"][:],
-            "gamma": {
-                "total": handle["gamma"][:],
-            },
+            "gamma": {},
         }
+        if "gamma" in handle:
+            transport["gamma"]["total"] = handle["gamma"][:]
         if "gamma_N" in handle:
             transport["gamma"]["normal"] = handle["gamma_N"][:]
         if "gamma_U" in handle:
             transport["gamma"]["umklapp"] = handle["gamma_U"][:]
         if "mode_kappa" in handle:
             transport["mode_kappa"] = handle["mode_kappa"][:]
+
+    if temperature.ndim != 1 or not len(temperature) or not np.isfinite(temperature).all():
+        raise ValueError(f"Invalid temperature array in {kappa_path}")
+    frequency = transport["frequency"]
+    mesh = transport["mesh"]
+    if frequency.ndim != 2 or not np.isfinite(frequency).all():
+        raise ValueError("Transport frequencies must be a finite q-by-branch array")
+    if mesh.shape != (3,) or np.any(mesh <= 0) or not np.isfinite(mesh).all():
+        raise ValueError("Transport mesh must contain three positive dimensions")
+    if (transport["heat_capacity"].shape != (len(temperature),)+frequency.shape or
+            transport["group_velocity"].shape != frequency.shape+(3,) or
+            transport["weight"].shape != (len(frequency),)):
+        raise ValueError("Transport heat capacity, group velocity or weights have inconsistent shapes")
+    shape = (len(temperature),) + transport["frequency"].shape
+    for name, gamma in transport["gamma"].items():
+        if gamma.shape != shape:
+            raise ValueError(f"Unsupported {name} linewidth shape {gamma.shape}; expected {shape}")
+    kappa = transport["kappa"]
+    if kappa.ndim != 2 or kappa.shape[0] != len(temperature) or kappa.shape[1] < 3:
+        raise ValueError(f"Unsupported conductivity shape {kappa.shape}; select a single transport solution")
+    if not np.isfinite(kappa).all():
+        raise ValueError("Nonfinite conductivity values; results may be incomplete")
 
     correction = effective_geometry_correction(config, primitive_cell, primitive_volume)
     effective_volume = primitive_volume / correction["factor"]
@@ -379,9 +431,49 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
     transport["tau_temperature_index"] = int(
         np.argmin(np.abs(temperature - float(getattr(config, "plot_temperature", 300.0))))
     )
+    selected = float(temperature[transport["tau_temperature_index"]])
+    requested = float(getattr(config, "plot_temperature", 300.0))
+    if not np.isclose(selected, requested):
+        warnings.warn(f"Requested plot temperature {requested:g} K is unavailable; using {selected:g} K", RuntimeWarning)
     transport["tau_mode"] = getattr(config, "plot_tau", "total")
     transport["kappa_mode"] = getattr(config, "plot_kappa", "all")
     return transport
+
+
+def build_harmonic_properties(phonon, config):
+    """Compute Cv and group velocities from FC2; never invent scattering data."""
+    configured_mesh = getattr(config, "mesh", None)
+    mesh = np.asarray([21, 21, 21] if configured_mesh is None else configured_mesh, dtype=int)
+    if mesh.shape != (3,) or np.any(mesh <= 0):
+        raise ValueError("Harmonic plotting requires three positive mesh dimensions")
+    spec = np.asarray(getattr(config, "temps", [100, 1000, 100]), dtype=float)
+    if spec.ndim != 1 or not np.isfinite(spec).all():
+        raise ValueError("Heat-capacity temperature specification must be finite")
+    if spec.size == 1:
+        temperatures = spec
+    elif spec.size == 3 and spec[2] > 0 and spec[1] >= spec[0]:
+        temperatures = np.arange(spec[0], spec[1] + spec[2]*1e-8, spec[2])
+    else:
+        raise ValueError("Heat-capacity temperatures must be [T] or [start, stop, step]")
+    if not np.isfinite(temperatures).all() or np.any(temperatures < 0):
+        raise ValueError("Heat-capacity temperatures must be finite and nonnegative")
+    phonon.run_mesh(mesh, is_gamma_center=True, with_group_velocities=True)
+    modes = phonon.get_mesh_dict()
+    frequencies = np.asarray(modes["frequencies"])
+    if np.any(frequencies < -1e-4):
+        warnings.warn("Imaginary modes present: Cv excludes nonpositive modes and is not a stable-phase thermodynamic prediction", RuntimeWarning)
+    phonon.run_thermal_properties(temperatures=temperatures, cutoff_frequency=0.)
+    thermal = phonon.get_thermal_properties_dict()
+    correction = effective_geometry_correction(config, phonon.primitive.cell,
+                                               phonon.primitive.volume)
+    # Phonopy returns J/(mol primitive cells K), not eV/K per mode.
+    cv = np.asarray(thermal["heat_capacity"])/Avogadro
+    cv /= phonon.primitive.volume*ANGSTROM3_TO_M3/correction["factor"]
+    return {"temperature":np.asarray(thermal["temperatures"]),
+            "volume_heat_capacity":cv, "frequency":frequencies,
+            "group_velocity":np.asarray(modes["group_velocities"]),
+            "weight":np.asarray(modes["weights"]), "mesh":mesh,
+            "geometry_correction":correction, "source":"FC2 harmonic"}
 
 
 def mode_kappa_contributions(mode_kappa, mesh, geometry_factor=1.0):
@@ -397,7 +489,16 @@ def mode_kappa_contributions(mode_kappa, mesh, geometry_factor=1.0):
 
 def available_figures(transports):
     """Return standard figures plus analyses supported by every dataset."""
-    figures = list(DEFAULT_FIGURES)
+    required = {"heat_capacity": {"temperature", "volume_heat_capacity"},
+                "group_velocity": {"frequency", "group_velocity"},
+                "relaxation_time": {"frequency", "gamma", "tau_temperature_index"},
+                "scattering_rate": {"frequency", "gamma", "tau_temperature_index"},
+                "kappa": {"temperature", "kappa"}}
+    figures = [name for name in DEFAULT_FIGURES if name not in required or
+               (transports and all(required[name] <= set(t) for t in transports))]
+    for name in ("relaxation_time", "scattering_rate"):
+        if name in figures and not all(t.get("gamma") for t in transports):
+            figures.remove(name)
     if transports and all("mode_kappa" in transport for transport in transports):
         figures.append("cumulative_kappa")
     return figures
@@ -510,7 +611,7 @@ def write_separate_figures(figures, plot_data, plot_dir, dpi):
 
 def write_combined_figure(figures, plot_data, plot_dir, dpi):
     """Write all requested figures into one multi-panel PNG."""
-    ncols = 3 if len(figures) == 6 else min(len(figures), 3)
+    ncols = 2 if len(figures) == 4 else min(len(figures), 3)
     nrows = int(np.ceil(len(figures) / ncols))
     fig, axes = plt.subplots(
         nrows,
@@ -555,7 +656,7 @@ def write_compare_separate_figures(figures, datasets, plot_dir, dpi):
 
 def write_compare_combined_figure(figures, datasets, plot_dir, dpi):
     """Write all comparison figures into one multi-panel PNG."""
-    ncols = 3 if len(figures) == 6 else min(len(figures), 3)
+    ncols = 2 if len(figures) == 4 else min(len(figures), 3)
     nrows = int(np.ceil(len(figures) / ncols))
     fig, axes = plt.subplots(
         nrows,

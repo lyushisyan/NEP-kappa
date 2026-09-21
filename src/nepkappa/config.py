@@ -629,6 +629,10 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--scph_transport_fc3", default=None)
     parser.add_argument("--scph_transport_metadata", default=None)
+    parser.add_argument("--scph_bubble", type=str2bool, nargs="?", const=True, default=False)
+    parser.add_argument("--scph_bubble_mesh", type=int, nargs=3, default=[9, 9, 9])
+    parser.add_argument("--scph_bubble_epsilons", type=float, nargs="+", default=[0.05, 0.1])
+    parser.add_argument("--scph_bubble_grid_points", type=int, nargs="+", default=None)
     parser.add_argument(
         "--qha_sscha_enabled", type=str2bool, nargs="?", const=True, default=False
     )
@@ -649,6 +653,14 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Run FourPhonon three+four-phonon transport after QHA+SSCHA",
     )
 
+    parser.add_argument("--tdbte_kernel", default=None)
+    parser.add_argument("--tdbte_experimental", type=str2bool, default=False)
+    parser.add_argument("--tdbte_temperature", type=float, default=300.)
+    parser.add_argument("--tdbte_duration_ps", type=float, default=20.)
+    parser.add_argument("--tdbte_max_step_ps", type=float, default=.5)
+    parser.add_argument("--tdbte_excitation", type=float, default=.01)
+    parser.add_argument("--tdbte_branches", type=int, nargs="+", default=None)
+    parser.add_argument("--tdbte_samples", type=int, default=201)
     return parser
 
 
@@ -763,6 +775,9 @@ def parse_yaml_input_file(filename):
                 continue
             if section == "plot":
                 flat[f"plot_{normalized_key}"] = value
+                continue
+            if section == "tdbte":
+                flat[f"tdbte_{normalized_key}"] = value
                 continue
             if section == "qha":
                 flat["qha_enabled"] = True
@@ -965,11 +980,16 @@ def yaml_input_sections():
             "run_transport",
             "transport_fc3",
             "transport_metadata",
+            "bubble",
+            "bubble_mesh",
+            "bubble_epsilons",
+            "bubble_grid_points",
         },
         "qha-sscha": {
             "three_phonon",
             "four_phonon",
         },
+        "tdbte": {"kernel", "experimental", "temperature", "duration_ps", "max_step_ps", "excitation", "branches", "samples"},
         "output": {"progress", "result_dir"},
     }
 
@@ -977,6 +997,9 @@ def yaml_input_sections():
 def yaml_arg_order():
     """Return a stable option order for parsed YAML values."""
     return [
+        "tdbte_kernel", "tdbte_experimental", "tdbte_temperature",
+        "tdbte_duration_ps", "tdbte_max_step_ps", "tdbte_excitation",
+        "tdbte_branches", "tdbte_samples",
         "workflow_preset",
         "workflow_steps",
         "poscar",
@@ -1097,6 +1120,10 @@ def yaml_arg_order():
         "scph_run_transport",
         "scph_transport_fc3",
         "scph_transport_metadata",
+        "scph_bubble",
+        "scph_bubble_mesh",
+        "scph_bubble_epsilons",
+        "scph_bubble_grid_points",
         "qha_sscha_enabled",
         "qha_sscha_three_phonon",
         "qha_sscha_four_phonon",
@@ -1138,7 +1165,7 @@ WORKFLOW_PRESETS = {
 }
 WORKFLOW_STEPS = {
     "relax", "fc2", "fc2fc3", "fc4", "qha", "scph", "qha-sscha",
-    "kappa", "kappa4", "plot",
+    "kappa", "kappa4", "plot", "bubble", "tdbte",
 }
 
 
@@ -1235,6 +1262,16 @@ def parse_workflow_args(config_path, command=None):
         scph_error = validate_scph(args)
         if scph_error:
             parser.error(scph_error)
+    if "bubble" in targets or args.scph_bubble:
+        bubble_error = validate_bubble(args)
+        if bubble_error:
+            parser.error(bubble_error)
+    if "tdbte" in targets:
+        from nepkappa.tdbte import validate_options
+        try:
+            validate_options(args)
+        except ValueError as exc:
+            parser.error(str(exc))
     if "kappa4" in targets and not args.fp_enabled:
         parser.error("The selected command or workflow requires a fourphonon section.")
     if command is None or "kappa4" in targets or (
@@ -1556,11 +1593,14 @@ def iter_display_args(args, command=None):
         "wigner", "lbte_parallel",
     }
     command_fields = None
-    if command == "run":
+    tdbte_fields = {name for name in vars(args) if name.startswith("tdbte_")}
+    if command == "tdbte":
+        command_fields = {"result_dir"} | plan_fields | tdbte_fields
+    elif command == "run":
         command_fields = (
             common | plan_fields | calculator_fields | fc2_fields | fc3_fields
             | fc4_fields | kappa_fields | qha_only | scph_only
-            | qha_sscha_only | fourphonon_only
+            | qha_sscha_only | fourphonon_only | tdbte_fields
         )
     elif command == "relax":
         command_fields = common | calculator_fields
@@ -1576,6 +1616,8 @@ def iter_display_args(args, command=None):
         command_fields = common | scph_only | calculator_fields
         if args.scph_run_transport:
             command_fields |= kappa_fields
+    elif command == "bubble":
+        command_fields = common | scph_only | {"workflow_preset"}
     elif command == "qha":
         command_fields = common | calculator_fields | qha_only
     elif command == "qha-sscha":
@@ -1589,9 +1631,11 @@ def iter_display_args(args, command=None):
     elif command == "kappa":
         command_fields = common | kappa_fields
     elif command == "plot":
-        command_fields = common | {"mesh"} | {
+        command_fields = common | {"mesh", "temps"} | {
             name for name in vars(args) if name.startswith("plot_")
         }
+    if command == "run" and args.workflow_steps == ["tdbte"]:
+        command_fields = {"result_dir"} | plan_fields | tdbte_fields
     for arg, value in vars(args).items():
         if value is None:
             continue
@@ -1704,6 +1748,30 @@ def validate_qha(args):
     if args.dimensionality != 3:
         return "QHA currently supports only structure.dimensionality: 3."
     return None
+
+
+def validate_bubble(args):
+    """Validate on-shell bubble postprocessing, independently of ASE sampling."""
+    if not args.scph_enabled:
+        return "bubble requires an scph section describing the completed SSCHA results."
+    if args.dimensionality != 3:
+        return "bubble currently supports only structure.dimensionality: 3."
+    workdir = Path(args.scph_workdir)
+    if workdir.is_absolute() or ".." in workdir.parts or not workdir.parts:
+        return "scph.workdir must be a non-empty relative path inside output.result-dir."
+    if any(value <= 0 for value in args.scph_bubble_mesh):
+        return "scph.bubble-mesh must contain three positive integers."
+    epsilons = args.scph_bubble_epsilons
+    if not epsilons or any(not math.isfinite(v) or v <= 0 for v in epsilons):
+        return "scph.bubble-epsilons must contain finite positive widths in THz."
+    if len(set(epsilons)) != len(epsilons):
+        return "scph.bubble-epsilons must not contain duplicates."
+    points = args.scph_bubble_grid_points
+    if points is not None and (not points or min(points) < 0 or len(set(points)) != len(points)):
+        return "scph.bubble-grid-points must contain distinct non-negative BZ grid indices."
+    if not math.isfinite(args.scph_cutoff_frequency) or args.scph_cutoff_frequency < 0:
+        return "scph.cutoff-frequency must be finite and non-negative."
+    return _validate_scph_temperatures(args)
 
 
 def validate_scph(args):

@@ -21,6 +21,10 @@ ARTIFACT_NAMES = {
     "sscha-summary.yaml",
     "qha-sscha-summary.yaml",
     "fourphonon-summary.yaml",
+    "bubble-summary.yaml",
+    "bubble.hdf5",
+    "audit.json",
+    "branch-energy.csv",
 }
 
 
@@ -54,6 +58,9 @@ def generate_report(result_dir):
         "provenance": _read_yaml_if_present(root / "provenance.yaml", warnings),
         "qha": _read_qha(root, warnings),
         "sscha": _read_sscha(root, warnings),
+        "bubble": _read_bubble(root, warnings),
+        "tdbte": _read_yaml_if_present(root / "tdbte" / "audit.json", warnings),
+        "approximations": _read_approximations(root, warnings),
         "transport": _read_transport(root, warnings),
         "artifacts": _find_artifacts(root),
         "figures": _find_figures(root),
@@ -156,6 +163,45 @@ def _read_transport(root, warnings):
     return records
 
 
+def _read_bubble(root, warnings):
+    """Keep bubble frequency estimates separate from conductivity results."""
+    records = []
+    for path in sorted(root.rglob("bubble-summary.yaml")):
+        data = _read_yaml_if_present(path, warnings)
+        if not isinstance(data, dict):
+            continue
+        records.append({"file": str(path.relative_to(root)), **data})
+        warnings.extend(f"{path.relative_to(root)}: {item}" for item in data.get("warnings", []))
+    return records
+
+
+def _read_approximations(root, warnings):
+    """Keep recorded method scope separate from legacy, unrecorded metadata."""
+    records = []
+    names = {"sscha-summary.yaml", "qha-sscha-summary.yaml", "summary.yaml", "bubble-summary.yaml"}
+    for path in sorted(root.rglob("*.yaml")):
+        if path.name not in names:
+            continue
+        data = _read_yaml_if_present(path, warnings)
+        if not isinstance(data, dict):
+            continue
+        scope = data.get("approximation")
+        if isinstance(scope, dict):
+            records.append({"file": str(path.relative_to(root)), "details": scope})
+        elif path.name != "summary.yaml" or "phono3py_fc2" in data:
+            records.append({
+                "file": str(path.relative_to(root)),
+                "details": {
+                    "label": "Legacy SSCHA record: approximation metadata not recorded",
+                    "limitations": [
+                        "Do not infer a free-energy Hessian, dynamic bubble, or SSCHA "
+                        "cell optimization from an SSCHA/QHA+SSCHA label alone."
+                    ],
+                },
+            })
+    return records
+
+
 def _read_fourphonon_transport(root, warnings):
     """Read normalized 3ph+4ph tensors from FourPhonon summaries."""
     records = []
@@ -246,6 +292,49 @@ def _render_markdown(report):
             ]
         )
     qha = report.get("qha")
+    scopes = report.get("approximations", [])
+    if scopes:
+        lines.extend(["", "## Approximation scope", ""])
+        # Many temperatures share a scope; show it once, retaining all source
+        # records in report.yaml for provenance.
+        rendered = set()
+        for record in scopes:
+            scope = record["details"]
+            key = yaml.safe_dump(scope, sort_keys=True)
+            if key in rendered:
+                continue
+            rendered.add(key)
+            lines.append(f"### {scope.get('label', 'Recorded method')}")
+            lines.append("")
+            for field, label in (
+                ("volume_treatment", "Volume treatment"),
+                ("fc2_role", "FC2 interpretation"),
+                ("free_energy_hessian_calculated", "Free-energy Hessian calculated"),
+                ("dynamic_bubble_calculated", "Dynamic bubble calculated"),
+                ("bubble_evaluation", "Bubble approximation"),
+                ("cubic_vertex", "Cubic vertex"),
+                ("bubble_corrected_transport", "Bubble-corrected transport"),
+                ("sscha_cell_optimization", "SSCHA cell optimization"),
+                ("results_added_together", "Frequencies/conductivities added together"),
+            ):
+                if field in scope:
+                    value = scope[field]
+                    text = ("yes" if value else "no") if isinstance(value, bool) else str(value)
+                    lines.append(f"- {label}: {text}")
+            lines.extend(f"- {item}" for item in scope.get("limitations", []))
+            lines.append("")
+    if report.get("bubble"):
+        lines.extend([
+            "", "## Bubble frequency correction (not corrected conductivity)", "",
+            "| T (K) | Mesh | Epsilon (THz) | Max absolute Delta (THz) | Coverage |",
+            "|---:|---|---|---:|---|",
+        ])
+        for row in report["bubble"]:
+            lines.append(
+                f"| {row.get('temperature_K')} | {row.get('mesh')} | "
+                f"{row.get('epsilons_THz')} | {row.get('maximum_absolute_delta_THz')} | "
+                f"{row.get('coverage')} |"
+            )
     if qha:
         lines.extend(["", "## QHA equilibrium volume", "", "| T (K) | V (Å³) |", "|---:|---:|"])
         lines.extend(
@@ -269,6 +358,15 @@ def _render_markdown(report):
                 f"| {row['temperature_K']:.6g} | {row['status'] or 'unknown'} | "
                 f"{drift_text} | `{row['file']}` |"
             )
+    if report.get("tdbte"):
+        audit = report["tdbte"]
+        lines.extend(["", "## Experimental time-dependent BTE", "",
+                      "Physical relaxation rates are NOT independently validated.",
+                      f"- Numerical checks passed: {audit.get('numerical_checks_passed')}",
+                      f"- Maximum relative energy drift: {audit.get('max_energy_drift_fraction')}",
+                      f"- Equilibrium redistribution: {audit.get('max_equilibrium_redistribution_fraction')}"])
+        if audit.get('error'):
+            lines.append(f"- Failure: {audit['error']}")
     if report["transport"]:
         lines.extend(
             [

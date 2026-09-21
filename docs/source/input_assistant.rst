@@ -1,20 +1,11 @@
-AI Input Assistant
+Input assistant
 ====================
 
-The repository includes the ``nepkappa-input`` Agent Skill in
-``.agents/skills/nepkappa-input/``. It helps an AI assistant create, edit,
-explain, and validate NEP-kappa YAML inputs from a calculation description.
-It covers complete workflows, individual stages, plotting, result comparison,
-and convergence-study inputs, and responds in the user's language.
-
-It starts with the descriptive templates listed in :doc:`examples`, including
-QHA, Phonopy SSCHA, QHA+SSCHA, and combined three/four-phonon transport.
-It checks model species and identity instead of trusting filenames alone.
-
-The skill uses this checkout's parser, input documentation, and examples.
-It does not require its own model API key or a separate agent service; the
-user supplies a compatible AI assistant. Automatic validation also needs
-terminal access and a matching NEP-kappa installation.
+The ``nepkappa-input`` skill provides instructions for preparing and checking
+YAML inputs with an AI assistant. It is stored in
+``.agents/skills/nepkappa-input/`` and uses the parser, examples, and documentation
+from this checkout. Local validation requires terminal access and an installed
+NEP-kappa environment.
 
 Using the skill
 -----------------
@@ -27,7 +18,7 @@ In Codex, open this repository and ask, for example:
    Use examples/structures/Si/POSCAR_bulk and potentials/Si/Si_Bulk_Fan.txt, at 300 K.
    Write si-rta.yaml and validate it. Do not start the calculation.
 
-Chinese requests work as well:
+For 3C-SiC:
 
 .. code-block:: text
 
@@ -35,11 +26,31 @@ Chinese requests work as well:
    结构在 calculations/3C-SiC/POSCAR，势文件在 potentials/3C-SiC/nep_3C-SiC.txt。
    温度范围是 300–1000 K，间隔 100 K。先检查文件，缺少的信息请问我。
 
-The SiC paths above illustrate user-supplied paths; provide your actual files.
-The skill must not replace missing SiC inputs with bundled Si examples.
-The general NEP89 model is stored separately at
-``potentials/nep89_20250409.txt``. Covering the structure's elements does not
-alone prove accuracy for its phase or temperature range.
+Replace the SiC paths with your own files. Specify whether the request is to
+prepare an input, generate plots, or run a calculation.
+
+Plotting from existing results:
+
+.. code-block:: text
+
+   使用 $nepkappa-input，检查 calculations/3C-SiC/results 里现有的数据。
+   我只想画色散、DOS、体积热容和群速度，单图和组合图都要。
+   如果只有 FC2，请不要要求 FC3 或重新计算力常数。
+   先生成并验证绘图输入，告诉我缺什么；暂时不要绘图。
+
+VASP setup:
+
+.. code-block:: text
+
+   使用 $nepkappa-input，帮我检查目标服务器上的 VASP 和 POTCAR 在哪里，
+   检查现有 input.yaml 的启动命令、MPI 环境与 Slurm 配置。
+   如果需要改路径，请修改输入文件，不要改源码，也不要提交计算。
+
+Remote file checks require access to that server. For TD-BTE inputs, also supply
+the existing kernel NPZ and JSON metadata described in :doc:`tdbte`.
+
+Availability in assistants
+--------------------------
 
 Codex discovers the repository skill under ``.agents/skills/``. If needed,
 start a new session in the checkout. In another assistant that supports the
@@ -56,10 +67,8 @@ in that assistant's skill location. For example, from the repository root:
    mkdir -p .cursor/skills
    ln -s ../../.agents/skills/nepkappa-input .cursor/skills/nepkappa-input
 
-These links share the same maintained skill. Do not replace an existing
-installation blindly. Other hosts may have different installation and
-invocation conventions; follow their Agent Skills documentation. The core
-instructions use ordinary files and CLI commands; ``agents/openai.yaml`` is
+Create these links only if the destination does not already exist. Other
+assistants may use different skill directories. ``agents/openai.yaml`` contains
 optional OpenAI-specific display metadata.
 
 A copied skill still needs access to the matching checkout's documentation
@@ -82,15 +91,12 @@ Stage-only inputs use the corresponding target, such as ``--for kappa``.
 Comparison and convergence inputs use their separate Python parsers as
 described in the skill; they are not supported ``validate --for`` targets.
 
-Parser validation, file/environment checks, and numerical convergence are
-reported separately. A passing parser does not establish that model files
-exist, a cluster is configured correctly, or a q mesh is converged. Preparing
-input files alone does not start calculations or submit Slurm jobs.
+Validation checks the configuration, not model accuracy or numerical convergence.
+File and environment checks are reported separately. Preparing an input does
+not submit a calculation.
 
 Maintaining the skill
 -----------------------
 
-Update the skill when input keys, workflow behavior, or examples change.
-Keep exact defaults and schemas in the software rather than duplicating them
-in the skill. Verify representative generated inputs with the matching
-installed validator, including stage-only inputs and invalid configurations.
+Update the skill alongside parser and example changes. Validate generated
+inputs against the same checkout.

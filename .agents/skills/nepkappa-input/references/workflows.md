@@ -23,6 +23,8 @@ parser and input documentation for exact accepted fields and version changes.
 | FourPhonon / existing FCs | `fourphonon.yaml` | `run` / `kappa4` |
 | Two or more model results | `compare.yaml` | `compare` |
 | q-mesh convergence | `converge-qmesh.yaml` | `converge` |
+| Existing FC2 / transport plots | Minimal plotting sections; see `references/analysis.md` | `plot` |
+| Experimental time-dependent BTE | `tdbte.yaml`; existing kernel required | `tdbte` or custom `run` |
 
 For existing FC2/FC3 transport, adapt only the necessary settings from a
 transport example and use `kappa`. For harmonic-only generation use `fc2`.
@@ -92,9 +94,11 @@ request to reuse existing results into one that regenerates force constants.
 ## Comparison inputs
 
 Comparison YAML has `datasets`, `compare`, and `plot` sections (with optional
-geometry). `datasets` lists labels and result directories. Use completed
-results with `phono3py_disp.yaml`, `fc2.hdf5`, and `kappa-m*.hdf5`; inspect the
-files when accessible. It is not a normal workflow YAML.
+geometry). `datasets` lists labels and result directories. Harmonic comparison
+needs `fc2.hdf5` and compatible phonon metadata in each directory; transport
+figures additionally need compatible `kappa-m*.hdf5`. Only figures supported
+by every dataset are drawn. Inspect files and mesh selection before promising
+scattering or conductivity comparisons. It is not a normal workflow YAML.
 
 Neither `validate --for compare` nor `info --for compare` is supported.
 Use the installed package's read-only parser with the matching Python:

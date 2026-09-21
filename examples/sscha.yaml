@@ -33,6 +33,11 @@ scph:
   fc-calculator: symfc
   save-datasets: false
   run-transport: true
+  # Optional real-part bubble shifts; does NOT modify FC2 or conductivity.
+  # Uses input FC3, not an ensemble-averaged SSCHA cubic vertex.
+  bubble: false
+  bubble-mesh: [9, 9, 9]
+  bubble-epsilons: [0.05, 0.1]  # THz; converge together with the mesh
 
 # Used once per SSCHA temperature when run-transport is true. The SSCHA
 # temperature overrides kappa.temps for each individual phono3py call.

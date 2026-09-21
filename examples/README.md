@@ -6,6 +6,10 @@ Outputs are stored under `calculations/example-runs/`.
 
 ## Common workflows
 
+Experimental artifact-reuse workflow: [tdbte.yaml](tdbte.yaml) evolves phonon
+occupations from a prebuilt energy-shell operator. It does not yet build an
+operator from FC2/FC3. See [the TD-BTE guide](../docs/source/tdbte.rst).
+
 | Input | What it demonstrates | Preparation |
 | --- | --- | --- |
 | [nep-rta.yaml](nep-rta.yaml) | Bulk Si three-phonon RTA | Bundled Si structure and NEP |

@@ -61,7 +61,7 @@ relative to the directory where you launch the command.
 | Wigner transport | [wigner.yaml](examples/wigner.yaml) | phono3py SMM19 |
 | Thermal expansion (QHA) | [qha.yaml](examples/qha.yaml) | Phonopy volume scan |
 | Fixed-volume renormalization | [sscha.yaml](examples/sscha.yaml) | Phonopy stochastic SSCHA; CLI name `scph` |
-| QHA + SSCHA and optional transport | [qha-sscha.yaml](examples/qha-sscha.yaml) | SSCHA at QHA equilibrium volumes |
+| SSCHA at QHA volumes and optional transport | [qha-sscha.yaml](examples/qha-sscha.yaml) | Sequential QHA-volume / fixed-cell SSCHA approximation |
 | Both 3ph and 3ph+4ph conductivity | [bas-three-four-phonon.yaml](examples/bas-three-four-phonon.yaml) | Thirdorder, Fourthorder, FourPhonon |
 | Compare models / check convergence | [Example catalog](examples/README.md) | Completed results / a base input |
 
@@ -71,6 +71,17 @@ Optional executables are installed separately; see
 implemented in this package. Transport with renormalized FC2 does not by itself
 include every higher-order anharmonic correction.
 
+The `scph` route produces **auxiliary harmonic FC2**, not a free-energy Hessian
+or a full dynamic phonon spectrum. Optional `scph.bubble: true` adds a separate
+**input-FC3, diagonal on-shell bubble frequency correction**. For existing SSCHA
+results, run `nepkappa bubble input.yaml` without repeating the sampling. This
+does not update FC2 or thermal conductivity; it is not the full ensemble-vertex
+SSCHA spectral method. See [bubble settings and limits](docs/source/input_files.rst).
+`qha-sscha` means **SSCHA at QHA
+equilibrium volumes**, not addition of frequencies or conductivities. It does
+not optimize the volume using SSCHA free energy. These method limits are
+recorded in new summaries and displayed by `nepkappa report`.
+
 ## The commands most users need
 
 | Command | Purpose |
@@ -79,7 +90,7 @@ include every higher-order anharmonic correction.
 | `nepkappa validate input.yaml` | Check input syntax and supported settings |
 | `nepkappa run input.yaml` | Run the selected workflow |
 | `nepkappa status input.yaml` | Inspect stored job state and the Slurm queue |
-| `nepkappa plot input.yaml` | Plot completed phono3py outputs |
+| `nepkappa plot input.yaml` | Plot FC2 harmonic properties; add transport panels when available |
 | `nepkappa report input.yaml` | Write a result summary |
 
 Stage commands allow restarts and reuse of existing force constants.
@@ -98,6 +109,15 @@ In a compatible assistant opened in this checkout, ask:
 
 It checks the installed schema, model species and paths, and distinguishes
 configuration validity from numerical convergence.
+Describe the result you want rather than memorizing presets. It can also
+prepare FC2-only plotting inputs or check an existing input without recalculating
+forces. Experimental TD-BTE requires a prebuilt kernel; the skill does not
+construct one or certify physical accuracy. Input preparation never implicitly
+starts a calculation.
+
+> 使用 $nepkappa-input，检查我的结果目录，只用已有 FC2 准备色散、DOS、
+> 体积热容和群速度绘图，单图和组合图都要。先验证输入，不重新计算。
+
 [Skill usage](docs/source/input_assistant.rst)
 
 ## Repository layout
@@ -131,9 +151,19 @@ nepkappa report input.yaml     # 汇总已有结果
 
 初次体验可用上面的 Si 算例。计算其他材料时必须替换为对应的结构和势函数。
 常规路径相对于命令启动目录；结果统一放在 `calculations/`。
-QHA、SSCHA、QHA+SSCHA、三/四声子、Wigner 和 Slurm 的入口见
+QHA、固定体积 SSCHA、QHA 体积上的 SSCHA、三/四声子、Wigner 和 Slurm 的入口见
 [示例目录](examples/README.md)，参数含义见 [输入参考](docs/source/input_files.rst)。
 `tests`、`benchmarks` 和实际计算结果保留在本地，不随代码提交。
+
+## Experimental time-dependent BTE (development)
+
+The development checkout also provides `nepkappa tdbte input.yaml`, or the
+custom workflow stage `tdbte`, for homogeneous fixed-frequency phonon occupation
+dynamics. Use [tdbte.yaml](examples/tdbte.yaml) and the
+[TD-BTE guide](docs/source/tdbte.rst). This stage requires a **prebuilt
+energy-shell operator**, not just FC2/FC3. Automatic operator generation and
+independent physical-rate validation remain incomplete. Numerical audit results
+are included by `nepkappa report`; passing them does not validate relaxation times.
 
 ## Citation
 

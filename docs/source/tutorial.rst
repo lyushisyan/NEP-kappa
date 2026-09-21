@@ -1,9 +1,8 @@
-Workflow recipes
+Calculation guide
 ==================
 
-Start with :doc:`starting` for the first calculation. This page explains how
-to adapt that workflow and reuse results. Exact keys and units are in
-:doc:`input_files`; complete templates are listed in :doc:`examples`.
+The commands below assume a configured YAML input. See :doc:`starting` for
+the Si example and :doc:`input_files` for parameter definitions.
 
 Run stages or reuse force constants
 -------------------------------------
@@ -82,10 +81,9 @@ Cutoffs and force-constant fitting
      - ``dim-fc2``
      - No independent real-space cutoff; increase the represented supercell.
 
-These options have different meanings. A displaced-pair cutoff is not a
-universal radius applied to every force-constant tensor. Converge the chosen
-cutoff together with the supercell. HiPhive requires enough independent
-rattled structures; see ``examples/nep-hiphive.yaml``.
+The phono3py pair cutoff limits displacement pairs, rather than truncating all
+tensor elements at that radius. Check cutoff and supercell convergence together.
+For HiPhive fitting, see ``examples/nep-hiphive.yaml``.
 
 Use another calculator
 ------------------------
@@ -143,13 +141,17 @@ QHA, SSCHA, and their combination
    * - SSCHA
      - ``sscha.yaml``
      - Temperature-renormalized FC2 at a fixed cell.
-   * - QHA+SSCHA
+   * - SSCHA at QHA volumes
      - ``qha-sscha.yaml``
      - SSCHA at each temperature's QHA equilibrium volume.
 
-Run any of these templates with ``nepkappa run examples/<name>.yaml``.
-The coupled route regenerates matching force constants at each volume; it does
-not add two independently calculated frequency shifts.
+Run a configured template with ``nepkappa run examples/<name>.yaml``.
+The coupled route regenerates force constants at each QHA volume, which stays
+fixed during SSCHA. Exported FC2 is the auxiliary harmonic matrix.
+``scph.bubble: true`` writes separate input-FC3 diagonal on-shell shifts;
+``nepkappa bubble input.yaml`` applies this step to existing SSCHA results.
+Neither operation updates the conductivity with bubble corrections.
+See :doc:`input_files` for the method's limits.
 
 QHA needs at least five increasing volume ratios, an equilibrium-volume range
 that brackets the fit, and dynamically sensible phonons. It writes
@@ -192,7 +194,9 @@ Compare models and test convergence
 -------------------------------------
 
 In ``examples/compare.yaml``, keep two or more labeled result directories.
-Each must provide matching phonon metadata, FC2, and transport outputs. Then:
+Each must provide matching phonon metadata and FC2. Transport comparisons also
+need compatible conductivity files; otherwise only shared harmonic panels are
+drawn. Then:
 
 .. code-block:: bash
 
@@ -210,5 +214,54 @@ The swept dotted key must already exist in the base input.
 With ``study.execute: false`` this writes case inputs and analysis without
 running simulations. After inspection, enable execution to run the cases.
 Once complete, set it back to false and repeat for the CSV, figure, and summary.
-The last configured case is the numerical reference, not the exact physical
-answer; incomplete cases prevent a convergence declaration.
+Errors are measured relative to the last configured case. All cases must be
+complete before convergence can be assessed.
+
+Plot existing results
+-----------------------------------------------------
+
+For FC2-only work, place ``fc2.hdf5`` with its matching ``phono3py_disp.yaml``,
+``phonopy.yaml``, or ``phonopy_disp.yaml`` in the result directory. A minimal
+plot input is:
+
+.. code-block:: yaml
+
+   output:
+     result-dir: calculations/my-material/results
+   kappa:
+     mesh: [21, 21, 21]
+     temps: [0, 1000, 100]
+   plot:
+     layout: both
+     path: seekpath
+
+From the directory relative to which those paths are defined:
+
+.. code-block:: bash
+
+   nepkappa validate plot.yaml --for plot
+   nepkappa info plot.yaml --for plot
+   nepkappa plot plot.yaml
+
+This produces dispersion, DOS, volume heat capacity, and group velocity,
+as separate PNGs and a 2-by-2 combination. No potential or FC3 is required.
+The mesh and temperatures control harmonic-property sampling and require
+convergence checks. Existing same-named plot files may be replaced.
+
+With transport HDF5 present, select its matching mesh. Scattering/lifetime
+panels need linewidth data; cumulative conductivity needs ``mode_kappa``.
+Unsupported or incomplete transport files raise an error.
+Adding a ``plot`` section alone does not add a plotting stage
+to a workflow: use the explicit command above or a custom stage plan.
+
+``report`` summarizes existing results. Custom manuscript figures use separate
+scripts. See :doc:`input_files` for built-in panels
+and :doc:`troubleshooting` for file-selection problems.
+
+Experimental time-dependent BTE
+--------------------------------
+
+Use ``examples/tdbte.yaml`` only with an existing energy-shell kernel and JSON
+metadata. Validate with ``--for tdbte``. The stage does not build this kernel
+from FC2/FC3, and physical relaxation-rate validation remains incomplete.
+See :doc:`tdbte` for excitation definitions, numerical audits, and outputs.

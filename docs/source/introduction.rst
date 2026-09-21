@@ -1,9 +1,8 @@
 Capabilities
 ==============
 
-NEP-kappa organizes force calculations, force constants, transport, and result
-analysis through one YAML workflow. Force providers and transport solvers are
-configured separately.
+Each calculation uses a YAML input to select the force calculator,
+force-constant method, and transport solver.
 
 Calculators and force constants
 ---------------------------------
@@ -31,7 +30,12 @@ Temperature-dependent phonons
 
 QHA uses isotropic volume scans to obtain thermal expansion and thermodynamic
 properties. Fixed-volume Phonopy SSCHA generates temperature-renormalized FC2.
-QHA+SSCHA evaluates this renormalization at each QHA equilibrium volume.
+The ``qha-sscha`` route runs SSCHA at the QHA equilibrium volume for each
+temperature, without reoptimizing that volume. The resulting FC2 is an auxiliary
+harmonic matrix, not a free-energy Hessian. Optional bubble postprocessing
+calculates input-FC3 diagonal on-shell frequency shifts in separate output files;
+FC2 and transport remain unchanged. See :doc:`input_files` for approximation
+details.
 
 The command ``scph`` names the Phonopy stochastic SSCHA route implemented here;
 it is not an ALAMODE perturbative SCPH calculation. Transport may use the
@@ -41,14 +45,19 @@ transport). These approximations have their own convergence requirements.
 Execution and analysis
 ------------------------
 
-Workflow presets reduce the normal interface to ``init`` and ``run``.
-Stage commands support reuse and debugging. Slurm supports force arrays, LBTE,
-and FourPhonon submission; available scheduling differs by stage.
+``run`` executes a preset or custom stage list. Individual stage commands reuse
+existing results. Slurm submission is available for force arrays, LBTE, and
+FourPhonon.
 Cached force jobs are reused only when their recorded inputs match.
 
-Plotting and comparison consume completed phonon/transport data; convergence
-studies prepare isolated parameter sweeps. Provenance and reports retain
-settings, input identities, outputs, and execution state.
+``plot`` and ``compare`` read existing results. ``converge`` prepares parameter
+sweeps. ``report`` collects results and recorded calculation settings.
 
-Choose a template in :doc:`examples` and consult :doc:`input_files`
-for supported combinations and limits.
+Experimental dynamics
+-----------------------
+
+The ``tdbte`` stage evolves homogeneous three-phonon populations at fixed
+frequencies from a prebuilt energy-shell kernel. It records energy,
+equilibrium-control and entropy diagnostics, but physical rate normalization
+is not independently validated. It does not construct kernels from FC2/FC3
+or model laser absorption. See :doc:`tdbte` before using this research feature.

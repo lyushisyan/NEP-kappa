@@ -11,6 +11,7 @@ from phonopy import Phonopy
 from phonopy.file_IO import write_FORCE_CONSTANTS
 import yaml
 
+from nepkappa.approximations import sscha_approximation
 from nepkappa.config import qha_sscha_transport_flags
 from nepkappa.runtime import ase_to_phonopy
 from nepkappa.sscha import (
@@ -56,7 +57,8 @@ class QHASSCHAWorkflow:
         self.workdir.mkdir(parents=True, exist_ok=True)
         base = read(self.cfg.poscar)
         cases = []
-        print("\n[QHA+SSCHA] SSCHA at QHA equilibrium volumes")
+        print("\n[SSCHA at QHA volumes] Sequential thermal-expansion approximation")
+        print("  - No SSCHA volume optimization; bubble is optional postprocessing")
         for temperature, primitive_volume in zip(requested, volumes):
             cases.append(
                 self._run_temperature(
@@ -69,14 +71,16 @@ class QHASSCHAWorkflow:
 
         summary = {
             "status": "complete",
-            "method": "QHA equilibrium volume + Phonopy SSCHA",
+            "method": "Phonopy SSCHA at QHA equilibrium volumes",
+            "approximation": sscha_approximation(qha_volume=True),
             "qha_volume_source": str(self.output_dir / "volume-temperature.dat"),
             "normalization_multiplicity": multiplicity,
+            "bubble_postprocessing": getattr(self.cfg, "scph_bubble", False),
             "transport": {
                 "three_phonon": self.three_phonon,
                 "four_phonon": self.four_phonon,
                 "force_constant_treatment": {
-                    "fc2": "SSCHA-renormalized at T and QHA equilibrium volume",
+                    "fc2": "SSCHA auxiliary harmonic FC2 at T and QHA equilibrium volume",
                     "fc3": "finite-displacement at QHA equilibrium volume",
                     "fc4": (
                         "finite-displacement at QHA equilibrium volume"
@@ -89,7 +93,7 @@ class QHASSCHAWorkflow:
         }
         path = self.workdir / "qha-sscha-summary.yaml"
         path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
-        print(f"\n[Done] QHA+SSCHA summary written to {path}")
+        print(f"\n[Done] SSCHA-at-QHA-volumes summary written to {path}")
         return summary
 
     def _run_temperature(self, base, temperature, primitive_volume, multiplicity):
@@ -108,7 +112,10 @@ class QHASSCHAWorkflow:
         case_config.poscar = str((case_dir / "POSCAR_qha_volume").resolve())
         case_config.do_relax = False
         case_config.workflow_preset = "custom"
-        needs_fc3 = self.three_phonon or self.four_phonon
+        needs_fc3 = (
+            self.three_phonon or self.four_phonon
+            or getattr(self.cfg, "scph_bubble", False)
+        )
         case_config.workflow_steps = ["fc2fc3" if needs_fc3 else "fc2"]
         if self.four_phonon:
             case_config.workflow_steps.append("fc4")
@@ -144,7 +151,7 @@ class QHASSCHAWorkflow:
         outcome = runner.run(force_step)
         if outcome is not None:
             raise RuntimeError(
-                "QHA+SSCHA cannot continue from deferred force calculations. "
+                "qha-sscha cannot continue from deferred force calculations. "
                 "Use serial force generation inside an outer Slurm allocation."
             )
         if self.four_phonon:
@@ -199,7 +206,7 @@ class QHASSCHAWorkflow:
         result = runner.run("kappa4")
         if isinstance(result, dict) and result.get("submitted"):
             raise RuntimeError(
-                "QHA+SSCHA FourPhonon transport must run inside the outer job; "
+                "qha-sscha FourPhonon transport must run inside the outer job; "
                 "nested submission is not supported."
             )
         return result
@@ -213,7 +220,7 @@ def load_qha_equilibrium_volumes(result_dir):
     missing = [path for path in (volume_path, summary_path) if not path.is_file()]
     if missing:
         raise FileNotFoundError(
-            "QHA+SSCHA needs completed QHA outputs. Missing: "
+            "qha-sscha needs completed QHA outputs. Missing: "
             + ", ".join(str(path) for path in missing)
         )
     values = np.loadtxt(volume_path, comments="#", ndmin=2)

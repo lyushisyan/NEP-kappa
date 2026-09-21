@@ -17,6 +17,7 @@ class CommandSpec:
 
 
 COMMAND_SPECS = (
+    CommandSpec("tdbte", "Experimental homogeneous phonon dynamics from an audited shell artifact."),
     CommandSpec("run", "Run the selected workflow preset or custom stage plan."),
     CommandSpec("relax", "Relax the input structure only."),
     CommandSpec("fc2", "Generate fc2.hdf5 and phono3py_disp.yaml only."),
@@ -24,7 +25,8 @@ COMMAND_SPECS = (
     CommandSpec("fc4", "Generate FORCE_CONSTANTS_4TH using Fourthorder."),
     CommandSpec("fc", "Deprecated alias for fc2fc3.", deprecated_alias_for="fc2fc3"),
     CommandSpec("qha", "Run an isotropic quasi-harmonic approximation workflow."),
-    CommandSpec("scph", "Run self-consistent phonons with Phonopy SSCHA."),
+    CommandSpec("scph", "Generate auxiliary harmonic FC2 with fixed-cell Phonopy SSCHA."),
+    CommandSpec("bubble", "Add diagonal on-shell bubble shifts to existing SSCHA results."),
     CommandSpec(
         "qha-sscha",
         "Run SSCHA at the temperature-dependent QHA equilibrium volumes.",

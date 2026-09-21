@@ -1,6 +1,6 @@
 ---
 name: nepkappa-input
-description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, Phonopy SSCHA, QHA+SSCHA, comparison, and convergence studies. Use when translating calculation requirements into inputs; preparing an input alone does not start calculations.
+description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, SSCHA, QHA+SSCHA, existing-result plotting (including FC2-only), comparison, convergence studies, and experimental time-dependent BTE. Use when turning calculation or plotting requirements into inputs or diagnosing input errors; preparing an input does not start calculations.
 ---
 
 # NEP-kappa input assistant
@@ -31,14 +31,24 @@ Read the relevant stage implementation when runtime behavior is unclear.
 Read [workflow guidance](references/workflows.md) for route selection,
 cutoffs, temperature conventions, and analysis-specific validation. Treat
 that reference as guidance; the target version's parser is authoritative.
+For plotting or time-dependent BTE, also read
+[artifact-reuse guidance](references/analysis.md). Do not infer development
+feature availability from the version number alone; inspect the actual checkout.
+For VASP location, executable changes, POTCAR setup, or MPI/Slurm environment
+questions, read [VASP environment guidance](references/vasp-environment.md).
+Help check and configure the target host, not just YAML syntax.
 
 ## Establish inputs and choose one route
 
 Inspect provided files before asking for missing information. Establish the
 structure, species, geometry, calculator/model, temperatures, supercells,
-q mesh, result directory, and intended launch environment. For existing-result
+q mesh, result directory, and intended launch environment **only as needed for
+the requested stage**. First distinguish input preparation, result inspection,
+plot generation, and calculation execution. For existing-result
 requests, inspect available artifacts and choose a stage such as `kappa` or
 `plot`; do not turn reuse into force-constant generation.
+Do not require a potential or FC3 for FC2-only plotting, or a calculator for an
+existing TD-BTE kernel. Inspect available artifacts before promising plots.
 
 Use one minimal example. For a full workflow prefer a preset; small variants
 such as RTA versus LBTE should edit the relevant key, not create duplicate
@@ -78,7 +88,7 @@ nepkappa info input.yaml --for run
 ```
 
 Replace `run` with the actual stage (`fc2fc3`, `kappa`, `kappa4`, `qha`,
-`scph`, `qha-sscha`, or `plot`) for stage-only inputs. Comparison/convergence
+`scph`, `qha-sscha`, `tdbte`, or `plot`) for stage-only inputs. Comparison/convergence
 use separate read-only parsers shown in the workflow reference. `report` and
 `status` inspect results, not alternate YAML schemas.
 
@@ -89,7 +99,9 @@ If the CLI is unavailable, state which checks could not run; do not install
 large simulation dependencies solely to validate a draft.
 
 Preparing an input does not itself authorize calculations. Do not invoke `run`,
-`converge`, `compare`, `sbatch`, or load a calculator as a validation shortcut.
+`converge`, `compare`, `plot`, `tdbte`, `sbatch`, or load a calculator as a
+validation shortcut. Adding a `plot` section does not add a plotting stage;
+give the explicit stage command or include it in an authorized custom plan.
 When calculation execution was requested, continue within that scope after
 input checks.
 
@@ -98,3 +110,6 @@ input checks.
 Return the input link, launch directory, command, and material assumptions.
 Separate parser validation, checked file/environment prerequisites, and remaining
 numerical convergence work. A valid YAML is not a verified scientific result.
+Keep the handoff short: what was prepared, where to launch, one next command,
+what was checked, and what is still missing. Explain settings in ordinary
+language; do not make users learn all presets or commands before helping them.

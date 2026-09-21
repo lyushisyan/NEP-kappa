@@ -1,4 +1,6 @@
-# Coupled thermal-expansion and temperature-renormalization example.
+# SSCHA at QHA equilibrium volumes: a sequential approximation, not a sum.
+# Auxiliary harmonic FC2; optional on-shell bubble postprocessing, no Hessian.
+# QHA volumes are not reoptimized with the SSCHA free energy.
 # Compact FC/SSCHA settings are a smoke test and require convergence studies.
 workflow:
   preset: qha-sscha
@@ -41,6 +43,11 @@ scph:
   cutoff-frequency: 0.01
   fc-calculator: symfc
   save-datasets: false
+  # Set true to add a separate diagonal on-shell bubble at each QHA volume.
+  # FC3 is generated at that volume even when both transport switches are off.
+  bubble: false
+  bubble-mesh: [9, 9, 9]
+  bubble-epsilons: [0.05, 0.1]
 
 qha-sscha:
   three-phonon: true

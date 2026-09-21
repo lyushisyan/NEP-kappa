@@ -44,6 +44,8 @@ run from the repository root, and copy an input before adapting it.
      - Two or more completed model results; use ``nepkappa compare``.
    * - ``converge-qmesh.yaml``
      - q-mesh study; use ``nepkappa converge``.
+   * - ``tdbte.yaml``
+     - Experimental population dynamics; requires a prebuilt kernel and JSON metadata. See :doc:`tdbte`.
 
 All ordinary workflow inputs use ``nepkappa run examples/<name>.yaml``.
 For pre-existing force constants, use ``kappa`` or ``kappa4`` instead.

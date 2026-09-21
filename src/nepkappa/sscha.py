@@ -28,6 +28,7 @@ from phonopy.harmonic.force_constants import (
 from phonopy.physical_units import get_physical_units
 import yaml
 
+from nepkappa.approximations import sscha_approximation
 from nepkappa.provenance import canonical_data, data_sha256, file_identity
 from nepkappa.runtime import ase_to_phonopy, phonopy_to_ase, progress_iter
 
@@ -79,6 +80,9 @@ class PhonopySSCHAWorkflow:
                 "or set scph.initial-fc2."
             )
         print("\n[Phonopy SSCHA] Stochastic self-consistent harmonic approximation")
+        print("  - Sampling produces auxiliary harmonic FC2, not a free-energy Hessian")
+        if self.settings.bubble:
+            print("  - Optional diagonal on-shell bubble postprocessing enabled (input FC3)")
         print(f"  - Phonopy version: {phonopy_version}")
         print(f"  - Initial FC2: {initial_fc2}")
         print(f"  - Supercell: {list(self.cfg.dim_fc2)}")
@@ -91,11 +95,14 @@ class PhonopySSCHAWorkflow:
 
         index = {
             "backend": "phonopy-sscha",
+            "approximation": sscha_approximation(),
             "calculator": self.workflow._calculator_name(),
             "initial_fc2": str(initial_fc2),
             "temperatures": [result["temperature"] for result in results],
             "directories": [result["directory"] for result in results],
             "transport": self.settings.run_transport,
+            "bubble_postprocessing": self.settings.bubble,
+            "bubble_summaries": [result["bubble"] for result in results if result["bubble"]],
         }
         (self.workdir / "sscha-summary.yaml").write_text(
             yaml.safe_dump(index, sort_keys=False), encoding="utf-8"
@@ -224,6 +231,7 @@ class PhonopySSCHAWorkflow:
         departure = maximum_kept_departure(trace, self.settings.transient)
         summary = {
             "status": "complete",
+            "approximation": sscha_approximation(),
             "temperature": temperature,
             "snapshots_per_iteration": self.settings.snapshots,
             "iterations": self.settings.iterations,
@@ -247,7 +255,12 @@ class PhonopySSCHAWorkflow:
         )
         if self.settings.run_transport:
             self._run_transport(temperature, temperature_dir)
-        return {"temperature": temperature, "directory": label}
+        bubble = None
+        if self.settings.bubble:
+            from nepkappa.bubble import run_bubble_temperature
+
+            bubble = run_bubble_temperature(self.cfg, temperature_dir, temperature)
+        return {"temperature": temperature, "directory": label, "bubble": bubble}
 
     def _new_phonopy(self):
         phonon = Phonopy(

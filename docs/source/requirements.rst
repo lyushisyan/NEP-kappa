@@ -5,6 +5,7 @@ Requirements
 
 - python>=3.9
 - numpy
+- scipy
 - ase
 - h5py
 - matplotlib
