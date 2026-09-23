@@ -28,7 +28,7 @@ complete relaxation first or explicitly disable relaxation for an already
 relaxed input structure.
 
 Use the source and executable from the same installation. An editable install
-follows local changes even when the displayed version remains 2.0.0. Supported
+follows local changes even when the displayed version number is unchanged. Supported
 keys are listed in :doc:`input_files`.
 
 ``phono3py`` option errors

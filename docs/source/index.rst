@@ -7,8 +7,8 @@ machine-learning potentials.
 Start with :doc:`installation` and :doc:`starting`. Calculation templates are
 listed in :doc:`examples`; parameters and units are defined in :doc:`input_files`.
 
-These pages describe the current checkout (package version 2.0.0), including
-development features not present in the published 2.0.0 tag.
+These pages describe package version 2.0.1, including experimental features
+not present in the earlier 2.0.0 tag.
 
 .. toctree::
    :maxdepth: 1

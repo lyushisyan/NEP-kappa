@@ -1,7 +1,7 @@
 Input Files
 =============
 
-NEP-kappa 2.0.0 uses YAML input files. Each YAML file describes one workflow by
+NEP-kappa 2.0.1 uses YAML input files. Each YAML file describes one workflow by
 grouping settings into the same stages used by the command line:
 
 - ``workflow``: high-level preset or an advanced custom stage plan

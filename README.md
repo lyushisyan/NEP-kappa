@@ -8,7 +8,7 @@ NEP-kappa connects NEP, VASP, MACE, and ASE calculators to force-constant genera
 Phonopy/phono3py, and FourPhonon. Describe a calculation in YAML and run it with
 `nepkappa run input.yaml`.
 
-Current version: **2.0.0**. See the [release notes](CHANGELOG.md).
+Current version: **2.0.1**. See the [release notes](CHANGELOG.md).
 [Quick start](docs/source/starting.rst) · [Examples](examples/README.md) ·
 [Input reference](docs/source/input_files.rst) · [中文上手](#中文上手)
 

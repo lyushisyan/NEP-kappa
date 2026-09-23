@@ -1,5 +1,18 @@
 # Release notes
 
+## 2.0.1 — 2026-09-23
+
+- Unified FC3 cutoff input as `cutoff-fc3`, retaining the old phono3py alias.
+- Added FC2-only plotting and improved result reports.
+- Clarified SSCHA and QHA-volume approximations; added optional diagonal
+  on-shell bubble frequency corrections (without updating conductivity).
+- Added experimental time-dependent BTE from a prebuilt energy-shell kernel.
+  Physical-rate validation and automatic kernel construction remain incomplete.
+- Updated documentation and the input-assistant Skill, including VASP setup.
+
+Local verification: 348 tests passed and the strict documentation build passed.
+Research kernels, local tests, and benchmark datasets are not part of this release.
+
 ## 2.0.0 — 2026-09-17
 
 NEP-kappa 2.0 unifies phonon and lattice thermal-transport workflows using
