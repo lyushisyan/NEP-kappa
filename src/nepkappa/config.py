@@ -273,8 +273,8 @@ def initialise_parser() -> argparse.ArgumentParser:
         "--cutoff-fc3",
         dest="cutoff_fc3",
         type=float,
-        default=-3.0,
-        help="[thirdorder] FC3 cutoff passed to thirdorder_vasp.py",
+        default=None,
+        help="FC3 cutoff: phono3py positive Angstrom; thirdorder negative shell or positive nm",
     )
     parser.add_argument(
         "--pair_cutoff_fc3",
@@ -282,7 +282,7 @@ def initialise_parser() -> argparse.ArgumentParser:
         dest="pair_cutoff_fc3",
         type=float,
         default=None,
-        help="[phono3py] FC3 displaced-pair cutoff distance in Angstrom",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--thirdorder_command",
@@ -1208,6 +1208,19 @@ def parse_workflow_args(config_path, command=None):
         parser.error(f"input file not found: {config_path}")
     tokens = parse_input_file(config_path)
     args = parser.parse_args(tokens, namespace=WorkflowConfig())
+    cutoff = args.cutoff_fc3
+    legacy = args.pair_cutoff_fc3
+    if legacy is not None:
+        if args.fc3_backend != "phono3py":
+            parser.error("Legacy pair-cutoff-fc3 requires fc3-backend: phono3py; use cutoff-fc3.")
+        if cutoff is not None and cutoff != legacy:
+            parser.error("Conflicting cutoff-fc3 and legacy pair-cutoff-fc3 values.")
+        cutoff = legacy
+    if cutoff is None and args.fc3_backend == "thirdorder":
+        cutoff = -3.0
+    args.cutoff_fc3 = cutoff
+    # Retain the internal alias for existing Python integrations.
+    args.pair_cutoff_fc3 = cutoff if args.fc3_backend == "phono3py" else None
     resolve_force_constant_dimensions(args)
     resolve_workflow_plan(args, parser=parser)
     targets = set(args.workflow_steps) if command == "run" else {command}
@@ -1514,9 +1527,9 @@ def resolve_force_constant_dimensions(args):
 
 def iter_display_args(args, command=None):
     """Iterate over user-facing config values, hiding inactive route settings."""
-    compatibility_only = {"dim", "config_path", "invoked_command"}
+    compatibility_only = {"dim", "config_path", "invoked_command", "pair_cutoff_fc3"}
     hiphive_only = {"n_structures", "rattle_std", "cutoffs", "min_dist"}
-    thirdorder_only = {"cutoff_fc3", "thirdorder_command", "fc3_workdir"}
+    thirdorder_only = {"thirdorder_command", "fc3_workdir"}
     phono3py_fc3_only = {"pair_cutoff_fc3"}
     vasp_only = {
         "vasp_command",
@@ -1968,6 +1981,8 @@ def validate_force_constant_backends(args):
     if args.fc3_backend == "thirdorder":
         cutoffs.insert(0, ("thirdorder cutoff-fc3", args.cutoff_fc3))
     for backend, value in cutoffs:
+        if not math.isfinite(value):
+            return f"{backend} must be finite."
         if value == 0:
             return f"{backend} must not be zero."
         if value < 0 and not float(value).is_integer():
@@ -1980,7 +1995,7 @@ def validate_force_constant_backends(args):
         if args.fc3_backend != "phono3py":
             return "force-constant.pair-cutoff-fc3 is only valid with fc3-backend: phono3py."
         if not math.isfinite(pair_cutoff) or pair_cutoff <= 0:
-            return "force-constant.pair-cutoff-fc3 must be a positive distance in Angstrom."
+            return "force-constant.cutoff-fc3 must be a positive distance in Angstrom for phono3py."
     return None
 
 

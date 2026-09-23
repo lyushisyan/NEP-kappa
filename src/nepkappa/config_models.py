@@ -70,7 +70,7 @@ class ForceConstantsConfig:
     dim_fc3: Int3
     dim_fc4: Int3
     fc3_backend: str
-    cutoff_fc3: float
+    cutoff_fc3: Optional[float]
     pair_cutoff_fc3: Optional[float]
     cutoff_fc4: float
     thirdorder_command: Optional[str]

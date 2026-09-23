@@ -560,7 +560,9 @@ class NEPPhononWorkflow:
                 self._stage_force_job(phonopy_to_ase(supercell), "fc2", index)
             )
         if include_fc3:
-            pair_cutoff = getattr(self.cfg, "pair_cutoff_fc3", None)
+            pair_cutoff = getattr(self.cfg, "cutoff_fc3", None)
+            if pair_cutoff is None:
+                pair_cutoff = getattr(self.cfg, "pair_cutoff_fc3", None)
             if pair_cutoff is None:
                 ph3.generate_displacements()
             else:

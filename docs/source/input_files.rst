@@ -467,14 +467,21 @@ The current ``nepkappa kappa`` command reads phono3py HDF5 files. Use
 ``nepkappa kappa``. Use ``format: shengbte`` when the next stage is a
 ShengBTE/FourPhonon workflow.
 
-For native phono3py FC3, ``pair-cutoff-fc3`` is an optional displaced-pair
-distance cutoff in Angstrom. For ``fc3-backend: thirdorder``, use
-``cutoff-fc3`` instead: a negative integer selects a neighbor shell and a
+For native phono3py FC3, ``cutoff-fc3`` is an optional displaced-pair
+distance cutoff in Angstrom. For ``fc3-backend: thirdorder``, the same
+``cutoff-fc3`` key follows a different convention: a negative integer selects a neighbor shell and a
 positive value is a distance in nm. HiPhive uses its own real-space
 ``cutoffs`` list in Angstrom. Native finite-displacement FC2 has no independent
 real-space cutoff: ``dim-fc2`` controls the represented interaction range.
 Blindly zeroing fitted FC2 elements after the calculation is not provided
 because it can break translational/rotational sum rules.
+
+The same ``cutoff-fc3`` key is used for both FC3 backends, but its units and
+meaning follow the selected backend. Omitting it means no pair cutoff for
+phono3py and the third neighbor shell (``-3``) for Thirdorder. The old
+``pair-cutoff-fc3`` name remains a phono3py compatibility alias; do not use
+both names with different values. A phono3py pair cutoff limits displacement
+pairs, not all FC3 tensor elements beyond a radius.
 
 Thirdorder FC3 route:
 

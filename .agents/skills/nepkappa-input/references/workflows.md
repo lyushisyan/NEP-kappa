@@ -59,7 +59,9 @@ request to reuse existing results into one that regenerates force constants.
   Geometry normalization currently affects plots, not original kappa HDF5.
 - HiPhive cutoffs and displacements are material-dependent. Negative
   Thirdorder/Fourthorder cutoffs follow neighbor-shell conventions.
-- Native phono3py FC3 accepts `pair-cutoff-fc3` in Angstrom. Thirdorder uses
+- Use `cutoff-fc3` for native phono3py FC3 (positive Angstrom; omit for no cutoff).
+  The old `pair-cutoff-fc3` is only a compatibility alias, not a key for new inputs.
+  Thirdorder also uses
   `cutoff-fc3` (negative neighbor shell or positive nm), while HiPhive uses
   `cutoffs` in Angstrom. Native finite-displacement FC2 has no independent
   real-space cutoff; its interaction range is controlled by `dim-fc2`.

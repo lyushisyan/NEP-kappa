@@ -66,7 +66,7 @@ Cutoffs and force-constant fitting
      - Key
      - Meaning
    * - Native phono3py FC3
-     - ``pair-cutoff-fc3``
+     - ``cutoff-fc3``
      - Displaced-pair distance, angstrom.
    * - Thirdorder FC3
      - ``cutoff-fc3``
