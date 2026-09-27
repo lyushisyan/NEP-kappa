@@ -24,7 +24,7 @@ parser and input documentation for exact accepted fields and version changes.
 | Two or more model results | `compare.yaml` | `compare` |
 | q-mesh convergence | `converge-qmesh.yaml` | `converge` |
 | Existing FC2 / transport plots | Minimal plotting sections; see `references/analysis.md` | `plot` |
-| Experimental time-dependent BTE | `tdbte.yaml`; existing kernel required | `tdbte` or custom `run` |
+| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `tdbte` or custom `run` |
 
 For existing FC2/FC3 transport, adapt only the necessary settings from a
 transport example and use `kappa`. For harmonic-only generation use `fc2`.

@@ -6,9 +6,10 @@ Outputs are stored under `calculations/example-runs/`.
 
 ## Common workflows
 
-Experimental artifact-reuse workflow: [tdbte.yaml](tdbte.yaml) evolves phonon
-occupations from a prebuilt energy-shell operator. It does not yet build an
-operator from FC2/FC3. See [the TD-BTE guide](../docs/source/tdbte.rst).
+Force-constant reuse: [tdbte.yaml](tdbte.yaml) builds an energy-shell operator
+from matching FC2/FC3 and phono3py metadata, then evolves occupations in chunks.
+Set its source directory, q mesh and excitation. See
+[the TD-BTE guide](../docs/source/tdbte.rst) for kernel reuse and limitations.
 
 | Input | What it demonstrates | Preparation |
 | --- | --- | --- |

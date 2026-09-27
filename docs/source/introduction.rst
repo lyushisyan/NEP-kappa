@@ -53,11 +53,11 @@ Cached force jobs are reused only when their recorded inputs match.
 ``plot`` and ``compare`` read existing results. ``converge`` prepares parameter
 sweeps. ``report`` collects results and recorded calculation settings.
 
-Experimental dynamics
+Time-dependent dynamics
 -----------------------
 
 The ``tdbte`` stage evolves homogeneous three-phonon populations at fixed
-frequencies from a prebuilt energy-shell kernel. It records energy,
-equilibrium-control and entropy diagnostics, but physical rate normalization
-is not independently validated. It does not construct kernels from FC2/FC3
-or model laser absorption. See :doc:`tdbte` before using this research feature.
+frequencies. It builds energy-shell chunks from matching FC2/FC3 and a q mesh,
+or reuses an existing kernel. It records energy, equilibrium-control and entropy
+diagnostics, but these do not independently validate physical rates. It does
+not model laser absorption. See :doc:`tdbte` for inputs and implementation limits.

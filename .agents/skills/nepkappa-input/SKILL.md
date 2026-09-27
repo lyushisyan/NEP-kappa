@@ -1,6 +1,6 @@
 ---
 name: nepkappa-input
-description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, SSCHA, QHA+SSCHA, existing-result plotting (including FC2-only), comparison, convergence studies, and experimental time-dependent BTE. Use when turning calculation or plotting requirements into inputs or diagnosing input errors; preparing an input does not start calculations.
+description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, SSCHA, QHA+SSCHA, existing-result plotting (including FC2-only), comparison, convergence studies, and time-dependent BTE. Use when turning calculation or plotting requirements into inputs or diagnosing input errors; preparing an input does not start calculations.
 ---
 
 # NEP-kappa input assistant
@@ -47,8 +47,9 @@ the requested stage**. First distinguish input preparation, result inspection,
 plot generation, and calculation execution. For existing-result
 requests, inspect available artifacts and choose a stage such as `kappa` or
 `plot`; do not turn reuse into force-constant generation.
-Do not require a potential or FC3 for FC2-only plotting, or a calculator for an
-existing TD-BTE kernel. Inspect available artifacts before promising plots.
+Do not require a potential or FC3 for FC2-only plotting, or a calculator for
+TD-BTE using existing force constants or a kernel. Inspect available artifacts
+before promising plots.
 
 Use one minimal example. For a full workflow prefer a preset; small variants
 such as RTA versus LBTE should edit the relevant key, not create duplicate

@@ -1,12 +1,12 @@
-"""Experimental, spatially homogeneous three-phonon occupation dynamics.
+"""Spatially homogeneous three-phonon occupation dynamics.
 
-Consumes an explicit energy-shell artifact, not arbitrary FC2/FC3. Passing the
-audits below is mathematical consistency, NOT physical rate validation.
+Builds an energy-shell kernel from matching FC2/FC3 or reuses an audited
+artifact. Passing numerical audits is NOT physical rate validation.
 """
 from dataclasses import dataclass
-import hashlib
 import json
 from pathlib import Path
+import time
 
 import numpy as np
 from scipy.constants import physical_constants
@@ -104,10 +104,16 @@ class ShellKernel:
 
 
 def validate_options(config):
-    if not config.tdbte_experimental:
-        raise ValueError('tdbte requires experimental: true; physical rates are not validated')
-    if not config.tdbte_kernel:
-        raise ValueError('tdbte.kernel is required (prebuilt energy-shell NPZ)')
+    source = getattr(config, 'tdbte_force_constants', None)
+    kernel = getattr(config, 'tdbte_kernel', None)
+    mesh = getattr(config, 'tdbte_mesh', None)
+    if bool(source) == bool(kernel):
+        raise ValueError('Specify exactly one of tdbte.force-constants or tdbte.kernel')
+    if source:
+        from .tdbte_builder import validate_mesh
+        validate_mesh(mesh)
+    elif mesh is not None:
+        raise ValueError('tdbte.mesh is only used with force-constants; a reused kernel fixes the mesh')
     for key in ('temperature','duration_ps','max_step_ps','excitation'):
         value = getattr(config,'tdbte_'+key)
         if not np.isfinite(value) or value <= 0:
@@ -119,13 +125,30 @@ def validate_options(config):
 
 
 def run_tdbte(config):
-    """Audit and evolve a prebuilt artifact, with an independent equilibrium control."""
+    """Build/load a kernel and evolve it with an independent equilibrium control."""
+    from .tdbte_storage import ChunkedKernel, sha256
+
     validate_options(config)
-    source = Path(config.tdbte_kernel)
+    out = Path(config.result_dir)/'tdbte'
+    if out.exists():
+        raise FileExistsError(f'Refusing to overwrite TD-BTE results: {out}')
+    if getattr(config, 'tdbte_force_constants', None):
+        from .tdbte_builder import build_kernel
+        source = build_kernel(config.tdbte_force_constants, config.tdbte_mesh,
+                              Path(config.result_dir)/'tdbte-kernel',
+                              excited_branches=config.tdbte_branches)
+    else:
+        source = Path(config.tdbte_kernel)
+    if source.suffix.lower() not in ('.json', '.npz'):
+        raise ValueError('tdbte.kernel must be an NPZ kernel or a JSON chunk manifest')
     # Sidecar provides mode ordering; never infer a six-branch SiC convention.
-    metadata = json.loads(source.with_suffix('.json').read_text())
+    metadata_path = source if source.suffix.lower() == '.json' else source.with_suffix('.json')
+    metadata = json.loads(metadata_path.read_text())
     branch_ids = np.asarray(metadata.get('mode_branch_indices', []))
-    kernel = ShellKernel.load(source)
+    if source.suffix.lower() == '.json':
+        kernel = ChunkedKernel(source)
+    else:
+        kernel = ShellKernel.load(source)
     if branch_ids.shape != kernel.frequency.shape or branch_ids.dtype.kind not in 'iu' or np.any(branch_ids < 0):
         raise ValueError('Kernel JSON requires explicit mode_branch_indices for every mode')
     if not set(config.tdbte_branches) <= set(branch_ids.tolist()):
@@ -144,24 +167,43 @@ def run_tdbte(config):
         raise ValueError('Excitation injects no energy')
     if not np.isfinite(initial).all() or np.any(n0[~kernel.zero] <= 0):
         raise ValueError('Initial occupations underflowed or overflowed; unsupported temperature/excitation')
-    out = Path(config.result_dir)/'tdbte'
     out.mkdir(parents=True, exist_ok=False)
+    # Record the source before integration. The manifest transitively hashes all
+    # chunk arrays; a single-file kernel retains its adjacent metadata hash.
+    provenance = {'kernel_path': str(source.resolve()), 'kernel_sha256': sha256(source),
+                  'metadata_sha256': sha256(metadata_path),
+                  'mesh': metadata.get('mesh'), 'input_sha256': metadata.get('input_sha256'),
+                  'kernel_chunks': len(metadata.get('chunks', [])),
+                  'collision_backend': getattr(kernel, 'backend', 'numpy'),
+                  'kernel_limitations': metadata.get('limitations'),
+                  'boundary_assumptions': metadata.get('boundary_assumptions')}
     times = np.linspace(0,config.tdbte_duration_ps,config.tdbte_samples)
     solutions = []
-    for state in (n0,initial):
+    last_progress = time.monotonic()
+
+    def derivative(t, n):
+        nonlocal last_progress
+        value = kernel.collision(n)[0]
+        if time.monotonic() - last_progress >= 30:
+            print(f'TD-BTE integration: t={t:.6g}/{times[-1]:.6g} ps', flush=True)
+            last_progress = time.monotonic()
+        return value
+
+    for label, state in (('equilibrium control', n0), ('excited state', initial)):
+        print(f'TD-BTE: integrating {label}', flush=True)
         try:
-            sol = solve_ivp(lambda t,n: kernel.collision(n)[0], (0,times[-1]),state,
+            sol = solve_ivp(derivative, (0,times[-1]),state,
                             t_eval=times,method='DOP853',rtol=1e-11,atol=1e-14,
                             max_step=config.tdbte_max_step_ps)
         except Exception as exc:
             (out/'audit.json').write_text(json.dumps({
-                'experimental':True,'validated_for_physical_dynamics':False,
-                'numerical_checks_passed':False,'error':str(exc)},indent=2)+'\n')
+                'validated_for_physical_dynamics':False,
+                'numerical_checks_passed':False,'error':str(exc), **provenance},indent=2)+'\n')
             raise
         if not sol.success or not np.isfinite(sol.y).all() or np.any(sol.y[~kernel.zero] <= 0):
             (out/'audit.json').write_text(json.dumps({
-                'experimental':True,'validated_for_physical_dynamics':False,
-                'numerical_checks_passed':False,'error':sol.message},indent=2)+'\n')
+                'validated_for_physical_dynamics':False,
+                'numerical_checks_passed':False,'error':sol.message, **provenance},indent=2)+'\n')
             raise RuntimeError('Time integration failed positivity/finite checks')
         solutions.append(sol.y)
     control, excited = solutions
@@ -171,10 +213,9 @@ def run_tdbte(config):
     entropy = ((1+active)*np.log1p(active)-active*np.log(active)).sum(axis=0)
     entropy_drop = float(max(0.,-np.diff(entropy).min()))
     passed = drift < 1e-8 and equilibrium < 1e-8 and entropy_drop < 1e-10*max(1.,abs(entropy[0]))
-    report = {'experimental':True,'validated_for_physical_dynamics':False,
+    report = {'validated_for_physical_dynamics':False,
               'numerical_checks_passed':bool(passed),'model':metadata['model'],
-              'kernel_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-              'metadata_sha256':hashlib.sha256(source.with_suffix('.json').read_bytes()).hexdigest(),
+              **provenance,
               'max_energy_drift_fraction':drift,'max_equilibrium_redistribution_fraction':equilibrium,
               'max_entropy_decrease':entropy_drop,'temperature_K':config.tdbte_temperature,
               'excitation_relative_occupation':config.tdbte_excitation,
@@ -196,5 +237,5 @@ def run_tdbte(config):
                    f'branch_{s}_excess_eV_per_cell' for s in branch_labels))
     if not passed:
         raise RuntimeError('tdbte numerical audit failed; diagnostic artifacts saved, not accepted results')
-    print('EXPERIMENTAL: numerical checks passed; physical rate validation remains incomplete.')
+    print('TD-BTE: numerical checks passed; physical rate validation remains incomplete.')
     return report

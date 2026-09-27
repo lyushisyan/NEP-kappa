@@ -1,13 +1,15 @@
-# Experimental artifact-reuse stage. Paths are relative to the launch directory.
-# Requires kernel.npz AND kernel.json; see docs/source/tdbte.rst.
+# Reuse FC2/FC3; build the energy-shell kernel and evolve populations.
+# The source directory needs phono3py_disp.yaml, fc2.hdf5 and fc3.hdf5.
+# Paths are relative to the launch directory. The mesh is a starting value,
+# not a convergence recommendation; see docs/source/tdbte.rst.
 workflow:
   preset: custom
   steps: [tdbte]
 tdbte:
-  experimental: true
-  kernel: calculations/3C-SiC/tdbte/kernel.npz
+  force-constants: calculations/3C-SiC/fc
+  mesh: [5, 5, 5]
   temperature: 300
-  branches: [3, 4, 5]  # Zero-based indices supplied by this kernel's metadata.
+  branches: [3, 4, 5]  # Zero-based optical branches for a two-atom primitive cell.
   excitation: 0.01    # Relative occupation increase, NOT kelvin or energy.
   duration-ps: 20
   max-step-ps: 0.5

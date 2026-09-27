@@ -48,7 +48,9 @@ Source layout
   calculator and solver interfaces.
 - ``qha.py``, ``sscha.py``, ``qha_sscha.py``: temperature-dependent workflows.
 - ``bubble.py``, ``approximations.py``: on-shell corrections and method scope.
-- ``tdbte.py``: experimental artifact-based population dynamics and audits.
+- ``tdbte.py``: population dynamics and audits; ``tdbte_builder.py`` builds native
+  FC2/FC3 energy-shell chunks, ``tdbte_storage.py`` validates and streams them,
+  and ``tdbte_quadrature.py`` owns the surface integration rule.
 - ``artifacts.py``, ``provenance.py``, ``run_state.py``: cache and result identity.
 - ``scheduler.py`` and ``slurm.py``: scheduler interaction.
 - ``plot.py``, ``report.py``, ``convergence.py``: analysis.

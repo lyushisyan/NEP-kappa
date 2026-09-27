@@ -654,7 +654,8 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--tdbte_kernel", default=None)
-    parser.add_argument("--tdbte_experimental", type=str2bool, default=False)
+    parser.add_argument("--tdbte_force_constants", default=None)
+    parser.add_argument("--tdbte_mesh", type=int, nargs=3, default=None)
     parser.add_argument("--tdbte_temperature", type=float, default=300.)
     parser.add_argument("--tdbte_duration_ps", type=float, default=20.)
     parser.add_argument("--tdbte_max_step_ps", type=float, default=.5)
@@ -989,7 +990,7 @@ def yaml_input_sections():
             "three_phonon",
             "four_phonon",
         },
-        "tdbte": {"kernel", "experimental", "temperature", "duration_ps", "max_step_ps", "excitation", "branches", "samples"},
+        "tdbte": {"kernel", "force_constants", "mesh", "temperature", "duration_ps", "max_step_ps", "excitation", "branches", "samples"},
         "output": {"progress", "result_dir"},
     }
 
@@ -997,7 +998,7 @@ def yaml_input_sections():
 def yaml_arg_order():
     """Return a stable option order for parsed YAML values."""
     return [
-        "tdbte_kernel", "tdbte_experimental", "tdbte_temperature",
+        "tdbte_kernel", "tdbte_force_constants", "tdbte_mesh", "tdbte_temperature",
         "tdbte_duration_ps", "tdbte_max_step_ps", "tdbte_excitation",
         "tdbte_branches", "tdbte_samples",
         "workflow_preset",

@@ -258,10 +258,11 @@ to a workflow: use the explicit command above or a custom stage plan.
 scripts. See :doc:`input_files` for built-in panels
 and :doc:`troubleshooting` for file-selection problems.
 
-Experimental time-dependent BTE
+Time-dependent BTE
 --------------------------------
 
-Use ``examples/tdbte.yaml`` only with an existing energy-shell kernel and JSON
-metadata. Validate with ``--for tdbte``. The stage does not build this kernel
-from FC2/FC3, and physical relaxation-rate validation remains incomplete.
+Use ``examples/tdbte.yaml`` with matching FC2/FC3 and phono3py metadata. Set
+``tdbte.force-constants``, ``mesh`` and the excitation, then validate with
+``--for tdbte``. The stage builds a kernel and solves it in disk-backed chunks;
+physical relaxation-rate validation remains separate from numerical audits.
 See :doc:`tdbte` for excitation definitions, numerical audits, and outputs.

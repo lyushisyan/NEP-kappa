@@ -111,8 +111,9 @@ It checks the installed schema, model species and paths, and distinguishes
 configuration validity from numerical convergence.
 Describe the result you want rather than memorizing presets. It can also
 prepare FC2-only plotting inputs or check an existing input without recalculating
-forces. Experimental TD-BTE requires a prebuilt kernel; the skill does not
-construct one or certify physical accuracy. Input preparation never implicitly
+forces. For TD-BTE it can prepare a force-constant source, q mesh and excitation;
+the calculation builds and checks the kernel. The skill does not certify
+physical accuracy. Input preparation never implicitly
 starts a calculation.
 
 > 使用 $nepkappa-input，检查我的结果目录，只用已有 FC2 准备色散、DOS、
@@ -155,15 +156,18 @@ QHA、固定体积 SSCHA、QHA 体积上的 SSCHA、三/四声子、Wigner 和 S
 [示例目录](examples/README.md)，参数含义见 [输入参考](docs/source/input_files.rst)。
 `tests`、`benchmarks` 和实际计算结果保留在本地，不随代码提交。
 
-## Experimental time-dependent BTE (development)
+## Time-dependent BTE
 
-The development checkout also provides `nepkappa tdbte input.yaml`, or the
+The package provides `nepkappa tdbte input.yaml`, or the
 custom workflow stage `tdbte`, for homogeneous fixed-frequency phonon occupation
 dynamics. Use [tdbte.yaml](examples/tdbte.yaml) and the
-[TD-BTE guide](docs/source/tdbte.rst). This stage requires a **prebuilt
-energy-shell operator**, not just FC2/FC3. Automatic operator generation and
-independent physical-rate validation remain incomplete. Numerical audit results
-are included by `nepkappa report`; passing them does not validate relaxation times.
+[TD-BTE guide](docs/source/tdbte.rst). Supply a directory containing matching
+`phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, a `tdbte.mesh`, and the excitation.
+The stage builds a checksummed energy-shell kernel and evolves it in disk-backed
+chunks. Existing single-file kernels and completed chunk manifests can also be
+reused. Optional `pip install 'nepkappa[tdbte]'` adds compiled block reductions.
+Numerical audit results are included by `nepkappa report`; passing them does not
+establish absolute-rate accuracy or mesh convergence.
 
 ## Citation
 

@@ -70,7 +70,7 @@ class WorkflowStageRunner:
     def tdbte(self):
         from nepkappa.tdbte import run_tdbte
 
-        return self.execution.run_stage("Experimental time-dependent BTE", lambda: run_tdbte(self.config))
+        return self.execution.run_stage("Time-dependent BTE", lambda: run_tdbte(self.config))
 
     def relax(self):
         from nepkappa.stages.structure import StructureRelaxationStage

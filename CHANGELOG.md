@@ -1,5 +1,20 @@
 # Release notes
 
+## Unreleased
+
+- Build time-dependent BTE energy-shell kernels directly from matching FC2/FC3,
+  phono3py metadata, and a q mesh.
+- Stream checksummed event chunks during integration, with optional Numba
+  acceleration and compatibility with existing single-file kernels.
+- Record kernel provenance, build failures, and numerical audits in reports.
+- Remove the TD-BTE `experimental` input switch; retain physical-validation
+  limitations and conservation, equilibrium, and entropy checks.
+- Update YAML examples, documentation, and the input-preparation Skill.
+
+Local verification: 371 tests passed; strict documentation build and a real
+SiC small-grid build-and-solve smoke test passed. Absolute-rate validation and
+mesh convergence remain separate from these implementation checks.
+
 ## 2.0.1 — 2026-09-23
 
 - Unified FC3 cutoff input as `cutoff-fc3`, retaining the old phono3py alias.

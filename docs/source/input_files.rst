@@ -15,7 +15,7 @@ grouping settings into the same stages used by the command line:
 - ``kappa``: thermal-conductivity settings passed to ``phono3py``
 - ``fourphonon``: combined three-plus-four-phonon transport settings
 - ``plot``: plot layout, band path, relaxation-time channel, and kappa component
-- ``tdbte``: experimental dynamics from an existing energy-shell kernel; see :doc:`tdbte`
+- ``tdbte``: dynamics from FC2/FC3 or an existing energy-shell kernel; see :doc:`tdbte`
 - ``output``: progress display and result directory
 
 The ``compare`` command uses a smaller YAML file with ``datasets``, ``compare``,
@@ -69,7 +69,9 @@ following commands expose individual stages for advanced use:
 - ``nepkappa kappa4`` runs FourPhonon with existing ShengBTE-format force constants.
 - ``nepkappa plot`` creates harmonic plots from FC2 and matching metadata, adding transport panels when compatible conductivity data exist.
 - ``nepkappa bubble`` postprocesses completed SSCHA results with diagonal on-shell frequency shifts; it does not update transport.
-- ``nepkappa tdbte`` evolves populations from a prebuilt kernel; it is experimental, not independently validated physical dynamics.
+- ``nepkappa tdbte`` builds a kernel from matching force constants and a q mesh,
+  or reuses a kernel, then evolves populations in chunks. Numerical audits do
+  not independently validate physical relaxation rates.
 - ``nepkappa compare`` overlays DFT and multiple potential-model result directories in the same standard figures.
 - ``nepkappa converge`` generates and analyzes a parameter sweep from one base workflow YAML.
 - ``nepkappa report`` writes ``report.yaml`` and ``report.md`` from an existing result tree.

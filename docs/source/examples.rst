@@ -45,7 +45,7 @@ run from the repository root, and copy an input before adapting it.
    * - ``converge-qmesh.yaml``
      - q-mesh study; use ``nepkappa converge``.
    * - ``tdbte.yaml``
-     - Experimental population dynamics; requires a prebuilt kernel and JSON metadata. See :doc:`tdbte`.
+     - Population dynamics from existing FC2/FC3 and metadata, with automatic kernel construction. See :doc:`tdbte`.
 
 All ordinary workflow inputs use ``nepkappa run examples/<name>.yaml``.
 For pre-existing force constants, use ``kappa`` or ``kappa4`` instead.

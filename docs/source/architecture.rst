@@ -19,7 +19,7 @@ results and record artifacts and provenance.
           +-- QHA / Phonopy SSCHA / QHA+SSCHA
           +-- optional on-shell bubble postprocessing
           +-- phono3py / FourPhonon transport
-          +-- experimental TD-BTE (prebuilt kernel)
+          +-- TD-BTE (FC2/FC3 -> shell chunks -> dynamics)
           +-- plotting / reports
 
    Shared services: calculators, scheduler, artifacts, provenance, run state
@@ -42,9 +42,13 @@ still a larger module, as is the centralized parser.
 ``transport.py`` and ``fourphonon.py`` isolate transport interfaces.
 Temperature workflows are in ``qha.py``, ``sscha.py``, and ``qha_sscha.py``.
 ``bubble.py`` writes separate diagonal on-shell frequency corrections;
-``approximations.py`` records interpretation limits. ``tdbte.py`` consumes
-prebuilt energy-shell artifacts and audits occupation dynamics, independently
-of force generation. It is not a physically validated FC2/FC3-to-dynamics pipeline.
+``approximations.py`` records interpretation limits. ``tdbte.py`` orchestrates
+kernel preparation and audited population dynamics. ``tdbte_builder.py``
+evaluates native vertices from existing FC2/FC3; ``tdbte_quadrature.py`` integrates
+linear shells; ``tdbte_storage.py`` validates and streams checksummed chunks.
+``tdbte_accumulate.py`` optionally compiles block reductions. This route does not
+load a force calculator. Physical-rate and convergence validation remain separate
+from its numerical conservation checks.
 
 ``scheduler.py`` and ``slurm.py`` manage batch submission. ``run_state.py``
 records deferred execution; ``status`` can combine it with live queue state.

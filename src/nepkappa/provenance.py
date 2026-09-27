@@ -27,6 +27,7 @@ DEPENDENCIES = (
     "matplotlib",
     "mace-torch",
     "numpy",
+    "numba",
     "phonopy",
     "phono3py",
     "PyYAML",
@@ -59,6 +60,11 @@ ARTIFACT_NAMES = (
     "bulk_modulus-temperature.pdf",
     "Cp-temperature_polyfit.pdf",
     "qha-summary.yaml",
+    "tdbte-kernel/manifest.json",
+    "tdbte-kernel/build-failure.json",
+    "tdbte/audit.json",
+    "tdbte/trajectories.npz",
+    "tdbte/branch-energy.csv",
 )
 
 

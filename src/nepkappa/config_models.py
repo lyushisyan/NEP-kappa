@@ -201,7 +201,8 @@ class OutputConfig:
 @dataclass(frozen=True)
 class TDBTEConfig:
     kernel: Optional[str]
-    experimental: bool
+    force_constants: Optional[str]
+    mesh: Optional[Tuple[int, ...]]
     temperature: float
     duration_ps: float
     max_step_ps: float
@@ -232,7 +233,8 @@ class WorkflowSections:
         return cls(
             tdbte=TDBTEConfig(
                 kernel=cfg.tdbte_kernel,
-                experimental=cfg.tdbte_experimental,
+                force_constants=cfg.tdbte_force_constants,
+                mesh=_tuple(cfg.tdbte_mesh),
                 temperature=cfg.tdbte_temperature,
                 duration_ps=cfg.tdbte_duration_ps,
                 max_step_ps=cfg.tdbte_max_step_ps,

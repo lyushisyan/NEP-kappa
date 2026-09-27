@@ -79,9 +79,14 @@ summarizes artifacts; it does not calculate missing quantities.
 TD-BTE input and audit errors
 -----------------------------------
 
-Supply both kernel NPZ and JSON metadata and explicitly enable experimental
-mode. FC2/FC3 alone are not accepted as a kernel. Use a fresh result directory
-when ``result-dir/tdbte`` already exists; preserve earlier audit results.
+Supply ``force-constants`` (a directory with matching phono3py YAML, FC2 and FC3)
+and ``mesh``, or supply ``kernel`` (NPZ plus sidecar, or a completed packaged
+chunk manifest), not both. Remove the old ``experimental`` key. The source must
+have only three near-zero Gamma translations and no unstable modes; NAC-bearing
+inputs are not yet supported by the builder. Do not bypass these checks by
+clipping frequencies or discarding Born charges. Use a fresh result directory
+when ``result-dir/tdbte`` exists or a kernel build is incomplete; preserve the
+earlier audit and ``build-failure.json`` for diagnosis.
 Failed numerical audits are not accepted trajectories. Passing audits still
 does not validate absolute physical rates; see :doc:`tdbte`.
 

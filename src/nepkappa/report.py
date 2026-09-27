@@ -25,6 +25,8 @@ ARTIFACT_NAMES = {
     "bubble.hdf5",
     "audit.json",
     "branch-energy.csv",
+    "trajectories.npz",
+    "build-failure.json",
 }
 
 
@@ -60,6 +62,7 @@ def generate_report(result_dir):
         "sscha": _read_sscha(root, warnings),
         "bubble": _read_bubble(root, warnings),
         "tdbte": _read_yaml_if_present(root / "tdbte" / "audit.json", warnings),
+        "tdbte_kernel": _read_tdbte_kernel(root, warnings),
         "approximations": _read_approximations(root, warnings),
         "transport": _read_transport(root, warnings),
         "artifacts": _find_artifacts(root),
@@ -83,6 +86,17 @@ def _read_yaml_if_present(path, warnings):
     except Exception as exc:
         warnings.append(f"Could not read {path.name}: {exc}")
         return None
+
+
+def _read_tdbte_kernel(root, warnings):
+    meta = _read_yaml_if_present(root / 'tdbte-kernel' / 'manifest.json', warnings)
+    if meta:
+        summary = {key: meta.get(key) for key in (
+            'format', 'complete', 'mesh', 'surface_quadrature_points',
+            'source', 'input_sha256', 'max_shell_residual_THz')}
+        summary['chunks'] = len(meta.get('chunks', []))
+        return summary
+    return _read_yaml_if_present(root / 'tdbte-kernel' / 'build-failure.json', warnings)
 
 
 def _read_qha(root, warnings):
@@ -253,7 +267,8 @@ def _find_artifacts(root):
     for path in root.rglob("*"):
         if not path.is_file():
             continue
-        if path.name in ARTIFACT_NAMES or path.name.startswith("kappa-m"):
+        if (path.name in ARTIFACT_NAMES or path.name.startswith("kappa-m")
+                or path == root / 'tdbte-kernel' / 'manifest.json'):
             paths.append(str(path.relative_to(root)))
     return sorted(paths)
 
@@ -358,10 +373,21 @@ def _render_markdown(report):
                 f"| {row['temperature_K']:.6g} | {row['status'] or 'unknown'} | "
                 f"{drift_text} | `{row['file']}` |"
             )
+    if report.get('tdbte_kernel'):
+        kernel = report['tdbte_kernel']
+        lines.extend(['', '## TD-BTE kernel', '',
+                      f"- Build complete: {kernel.get('complete')}",
+                      f"- q mesh: {kernel.get('mesh')}",
+                      f"- Events: {kernel.get('surface_quadrature_points')}",
+                      f"- Chunks: {kernel.get('chunks', kernel.get('completed_chunks'))}"])
+        if kernel.get('error'):
+            lines.append(f"- Build failure: {kernel['error']}")
     if report.get("tdbte"):
         audit = report["tdbte"]
-        lines.extend(["", "## Experimental time-dependent BTE", "",
-                      "Physical relaxation rates are NOT independently validated.",
+        lines.extend(["", "## Time-dependent BTE", "",
+                      "Physical relaxation rates are NOT independently validated.", "",
+                      f"- Kernel: {audit.get('kernel_path', 'not recorded')}",
+                      f"- Collision backend: {audit.get('collision_backend', 'not recorded')}",
                       f"- Numerical checks passed: {audit.get('numerical_checks_passed')}",
                       f"- Maximum relative energy drift: {audit.get('max_energy_drift_fraction')}",
                       f"- Equilibrium redistribution: {audit.get('max_equilibrium_redistribution_fraction')}"])

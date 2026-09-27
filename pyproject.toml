@@ -28,6 +28,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+tdbte = [
+  "numba"
+]
 mace = [
   "mace-torch"
 ]

@@ -17,7 +17,7 @@ class CommandSpec:
 
 
 COMMAND_SPECS = (
-    CommandSpec("tdbte", "Experimental homogeneous phonon dynamics from an audited shell artifact."),
+    CommandSpec("tdbte", "Build or reuse an energy-shell kernel and evolve phonon populations."),
     CommandSpec("run", "Run the selected workflow preset or custom stage plan."),
     CommandSpec("relax", "Relax the input structure only."),
     CommandSpec("fc2", "Generate fc2.hdf5 and phono3py_disp.yaml only."),
