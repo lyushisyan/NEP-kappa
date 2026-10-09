@@ -1,72 +1,54 @@
 Choose an example
 ===================
 
-Use one template per workflow. All public examples live in ``examples/``;
-run from the repository root, and copy an input before adapting it.
+The public catalog contains nine six-section static 3C-SiC inputs and one
+separate time-dependent BTE input. Run from the repository root. The YAML
+files are workflow demonstrations, not converged material results. See
+``examples/README.md`` for prerequisites and resource guidance.
 
 .. list-table::
    :header-rows: 1
-   :widths: 36 64
+   :widths: 38 62
 
    * - YAML file
      - Use
-   * - ``nep-rta.yaml``
-     - Bulk Si NEP RTA; set ``kappa.method: lbte`` for serial LBTE.
-   * - ``vasp-rta.yaml``
-     - VASP relaxation and FC2/FC3; configure executable and POTCAR paths.
-   * - ``mace-rta.yaml``
-     - MACE on CPU; install the optional backend and set a checkpoint.
-   * - ``wigner.yaml``
-     - phono3py SMM19 Wigner transport.
-   * - ``qha.yaml``
-     - Isotropic volume-scan QHA.
-   * - ``sscha.yaml``
-     - Phonopy stochastic SSCHA and temperature-dependent transport.
-   * - ``qha-sscha.yaml``
-     - SSCHA at QHA volumes, with independent three/four-phonon switches.
-   * - ``bas-three-four-phonon.yaml``
-     - Both pure three-phonon and combined three-plus-four-phonon conductivity.
-   * - ``nep-hiphive.yaml``
-     - FC2/FC3 fitting with HiPhive.
-   * - ``film.yaml``
-     - Film geometry with explicit effective thickness.
-   * - ``thirdorder.yaml``
-     - FC2/FC3 generation for ShengBTE; stage-only workflow.
-   * - ``vasp-fc4.yaml``
-     - VASP/Fourthorder FC4 generation; stage-only workflow.
-   * - ``slurm-vasp.yaml``
-     - VASP force arrays and workflow continuation.
-   * - ``slurm-lbte.yaml``
-     - Distributed phono3py LBTE.
-   * - ``fourphonon.yaml``
-     - FourPhonon workflow with Slurm transport.
-   * - ``compare.yaml``
-     - Two or more completed model results; use ``nepkappa compare``.
-   * - ``converge-qmesh.yaml``
-     - q-mesh study; use ``nepkappa converge``.
+   * - ``vasp-rta-3ph.yaml``
+     - VASP force calculations and phono3py three-phonon RTA.
+   * - ``nep-rta-wigner-3ph.yaml``
+     - NEP, phono3py three-phonon RTA, and SMM19 Wigner transport.
+   * - ``nep-lbte-wigner-3ph.yaml``
+     - NEP, phono3py three-phonon LBTE, and SMM19 Wigner transport.
+   * - ``nep-rta-3ph-4ph.yaml``
+     - NEP and FourPhonon combined three-plus-four-phonon RTA.
+   * - ``nep-rta-wigner-3ph-4ph.yaml``
+     - NEP and FourPhonon Wigner_Park 3ph/4ph RTA population and coherence.
+   * - ``nep-lbte-3ph-rta-4ph.yaml``
+     - NEP, iterative 3ph LBTE with 4ph RTA scattering.
+   * - ``nep-lbte-3ph-lbte-4ph.yaml``
+     - NEP, iterative LBTE for both 3ph and 4ph scattering.
+   * - ``nep-qha-rta-3ph.yaml``
+     - NEP, new FC2/FC3 at each QHA equilibrium volume, then 3ph RTA.
+   * - ``nep-qha-sscha-rta-3ph.yaml``
+     - NEP, SSCHA FC2 at QHA volume and temperature, then 3ph RTA.
    * - ``tdbte.yaml``
-     - Population dynamics from existing FC2/FC3 and metadata, with automatic kernel construction. See :doc:`tdbte`.
+     - Population dynamics from existing matching FC2/FC3 and metadata.
 
-All ordinary workflow inputs use ``nepkappa run examples/<name>.yaml``.
-For pre-existing force constants, use ``kappa`` or ``kappa4`` instead.
-Inspect stage-only configurations with ``validate --for <stage>``.
-Comparison and convergence inputs have separate schemas and are not accepted
-by the workflow ``validate`` command.
+Use ``nepkappa validate examples/<name>.yaml`` to check an input without
+running it. Ordinary workflow inputs use ``nepkappa run``; plotting and
+reporting are separate commands. The TD-BTE route needs completed force
+constants and does not regenerate them.
 
-Small variants
-----------------
+Three-phonon-only RTA and LBTE use ``kappa.method``. FourPhonon inputs set
+``kappa.method-3ph`` and ``kappa.method-4ph`` independently. Supported pairs
+are RTA/RTA, LBTE/RTA, and LBTE/LBTE; Wigner_Park requires RTA/RTA. Standalone
+SSCHA is not part of this catalog.
 
-RTA and serial LBTE differ by ``kappa.method``. VASP/NEP and finite
-displacement/HiPhive are independent choices: combine the relevant calculator
-and fitting sections rather than maintaining every combination as a full file.
-HiPhive cutoffs must fit the actual structure and supercell. A film requires
-its physical thickness and appropriate non-periodic mesh direction.
+The six-section layout also supports individual stage commands. For example,
+``nepkappa fc2 examples/vasp-rta-3ph.yaml`` generates only FC2, and
+``nepkappa fc2fc3 examples/vasp-rta-3ph.yaml`` generates FC2 and FC3.
+Run ``nepkappa relax`` first when the input requests relaxation.
 
-The previous numbered filenames have been replaced by descriptive names.
-Duplicate RTA/LBTE, VASP/HiPhive, film/HiPhive, VASP/Thirdorder, and two-model
-comparison variants were consolidated. Parser compatibility is retained in
-tests where needed.
-
-Slurm examples start with ``submit: false`` and require your environment and
-resource settings. Earlier local stages in a complete workflow can still run.
-For a configuration-only check, use ``validate`` or ``info``.
+External VASP, Fourthorder, and FourPhonon installations and site-specific
+Slurm settings must be configured before execution. The calculation can be
+submitted through an external batch script, or optional ``parallel`` settings
+can let NEP-kappa create stage-specific jobs.

@@ -1,82 +1,60 @@
 # Examples
 
-Choose one template, copy it to your own input, and run from the repository
-root. These are workflow demonstrations, not converged production settings.
-Outputs are stored under `calculations/example-runs/`.
+This directory contains nine static 3C-SiC inputs and one separate time-dependent
+BTE input. Run commands from the repository root. The bundled supercells and
+meshes demonstrate the workflow; they are not converged research settings.
+Keep a separate `output.result-dir` for each calculation.
 
-## Common workflows
-
-Force-constant reuse: [tdbte.yaml](tdbte.yaml) builds an energy-shell operator
-from matching FC2/FC3 and phono3py metadata, then evolves occupations in chunks.
-Set its source directory, q mesh and excitation. See
-[the TD-BTE guide](../docs/source/tdbte.rst) for kernel reuse and limitations.
-
-| Input | What it demonstrates | Preparation |
+| Input | Calculation | Before running |
 | --- | --- | --- |
-| [nep-rta.yaml](nep-rta.yaml) | Bulk Si three-phonon RTA | Bundled Si structure and NEP |
-| [vasp-rta.yaml](vasp-rta.yaml) | DFT relaxation and forces | Set VASP and POTCAR paths |
-| [mace-rta.yaml](mace-rta.yaml) | MACE on CPU | Install MACE; set a checkpoint |
-| [wigner.yaml](wigner.yaml) | Wigner transport | Bundled Si demonstration |
-| [qha.yaml](qha.yaml) | Isotropic thermal expansion | Check volume range and stability |
-| [sscha.yaml](sscha.yaml) | Fixed-volume Phonopy SSCHA + transport | Converge sampling and iterations |
-| [qha-sscha.yaml](qha-sscha.yaml) | QHA-volume SSCHA; independent 3ph/4ph switches | FourPhonon needed when 4ph enabled |
-| [bas-three-four-phonon.yaml](bas-three-four-phonon.yaml) | BAs 3ph and 3ph+4ph | Thirdorder, Fourthorder, FourPhonon |
+| [vasp-rta-3ph.yaml](vasp-rta-3ph.yaml) | VASP forces, phono3py 3ph RTA | Set the VASP executable and licensed POTCAR path |
+| [nep-rta-wigner-3ph.yaml](nep-rta-wigner-3ph.yaml) | NEP, phono3py 3ph RTA + SMM19 Wigner | Check the SiC model and q-mesh |
+| [nep-lbte-wigner-3ph.yaml](nep-lbte-wigner-3ph.yaml) | NEP, phono3py 3ph LBTE + SMM19 Wigner | Plan LBTE memory and convergence |
+| [nep-rta-3ph-4ph.yaml](nep-rta-3ph-4ph.yaml) | NEP, FourPhonon 3ph RTA + 4ph RTA | Install Fourthorder and FourPhonon |
+| [nep-rta-wigner-3ph-4ph.yaml](nep-rta-wigner-3ph-4ph.yaml) | NEP, FourPhonon 3ph/4ph RTA + Wigner coherence | Set the Wigner_Park executable |
+| [nep-lbte-3ph-rta-4ph.yaml](nep-lbte-3ph-rta-4ph.yaml) | NEP, 3ph LBTE + 4ph RTA | Install FourPhonon CPU |
+| [nep-lbte-3ph-lbte-4ph.yaml](nep-lbte-3ph-lbte-4ph.yaml) | NEP, 3ph LBTE + 4ph LBTE | Plan the full iterative solve |
+| [nep-qha-rta-3ph.yaml](nep-qha-rta-3ph.yaml) | NEP, QHA volume at each temperature + 3ph RTA | Check volume and temperature ranges |
+| [nep-qha-sscha-rta-3ph.yaml](nep-qha-sscha-rta-3ph.yaml) | NEP, QHA-volume SSCHA + 3ph RTA | Converge SSCHA sampling |
+| [tdbte.yaml](tdbte.yaml) | Time-dependent BTE from existing FC2/FC3 | Point to matching completed force constants |
 
-For any ordinary workflow:
+For a first read-only check:
 
 ```bash
-cp examples/nep-rta.yaml input.yaml
-nepkappa validate input.yaml
-nepkappa info input.yaml
-nepkappa run input.yaml
+nepkappa validate examples/nep-rta-wigner-3ph.yaml
+nepkappa info examples/nep-rta-wigner-3ph.yaml
 ```
 
-Set a distinct `output.result_dir` before changing the material or physical
-settings. Use `nepkappa plot input.yaml` for completed phono3py results and
-`nepkappa report input.yaml` for a summary.
+To calculate, copy an input and set a distinct result directory. `nepkappa run`
+executes the static or TD-BTE workflow; `nepkappa plot` and `nepkappa report`
+operate on completed results. `validate` does not run simulations or verify
+external executables. The TD-BTE input requires existing FC2/FC3 and matching
+phono3py metadata; see [the TD-BTE guide](../docs/source/tdbte.rst).
 
-## Advanced templates
+The static inputs have six sections: `structure`, `calculator`,
+`force-constant`, `kappa`, `plot`, and `output`. To run only one stage from a
+six-section file, use `nepkappa fc2`, `nepkappa fc2fc3`, or `nepkappa qha`.
+If `structure.relaxation: true`, run `nepkappa relax` before a standalone
+force-constant command. The 4ph inputs set
+`kappa.method-3ph` and `kappa.method-4ph` separately. FourPhonon supports
+RTA/RTA, LBTE/RTA, and LBTE/LBTE; 3ph RTA with 4ph LBTE is unavailable.
+Wigner_Park requires RTA/RTA. The phono3py-only Wigner examples use SMM19.
+No standalone SSCHA input is included.
 
-| Input | Purpose |
-| --- | --- |
-| [nep-hiphive.yaml](nep-hiphive.yaml) | Fit FC2/FC3 with HiPhive |
-| [film.yaml](film.yaml) | Film geometry and effective thickness |
-| [thirdorder.yaml](thirdorder.yaml) | FC2/FC3 for ShengBTE; `fc2fc3` only |
-| [vasp-fc4.yaml](vasp-fc4.yaml) | VASP/Fourthorder FC4; `fc4` only |
-| [slurm-vasp.yaml](slurm-vasp.yaml) | VASP force arrays and continuation |
-| [slurm-lbte.yaml](slurm-lbte.yaml) | Distributed LBTE |
-| [fourphonon.yaml](fourphonon.yaml) | FourPhonon with Slurm transport |
+Server-specific Slurm resources can stay in an external batch script. Add the
+optional top-level `parallel.force-constant` or `parallel.kappa` section only
+when NEP-kappa should create stage-specific Slurm jobs. For SiC, quantitative
+work also needs convergence checks and, where relevant, validated Born charges
+and dielectric data for non-analytic corrections. Generated FourPhonon CONTROL
+files disable those corrections; supply a validated custom CONTROL if needed.
 
-Slurm templates need your site's environment and resources. All start with
-`submit: false`. A workflow can still execute preceding local stages.
-For existing IFCs, use `nepkappa info examples/fourphonon.yaml --for kappa4`
-and the `kappa4` command to reuse them.
+Structure files under `structures/` support inputs and documentation. The
+material-specific NEP is in `../potentials/3C-SiC/`.
 
-## Analysis inputs
-
-These use separate schemas and commands:
-
-- [compare.yaml](compare.yaml): `nepkappa compare examples/compare.yaml`;
-  keep two or more datasets pointing to completed calculations.
-- [converge-qmesh.yaml](converge-qmesh.yaml):
-  `nepkappa converge examples/converge-qmesh.yaml`; `study.execute: false`
-  prepares cases and analysis without running simulations. Its `base` and
-  study directory resolve relative to the study YAML.
-
-## Small changes do not need another template
-
-Edit the existing section of the copied YAML; do not append duplicate keys.
-
-| Variant | Change |
-| --- | --- |
-| Serial LBTE | In `nep-rta.yaml`, set `kappa.method: lbte` |
-| Film + HiPhive | Add fitting settings from `nep-hiphive.yaml` to `film.yaml`; choose valid cutoffs |
-| VASP + HiPhive | Combine the VASP calculator with the fitting section |
-| VASP + Thirdorder | Replace the NEP calculator in `thirdorder.yaml` with configured VASP settings |
-| Two-model comparison | Keep two entries in `compare.yaml` |
-
-Numbered filenames now have descriptive names. Duplicate variants have been
-consolidated; the removed local inputs are retained in
-`calculations/legacy-examples/`.
-Structures are in `structures/Si/` and `structures/BAs/`. Models are maintained
-in [../potentials/](../potentials/README.md).
+The RTA phono3py examples set `plot.tau: nu`, so the scattering-rate figure
+shows N and U together when the completed HDF5 contains both channels.
+Wigner examples plot particle, coherence, and total conductivity when those
+components are present. FourPhonon results generate separate 3ph and 4ph
+scattering-rate figures and compare the conductivity solutions saved by the
+run. A 3ph-only comparison curve requires a matching phono3py result in the
+same result directory; it is not reconstructed from 3ph+4ph.

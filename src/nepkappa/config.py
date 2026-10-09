@@ -78,6 +78,7 @@ def initialise_parser() -> argparse.ArgumentParser:
             "three-phonon",
             "four-phonon",
             "qha",
+            "qha-kappa",
             "scph",
             "qha-sscha",
             "custom",
@@ -90,6 +91,12 @@ def initialise_parser() -> argparse.ArgumentParser:
         nargs="+",
         default=None,
         help="Advanced custom stage list used with workflow.preset: custom",
+    )
+    parser.add_argument(
+        "--workflow_stages",
+        type=json_dict,
+        default=None,
+        help="Stage-first workflow choices compiled into an ordered plan",
     )
 
     parser.add_argument("--poscar", default="POSCAR", help="Input structure file")
@@ -385,6 +392,14 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--method", choices=["lbte", "rta"], default="lbte")
     parser.add_argument(
+        "--kappa_engine", choices=["phono3py", "fourphonon"], default=None,
+        help="Transport engine selected by kappa.engine",
+    )
+    parser.add_argument(
+        "--qha_volumes", type=str2bool, nargs="?", const=True, default=False,
+        help="Recompute FC2/FC3 and 3ph conductivity at each QHA volume",
+    )
+    parser.add_argument(
         "--kappa_command",
         "--kappa-command",
         dest="kappa_command",
@@ -444,6 +459,10 @@ def initialise_parser() -> argparse.ArgumentParser:
         "--fp_solver",
         choices=["rta", "3ph-iterative", "full-iterative"],
         default="rta",
+    )
+    parser.add_argument(
+        "--fp_wigner", type=str2bool, nargs="?", const=True, default=False,
+        help="Use FourPhonon Wigner_Park for 3+4ph population and coherence transport",
     )
     parser.add_argument("--fp_scalebroad", type=float, default=1.0)
     parser.add_argument("--fp_isotopes", type=str2bool, nargs="?", const=True, default=False)
@@ -685,6 +704,7 @@ def parse_yaml_input_file(filename):
         data = load_yaml_strict(handle) or {}
     if not isinstance(data, dict):
         raise ValueError("YAML input must be a mapping of sections and options.")
+    data = expand_input_modes(data)
 
     flat = {}
     sections = yaml_input_sections()
@@ -715,11 +735,22 @@ def parse_yaml_input_file(filename):
             normalized_key = normalize_yaml_key(key)
             if normalized_key not in valid_keys:
                 raise_unknown_yaml_key(str(key), f"section '{section}'", valid_keys)
+            if section == "structure" and normalized_key == "relaxation":
+                if "do_relax" in flat and flat["do_relax"] != value:
+                    raise ValueError(
+                        "structure.relaxation conflicts with relaxation.enabled."
+                    )
+                flat["do_relax"] = value
+                continue
             if section == "workflow":
                 flat[f"workflow_{normalized_key}"] = value
                 continue
             if section == "relaxation":
                 if normalized_key == "enabled":
+                    if "do_relax" in flat and flat["do_relax"] != value:
+                        raise ValueError(
+                            "relaxation.enabled conflicts with structure.relaxation."
+                        )
                     flat["do_relax"] = value
                 elif normalized_key == "workdir":
                     flat["vasp_relax_workdir"] = value
@@ -771,6 +802,12 @@ def parse_yaml_input_file(filename):
             if section == "kappa" and normalized_key == "command":
                 flat["kappa_command"] = value
                 continue
+            if section == "kappa" and normalized_key == "engine":
+                flat["kappa_engine"] = value
+                continue
+            if section == "kappa" and normalized_key == "qha_volumes":
+                flat["qha_volumes"] = value
+                continue
             if section == "kappa" and normalized_key == "parallel":
                 flat["lbte_parallel"] = value
                 continue
@@ -781,10 +818,16 @@ def parse_yaml_input_file(filename):
                 flat[f"tdbte_{normalized_key}"] = value
                 continue
             if section == "qha":
+                if normalized_key == "enabled":
+                    flat["qha_enabled"] = value
+                    continue
                 flat["qha_enabled"] = True
                 flat[f"qha_{normalized_key}"] = value
                 continue
             if section == "scph":
+                if normalized_key == "enabled":
+                    flat["scph_enabled"] = value
+                    continue
                 flat["scph_enabled"] = True
                 flat[f"scph_{normalized_key}"] = value
                 continue
@@ -793,6 +836,9 @@ def parse_yaml_input_file(filename):
                 flat[f"qha_sscha_{normalized_key}"] = value
                 continue
             if section == "fourphonon":
+                if normalized_key == "enabled":
+                    flat["fp_enabled"] = value
+                    continue
                 flat["fp_enabled"] = True
                 flat[f"fp_{normalized_key}"] = value
                 continue
@@ -805,11 +851,334 @@ def parse_yaml_input_file(filename):
         if alias in flat and canonical not in flat:
             flat[canonical] = flat[alias]
 
+    if "workflow_stages" in flat:
+        from nepkappa.stage_plan import compile_stage_plan
+
+        compile_stage_plan(flat["workflow_stages"], flat)
+
     args = []
     for key in yaml_arg_order():
         if key in flat:
             append_arg(args, key, flat[key])
     return args
+
+
+def expand_input_modes(data):
+    """Compile the six-section static form or the separate TD-BTE form."""
+    data = _expand_static_parallel(data)
+    keys = {normalize_yaml_key(key): key for key in data}
+    if "tdbte" in keys and "workflow" not in keys:
+        static = {"structure", "calculator", "force_constant", "kappa", "plot"}
+        mixed = sorted(static & keys.keys())
+        if mixed:
+            raise ValueError(
+                "Dynamic tdbte input cannot mix static sections: "
+                + ", ".join(mixed)
+                + "."
+            )
+        return {"workflow": {"preset": "custom", "steps": ["tdbte"]}, **data}
+
+    fc_key = keys.get("force_constant")
+    if fc_key is None or not isinstance(data[fc_key], dict):
+        return data
+    fc = data[fc_key]
+    kappa = data.get(keys.get("kappa"), {})
+    kappa_values = (
+        {normalize_yaml_key(key): value for key, value in kappa.items()}
+        if isinstance(kappa, dict)
+        else {}
+    )
+    engine = kappa_values.get("engine")
+    if engine is not None and engine not in {"phono3py", "fourphonon"}:
+        raise ValueError("kappa.engine must be phono3py or fourphonon.")
+    separate_methods = {"method_3ph", "method_4ph"} & kappa_values.keys()
+    if separate_methods and not {"method_3ph", "method_4ph"} <= kappa_values.keys():
+        raise ValueError(
+            "Set both kappa.method-3ph and kappa.method-4ph for four-phonon transport."
+        )
+    switch_keys = {
+        normalize_yaml_key(key): key
+        for key in fc
+        if normalize_yaml_key(key) in {"qha", "sscha", "four_phonon"}
+    }
+    if not switch_keys:
+        if separate_methods:
+            raise ValueError(
+                "kappa.method-3ph and kappa.method-4ph require "
+                "force-constant.four-phonon: true."
+            )
+        if engine == "fourphonon" and "fourphonon" not in keys:
+            raise ValueError(
+                "kappa.engine: fourphonon requires force-constant.four-phonon "
+                "or a legacy fourphonon section."
+            )
+        return data
+    incompatible = {"workflow", "qha", "scph", "qha_sscha", "fourphonon"}
+    mixed = sorted(incompatible & keys.keys())
+    if mixed:
+        raise ValueError(
+            "Nested force-constant switches cannot be combined with top-level "
+            + ", ".join(mixed)
+            + "."
+        )
+
+    sections = yaml_input_sections()
+    qha_on, qha_options = _nested_static_switch(
+        fc.get(switch_keys.get("qha")), "qha", sections["qha"]
+    )
+    sscha_on, sscha_options = _nested_static_switch(
+        fc.get(switch_keys.get("sscha")), "sscha", sections["scph"]
+    )
+    fc4_keys = {"dim_fc4", "cutoff_fc4", "fourthorder_command", "fc4_workdir"}
+    four_on, four_options = _nested_static_switch(
+        fc.get(switch_keys.get("four_phonon")),
+        "four-phonon",
+        sections["fourphonon"] | fc4_keys,
+    )
+    if engine == "fourphonon" and not four_on:
+        raise ValueError(
+            "kappa.engine: fourphonon requires force-constant.four-phonon: true."
+        )
+    if engine == "phono3py" and four_on:
+        raise ValueError(
+            "force-constant.four-phonon: true requires kappa.engine: fourphonon."
+        )
+    if separate_methods:
+        if not four_on:
+            raise ValueError(
+                "kappa.method-3ph and kappa.method-4ph require "
+                "force-constant.four-phonon: true."
+            )
+        if "method" in kappa_values:
+            raise ValueError(
+                "Use kappa.method-3ph and kappa.method-4ph without kappa.method."
+            )
+        methods = (kappa_values["method_3ph"], kappa_values["method_4ph"])
+        solver_by_methods = {
+            ("rta", "rta"): "rta",
+            ("lbte", "rta"): "3ph-iterative",
+            ("lbte", "lbte"): "full-iterative",
+        }
+        if any(method not in {"rta", "lbte"} for method in methods):
+            raise ValueError("kappa.method-3ph and kappa.method-4ph must be rta or lbte.")
+        if methods not in solver_by_methods:
+            raise ValueError(
+                "FourPhonon does not support 3ph RTA with 4ph LBTE; "
+                "use 3ph LBTE when 4ph uses LBTE."
+            )
+        selected_solver = solver_by_methods[methods]
+        if "solver" in four_options and four_options["solver"] != selected_solver:
+            raise ValueError(
+                "kappa.method-3ph/method-4ph conflict with "
+                "force-constant.four-phonon.solver."
+            )
+        four_options["solver"] = selected_solver
+    qha_volumes = kappa_values.get("qha_volumes", False)
+    if not isinstance(qha_volumes, bool):
+        raise ValueError("kappa.qha-volumes must be true or false.")
+    if qha_volumes and (not qha_on or sscha_on or four_on):
+        raise ValueError(
+            "kappa.qha-volumes requires QHA without SSCHA or four-phonon transport."
+        )
+    if qha_volumes and kappa_values.get("method", "rta") != "rta":
+        raise ValueError("kappa.qha-volumes currently requires kappa.method: rta.")
+    if four_on and qha_on and not sscha_on:
+        raise ValueError(
+            "QHA plus four-phonon transport requires SSCHA; "
+            "QHA alone does not feed corrected FC2 into four-phonon transport."
+        )
+    if four_on and sscha_on and not qha_on:
+        raise ValueError(
+            "Standalone SSCHA plus four-phonon transport is not supported; "
+            "enable QHA as well for the QHA-volume SSCHA route."
+        )
+    if four_on and isinstance(kappa, dict):
+        if kappa_values.get("method", "rta") != "rta":
+            raise ValueError(
+                "Four-phonon static input requires kappa.method: rta; "
+                "choose a FourPhonon solver inside force-constant.four-phonon."
+            )
+        try:
+            boundary_mfp = float(kappa_values.get("bfmp", 1.0e6))
+        except (TypeError, ValueError):
+            boundary_mfp = None  # The normal argparse parser reports invalid input.
+        if boundary_mfp is not None and boundary_mfp != 1.0e6:
+            raise ValueError(
+                "Four-phonon static input does not apply kappa.bfmp; "
+                "remove the non-default boundary setting."
+            )
+        for source, target in (("wigner", "wigner"), ("isotope", "isotopes")):
+            if (
+                source in kappa_values
+                and target in four_options
+                and kappa_values[source] != four_options[target]
+            ):
+                raise ValueError(
+                    f"kappa.{source} conflicts with "
+                    f"force-constant.four-phonon.{target}."
+                )
+            if kappa_values.get(source) is True:
+                four_options[target] = True
+    structure = data.get(keys.get("structure"), {})
+    relaxation = data.get(keys.get("relaxation"), {})
+    relax_requested = (
+        isinstance(structure, dict) and structure.get("relaxation") is True
+    ) or (
+        isinstance(relaxation, dict) and relaxation.get("enabled") is True
+    )
+    if qha_on and relax_requested:
+        raise ValueError(
+            "QHA reads structure.poscar directly; set structure.relaxation: false "
+            "and provide the intended starting structure."
+        )
+
+    result = dict(data)
+    fc_detail = {
+        key: value for key, value in fc.items()
+        if normalize_yaml_key(key) not in switch_keys
+    }
+    if four_on:
+        for key, value in list(four_options.items()):
+            if key in fc4_keys:
+                if any(normalize_yaml_key(existing) == key for existing in fc_detail):
+                    raise ValueError(
+                        f"force-constant.four-phonon.{key} duplicates "
+                        f"force-constant.{key}."
+                    )
+                fc_detail[key.replace("_", "-")] = value
+                del four_options[key]
+        if not any(normalize_yaml_key(key) in {"format", "fc_format"} for key in fc_detail):
+            fc_detail["format"] = "both"
+        elif not qha_on:
+            selected_format = next(
+                value for key, value in fc_detail.items()
+                if normalize_yaml_key(key) in {"format", "fc_format"}
+            )
+            if selected_format not in {"both", "shengbte"}:
+                raise ValueError(
+                    "Four-phonon transport requires force-constant.format: "
+                    "both or shengbte."
+                )
+    result[fc_key] = fc_detail
+    if separate_methods:
+        result[keys["kappa"]] = {
+            key: value for key, value in kappa.items()
+            if normalize_yaml_key(key) not in separate_methods
+        }
+    if qha_on:
+        result["qha"] = {"enabled": True, **qha_options}
+    if sscha_on:
+        result["scph"] = {"enabled": True, **sscha_options}
+    if four_on:
+        result["fourphonon"] = {"enabled": True, **four_options}
+    if qha_on and sscha_on:
+        result["qha-sscha"] = {
+            "three-phonon": sscha_options.get("run_transport", False),
+            "four-phonon": four_on,
+        }
+        preset = "qha-sscha"
+    elif qha_on:
+        preset = "qha-kappa" if qha_volumes else "qha"
+    elif sscha_on:
+        preset = "scph"
+    elif four_on:
+        preset = "four-phonon"
+    else:
+        preset = "three-phonon"
+    if sscha_on and not qha_on and relax_requested:
+        result["workflow"] = {
+            "preset": "custom", "steps": ["relax", "fc2fc3", "scph"]
+        }
+    else:
+        result["workflow"] = {"preset": preset}
+    return result
+
+
+def _expand_static_parallel(data):
+    """Move optional execution settings to their existing stage-specific slots."""
+    keys = {normalize_yaml_key(key): key for key in data}
+    parallel_key = keys.get("parallel")
+    if parallel_key is None:
+        return data
+    parallel = data[parallel_key]
+    if not isinstance(parallel, dict):
+        raise ValueError("parallel must be a mapping.")
+    result = {key: value for key, value in data.items() if key != parallel_key}
+    fc_key = keys.get("force_constant")
+    kappa_key = keys.get("kappa")
+    if fc_key is None or kappa_key is None:
+        raise ValueError("parallel requires force-constant and kappa sections.")
+    fc = dict(result[fc_key])
+    kappa = dict(result[kappa_key])
+    for raw_target, settings in parallel.items():
+        target = normalize_yaml_key(raw_target)
+        if target not in {"force_constant", "kappa"}:
+            raise_unknown_yaml_key(str(raw_target), "parallel", {"force_constant", "kappa"})
+        if not isinstance(settings, dict):
+            raise ValueError(f"parallel.{raw_target} must be a mapping.")
+        if target == "force_constant":
+            if any(normalize_yaml_key(key) == "parallel" for key in fc):
+                raise ValueError("parallel.force-constant duplicates force-constant.parallel.")
+            fc["parallel"] = settings
+            continue
+        switches = {normalize_yaml_key(key): key for key in fc}
+        four_key = switches.get("four_phonon")
+        four = fc.get(four_key) if four_key else None
+        four_on = four is True or (isinstance(four, dict) and four.get("enabled", True) is True)
+        engine = next((value for key, value in kappa.items() if normalize_yaml_key(key) == "engine"), None)
+        if engine == "fourphonon" or (engine is None and four_on):
+            if not four_on:
+                raise ValueError("parallel.kappa for FourPhonon requires force-constant.four-phonon: true.")
+            four = {} if four is True else dict(four)
+            special = {"mpi_launcher", "mpi_processes", "omp_threads", "omp_stacksize"}
+            scheduler = {}
+            for key, value in settings.items():
+                normalized = normalize_yaml_key(key)
+                if normalized in special:
+                    if any(normalize_yaml_key(existing) == normalized for existing in four):
+                        raise ValueError(f"parallel.kappa.{key} duplicates force-constant.four-phonon.{key}.")
+                    four[key] = value
+                else:
+                    scheduler[key] = value
+            if scheduler:
+                if any(normalize_yaml_key(key) == "parallel" for key in four):
+                    raise ValueError("parallel.kappa duplicates force-constant.four-phonon.parallel.")
+                four["parallel"] = scheduler
+            fc[four_key] = four
+        else:
+            if any(normalize_yaml_key(key) == "parallel" for key in kappa):
+                raise ValueError("parallel.kappa duplicates kappa.parallel.")
+            kappa["parallel"] = settings
+    result[fc_key] = fc
+    result[kappa_key] = kappa
+    return result
+
+
+def _nested_static_switch(raw, name, allowed):
+    if raw is None:
+        return False, {}
+    if isinstance(raw, bool):
+        return raw, {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"force-constant.{name} must be true, false, or a mapping.")
+    options = {}
+    for key, value in raw.items():
+        normalized = normalize_yaml_key(key)
+        if normalized not in allowed | {"enabled"}:
+            raise_unknown_yaml_key(
+                str(key), f"force-constant.{name}", allowed | {"enabled"}
+            )
+        if normalized in options:
+            raise ValueError(f"Duplicate force-constant.{name} key '{key}'.")
+        options[normalized] = value
+    enabled = options.pop("enabled", True)
+    if not isinstance(enabled, bool):
+        raise ValueError(f"force-constant.{name}.enabled must be true or false.")
+    if not enabled and options:
+        raise ValueError(
+            f"force-constant.{name} is disabled but still configures options."
+        )
+    return enabled, options
 
 
 def raise_unknown_yaml_key(key, location, valid_keys):
@@ -848,9 +1217,10 @@ def load_yaml_strict(stream):
 def yaml_input_sections():
     """Return supported YAML sections and their documented keys."""
     return {
-        "workflow": {"preset", "steps"},
+        "workflow": {"preset", "steps", "stages"},
         "structure": {
             "poscar",
+            "relaxation",
             "dimensionality",
             "effective_thickness",
             "effective_area",
@@ -901,11 +1271,18 @@ def yaml_input_sections():
             "workdir",
             "vasp_kwargs",
             "parallel",
+            "qha",
+            "sscha",
+            "four_phonon",
         },
         "kappa": {
+            "engine",
+            "qha_volumes",
             "mesh",
             "temps",
             "method",
+            "method_3ph",
+            "method_4ph",
             "command",
             "isotope",
             "bfmp",
@@ -913,6 +1290,7 @@ def yaml_input_sections():
             "parallel",
         },
         "fourphonon": {
+            "enabled",
             "command",
             "workdir",
             "control",
@@ -924,6 +1302,7 @@ def yaml_input_sections():
             "temps",
             "scell",
             "solver",
+            "wigner",
             "scalebroad",
             "isotopes",
             "nonanalytic",
@@ -949,6 +1328,7 @@ def yaml_input_sections():
             "dpi",
         },
         "qha": {
+            "enabled",
             "volume_ratios",
             "dim_fc2",
             "mesh",
@@ -965,6 +1345,7 @@ def yaml_input_sections():
             "vasp_static_kwargs",
         },
         "scph": {
+            "enabled",
             "workdir",
             "temps",
             "initial_fc2",
@@ -1003,6 +1384,7 @@ def yaml_arg_order():
         "tdbte_branches", "tdbte_samples",
         "workflow_preset",
         "workflow_steps",
+        "workflow_stages",
         "poscar",
         "dimensionality",
         "effective_thickness",
@@ -1049,6 +1431,8 @@ def yaml_arg_order():
         "mesh",
         "temps",
         "method",
+        "kappa_engine",
+        "qha_volumes",
         "kappa_command",
         "isotope",
         "bfmp",
@@ -1066,6 +1450,7 @@ def yaml_arg_order():
         "fp_temps",
         "fp_scell",
         "fp_solver",
+        "fp_wigner",
         "fp_scalebroad",
         "fp_isotopes",
         "fp_nonanalytic",
@@ -1162,11 +1547,12 @@ WORKFLOW_PRESETS = {
     "three-phonon": ["relax", "fc2fc3", "kappa"],
     "four-phonon": ["relax", "fc2fc3", "fc4", "kappa4"],
     "qha": ["qha"],
+    "qha-kappa": ["qha", "qha-kappa"],
     "qha-sscha": ["qha", "qha-sscha"],
 }
 WORKFLOW_STEPS = {
-    "relax", "fc2", "fc2fc3", "fc4", "qha", "scph", "qha-sscha",
-    "kappa", "kappa4", "plot", "bubble", "tdbte",
+    "relax", "fc2", "fc2fc3", "fc4", "qha", "qha-kappa", "scph", "qha-sscha",
+    "kappa", "kappa4", "plot", "report", "bubble", "tdbte",
 }
 
 
@@ -1209,6 +1595,7 @@ def parse_workflow_args(config_path, command=None):
         parser.error(f"input file not found: {config_path}")
     tokens = parse_input_file(config_path)
     args = parser.parse_args(tokens, namespace=WorkflowConfig())
+    args.config_path = str(Path(config_path).resolve())
     cutoff = args.cutoff_fc3
     legacy = args.pair_cutoff_fc3
     if legacy is not None:
@@ -1225,12 +1612,19 @@ def parse_workflow_args(config_path, command=None):
     resolve_force_constant_dimensions(args)
     resolve_workflow_plan(args, parser=parser)
     targets = set(args.workflow_steps) if command == "run" else {command}
+    if args.kappa_engine == "fourphonon" and "kappa" in targets:
+        parser.error("kappa.engine: fourphonon cannot run the phono3py kappa stage.")
+    if args.kappa_engine == "phono3py" and "kappa4" in targets:
+        parser.error("kappa.engine: phono3py cannot run the FourPhonon kappa4 stage.")
+    if command == "run" and args.qha_volumes and "qha-kappa" not in targets:
+        parser.error("kappa.qha-volumes: true requires the qha-kappa workflow.")
     calculator_commands = {
         "relax",
         "fc2",
         "fc2fc3",
         "fc4",
         "qha",
+        "qha-kappa",
         "scph",
         "qha-sscha",
     }
@@ -1238,22 +1632,22 @@ def parse_workflow_args(config_path, command=None):
         calculator_error = validate_calculator(args)
         if calculator_error:
             parser.error(calculator_error)
-    if command is None or "kappa" in targets:
+    if command is None or targets & {"kappa", "qha-kappa"}:
         temps_error = validate_temps(args.temps)
         if temps_error:
             parser.error(temps_error)
     geometry_error = validate_effective_geometry(args)
     if geometry_error:
         parser.error(geometry_error)
-    if command is None or "kappa" in targets or args.scph_run_transport:
+    if command is None or targets & {"kappa", "qha-kappa"} or args.scph_run_transport:
         parallel_error = validate_lbte_parallel(args)
         if parallel_error:
             parser.error(parallel_error)
-    if command is None or targets & {"fc2", "fc2fc3", "fc4", "qha-sscha"}:
+    if command is None or targets & {"fc2", "fc2fc3", "fc4", "qha-sscha", "qha-kappa"}:
         force_constant_error = validate_force_constant_backends(args)
         if force_constant_error:
             parser.error(force_constant_error)
-    if command is None or targets & {"fc2", "fc2fc3", "qha-sscha"}:
+    if command is None or targets & {"fc2", "fc2fc3", "qha-sscha", "qha-kappa"}:
         force_parallel_error = validate_force_parallel(args)
         if force_parallel_error:
             parser.error(force_parallel_error)
@@ -1264,11 +1658,30 @@ def parse_workflow_args(config_path, command=None):
             "qha-sscha does not support nested force-constant Slurm arrays; "
             "submit the whole run as one batch job with parallel.backend: none."
         )
+    if "qha-kappa" in targets:
+        if not args.qha_enabled or not args.qha_volumes:
+            parser.error("qha-kappa requires qha.enabled and kappa.qha-volumes: true.")
+        if args.method != "rta" or args.kappa_engine == "fourphonon":
+            parser.error("qha-kappa currently supports phono3py RTA only.")
+        if str((args.force_parallel or {}).get("backend", "none")).lower() == "slurm":
+            parser.error("qha-kappa runs its force calculations inside one allocation; use parallel.force-constant.backend: none.")
+        if len(args.temps) == 1:
+            requested = args.temps
+        else:
+            minimum, maximum, step = args.temps
+            if minimum < 0 or maximum < minimum or step <= 0:
+                parser.error("qha-kappa requires 0 <= minimum <= maximum and step > 0 in kappa.temps.")
+            requested = [minimum, maximum]
+        if len(args.qha_temps) != 3:
+            parser.error("qha.temps must contain [minimum, maximum, step].")
+        qha_minimum, qha_maximum, _ = args.qha_temps
+        if min(requested) < qha_minimum or max(requested) > qha_maximum:
+            parser.error("kappa.temps must lie within the QHA temperature range.")
     if "qha-sscha" in targets:
         qha_sscha_error = validate_qha_sscha(args)
         if qha_sscha_error:
             parser.error(qha_sscha_error)
-    if command is None or targets & {"qha", "qha-sscha"}:
+    if command is None or targets & {"qha", "qha-sscha", "qha-kappa"}:
         qha_error = validate_qha(args)
         if qha_error:
             parser.error(qha_error)
@@ -1571,7 +1984,7 @@ def iter_display_args(args, command=None):
         "progress",
         "result_dir",
     }
-    plan_fields = {"workflow_preset", "workflow_steps"}
+    plan_fields = {"workflow_preset", "workflow_steps", "workflow_stages"}
     calculator_fields = {
         "nep_model",
         "calculator",
@@ -1603,7 +2016,7 @@ def iter_display_args(args, command=None):
         "dim_fc4", "cutoff_fc4", "fourthorder_command", "fc4_workdir",
     }
     kappa_fields = {
-        "mesh", "temps", "method", "kappa_command", "isotope", "bfmp",
+        "mesh", "temps", "method", "kappa_engine", "qha_volumes", "kappa_command", "isotope", "bfmp",
         "wigner", "lbte_parallel",
     }
     command_fields = None
@@ -1639,6 +2052,11 @@ def iter_display_args(args, command=None):
             common | calculator_fields | fc2_fields | fc3_fields | hiphive_only
             | fc4_fields | kappa_fields | qha_only | scph_only
             | qha_sscha_only | fourphonon_only
+        )
+    elif command == "qha-kappa":
+        command_fields = (
+            common | calculator_fields | fc2_fields | fc3_fields
+            | hiphive_only | kappa_fields | qha_only
         )
     elif command == "kappa4":
         command_fields = common | fourphonon_only
@@ -1943,6 +2361,18 @@ def validate_fourphonon(args):
         return "Three-phonon sampling requires fourphonon.solver: rta."
     if args.fp_solver == "full-iterative" and args.fp_sample_4ph > 0:
         return "Four-phonon sampling is incompatible with full-iterative solving."
+    if args.fp_wigner:
+        if args.fp_solver != "rta":
+            return "fourphonon.wigner currently requires fourphonon.solver: rta."
+        if args.fp_only_harmonic:
+            return "fourphonon.wigner requires a transport calculation, not only-harmonic."
+        if args.fp_harmonic_format != "shengbte":
+            return "fourphonon.wigner currently requires harmonic-format: shengbte."
+        if any(value != -1 for value in samples.values()):
+            return (
+                "fourphonon.wigner requires all sample-* settings to be -1; "
+                "the Wigner_Park branch does not support sampling."
+            )
 
     settings = args.fp_parallel or {}
     if not isinstance(settings, dict):

@@ -1,21 +1,21 @@
 Quick start
 =============
 
-Run the bundled Si calculation
---------------------------------
+Check the bundled 3C-SiC calculation
+------------------------------------
 
 After :doc:`installation`, run these commands from the repository root:
 
 .. code-block:: bash
 
-   nepkappa validate examples/nep-rta.yaml
-   nepkappa run examples/nep-rta.yaml
-   nepkappa plot examples/nep-rta.yaml
-   nepkappa report examples/nep-rta.yaml
+   nepkappa validate examples/nep-rta-wigner-3ph.yaml
+   nepkappa info examples/nep-rta-wigner-3ph.yaml
 
-The calculation relaxes bulk Si, generates FC2/FC3, and computes three-phonon
-RTA conductivity. Plots and a report are generated separately.
-Results appear in ``calculations/example-runs/nep-rta/``:
+To run this example in an appropriate compute allocation, execute
+``nepkappa run examples/nep-rta-wigner-3ph.yaml``. It relaxes 3C-SiC,
+generates FC2/FC3, and computes three-phonon RTA and SMM19 Wigner transport.
+Plots and a report are generated separately. Results appear in
+``calculations/example-runs/3c-sic-nep-rta-wigner-3ph/``:
 
 - ``run.log``: progress and errors.
 - ``fc2.hdf5``, ``fc3.hdf5``, ``phono3py_disp.yaml``: force constants and metadata.
@@ -39,6 +39,8 @@ Create your own input
 The initializer asks for the calculation type, structure, calculator, numerical
 settings, and output directory. Provide a structure and potential for the same
 material. Existing input files are preserved unless ``--force`` is supplied.
+The initializer writes the six-section static format shown in
+:doc:`input_files` for all supported static goals.
 
 Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
 directory. To work elsewhere, use suitable relative paths or absolute paths.
@@ -51,16 +53,20 @@ For scripts, create a non-interactive input:
 
    nepkappa init input.yaml --non-interactive \
      --preset three-phonon --calculator nep \
-     --structure examples/structures/Si/POSCAR_bulk \
-     --model potentials/Si/Si_Bulk_Fan.txt \
+     --structure examples/structures/3C-SiC/POSCAR_primitive \
+     --model potentials/3C-SiC/nep_3C-SiC.txt \
      --dim 3 3 3 --mesh 21 21 21
 
 Choose another workflow
 -------------------------
 
 Select a template from :doc:`examples` and run it with the same ``run`` command.
-The presets are ``three-phonon``, ``four-phonon``, ``qha``, ``scph``, and
-``qha-sscha``. ``scph`` selects the implemented Phonopy stochastic SSCHA route.
+The initializer's ``--preset`` option sets the QHA, SSCHA, and four-phonon
+switches inside ``force-constant``. Available goals are ``three-phonon``,
+``four-phonon``, ``qha``, ``scph``, and ``qha-sscha``. The ``scph``
+choice selects the implemented Phonopy stochastic SSCHA route.
+For time-dependent BTE, start from ``examples/tdbte.yaml``; it uses only
+``tdbte`` and ``output`` sections.
 
 For analysis or restarts, use a stage command instead:
 

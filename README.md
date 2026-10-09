@@ -26,19 +26,18 @@ python -m pip install -e .
 nepkappa --version
 ```
 
-Run the bundled bulk-Si example from the **repository root**:
+Check the bundled 3C-SiC NEP input from the **repository root**:
 
 ```bash
-nepkappa validate examples/nep-rta.yaml
-nepkappa run examples/nep-rta.yaml
-nepkappa plot examples/nep-rta.yaml
-nepkappa report examples/nep-rta.yaml
+nepkappa validate examples/nep-rta-wigner-3ph.yaml
+nepkappa info examples/nep-rta-wigner-3ph.yaml
 ```
 
-Results go to `calculations/example-runs/nep-rta/`. This demonstrates the workflow;
-its supercell and q mesh are starting settings, not a convergence claim.
-Validation checks the configuration, not every external program or the accuracy
-of a potential.
+To perform the calculation in an appropriate compute allocation, use
+`nepkappa run examples/nep-rta-wigner-3ph.yaml`. Results go to
+`calculations/example-runs/3c-sic-nep-rta-wigner-3ph/`. Its supercell and q mesh
+are starting settings, not a convergence claim. Validation checks the
+configuration, not every external program or the accuracy of a potential.
 
 For your own material, create a separate input:
 
@@ -50,22 +49,65 @@ nepkappa run input.yaml
 
 Use your material's structure and matching potential. Ordinary input paths are
 relative to the directory where you launch the command.
+For a 3C-SiC NEP three-phonon calculation, use six sections:
+
+```yaml
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: true
+calculator:
+  name: nep
+  nep_model: potentials/3C-SiC/nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  qha: false
+  sscha: false
+  four-phonon: false
+kappa:
+  engine: phono3py
+  mesh: [31, 31, 31]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: true
+plot:
+  layout: both
+  path: seekpath
+output:
+  result_dir: calculations/example-runs/3c-sic-nep-rta-3ph
+```
+
+With all three switches off, the program selects the three-phonon preset. `plot` sets
+options; create figures with `nepkappa plot input.yaml`. See
+[input options](docs/source/input_files.rst).
+Set QHA, SSCHA, or four-phonon inside `force-constant` to enable those static
+routes. Use `kappa.engine: fourphonon` when four-phonon transport is enabled.
+An optional top-level `parallel` section holds force-job and transport-job
+settings. To include QHA thermal expansion in three-phonon RTA, set
+`kappa.qha-volumes: true` so FC2/FC3 and conductivity are recalculated at
+each temperature's equilibrium volume. Dynamic TD-BTE uses a separate `tdbte`/`output` input such as
+[tdbte.yaml](examples/tdbte.yaml).
 
 ## Choose a calculation
 
 | Goal | Start from | Backend / prerequisite |
 | --- | --- | --- |
-| Three-phonon RTA or LBTE | [nep-rta.yaml](examples/nep-rta.yaml) | NEP + phono3py; change `kappa.method` for LBTE |
-| DFT forces and transport | [vasp-rta.yaml](examples/vasp-rta.yaml) | Your VASP executable and licensed POTCAR library |
-| MACE forces and transport | [mace-rta.yaml](examples/mace-rta.yaml) | `pip install -e '.[mace]'` and a checkpoint |
-| Wigner transport | [wigner.yaml](examples/wigner.yaml) | phono3py SMM19 |
-| Thermal expansion (QHA) | [qha.yaml](examples/qha.yaml) | Phonopy volume scan |
-| Fixed-volume renormalization | [sscha.yaml](examples/sscha.yaml) | Phonopy stochastic SSCHA; CLI name `scph` |
-| SSCHA at QHA volumes and optional transport | [qha-sscha.yaml](examples/qha-sscha.yaml) | Sequential QHA-volume / fixed-cell SSCHA approximation |
-| Both 3ph and 3ph+4ph conductivity | [bas-three-four-phonon.yaml](examples/bas-three-four-phonon.yaml) | Thirdorder, Fourthorder, FourPhonon |
-| Compare models / check convergence | [Example catalog](examples/README.md) | Completed results / a base input |
+| 3C-SiC DFT forces and transport | [vasp-rta-3ph.yaml](examples/vasp-rta-3ph.yaml) | Your VASP executable and licensed POTCAR library |
+| 3C-SiC Wigner transport | [nep-rta-wigner-3ph.yaml](examples/nep-rta-wigner-3ph.yaml), [nep-lbte-wigner-3ph.yaml](examples/nep-lbte-wigner-3ph.yaml) | phono3py SMM19 |
+| 3C-SiC thermal expansion in 3ph RTA | [nep-qha-rta-3ph.yaml](examples/nep-qha-rta-3ph.yaml) | QHA volume scan and new FC2/FC3 at each T |
+| 3C-SiC SSCHA at QHA volumes with 3ph transport | [nep-qha-sscha-rta-3ph.yaml](examples/nep-qha-sscha-rta-3ph.yaml) | Sequential QHA-volume / fixed-cell SSCHA approximation |
+| 3C-SiC combined 3ph+4ph conductivity | [nep-rta-3ph-4ph.yaml](examples/nep-rta-3ph-4ph.yaml) | Fourthorder and FourPhonon |
+| 3C-SiC 3ph+4ph Wigner RTA | [nep-rta-wigner-3ph-4ph.yaml](examples/nep-rta-wigner-3ph-4ph.yaml) | FourPhonon Wigner_Park executable |
+| 3C-SiC 3ph LBTE + 4ph RTA | [nep-lbte-3ph-rta-4ph.yaml](examples/nep-lbte-3ph-rta-4ph.yaml) | FourPhonon iterative 3ph solver |
+| 3C-SiC 3ph LBTE + 4ph LBTE | [nep-lbte-3ph-lbte-4ph.yaml](examples/nep-lbte-3ph-lbte-4ph.yaml) | FourPhonon full iterative solver |
+| Time-dependent BTE | [tdbte.yaml](examples/tdbte.yaml) | Matching completed FC2/FC3 and metadata |
 
-The catalog also covers HiPhive fitting, films, FC3/FC4 generation, and Slurm.
+The catalog contains these nine static calculations and one time-dependent BTE input.
+The 3C-SiC files are teaching inputs. SiC is polar; quantitative dispersion
+and transport work should assess non-analytic long-range corrections using
+validated Born effective charges and dielectric data. These inputs do not
+bundle those data, and their supercells, q meshes, and temperature sampling
+still need convergence checks.
 Optional executables are installed separately; see
 [installation](docs/source/installation.rst). SSCHA here is the Phonopy route
 implemented in this package. Transport with renormalized FC2 does not by itself
@@ -95,8 +137,8 @@ recorded in new summaries and displayed by `nepkappa report`.
 
 Stage commands allow restarts and reuse of existing force constants.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
-Slurm templates start with `submit: false`; configure the cluster and inspect
-generated scripts before enabling submission.
+Slurm resources can be supplied through an external batch script or an optional
+top-level `parallel` section for stage-specific jobs.
 
 ## Input assistant
 
@@ -150,9 +192,9 @@ nepkappa run input.yaml        # 执行所选流程
 nepkappa report input.yaml     # 汇总已有结果
 ```
 
-初次体验可用上面的 Si 算例。计算其他材料时必须替换为对应的结构和势函数。
+初次体验可先验证上面的 3C-SiC 输入。计算其他材料时必须替换为对应的结构和势函数。
 常规路径相对于命令启动目录；结果统一放在 `calculations/`。
-QHA、固定体积 SSCHA、QHA 体积上的 SSCHA、三/四声子、Wigner 和 Slurm 的入口见
+QHA 体积上的 SSCHA、三/四声子、Wigner 和含时 BTE 的入口见
 [示例目录](examples/README.md)，参数含义见 [输入参考](docs/source/input_files.rst)。
 `tests`、`benchmarks` 和实际计算结果保留在本地，不随代码提交。
 

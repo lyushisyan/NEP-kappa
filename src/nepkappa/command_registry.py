@@ -25,6 +25,7 @@ COMMAND_SPECS = (
     CommandSpec("fc4", "Generate FORCE_CONSTANTS_4TH using Fourthorder."),
     CommandSpec("fc", "Deprecated alias for fc2fc3.", deprecated_alias_for="fc2fc3"),
     CommandSpec("qha", "Run an isotropic quasi-harmonic approximation workflow."),
+    CommandSpec("qha-kappa", "Compute 3ph RTA conductivity at QHA equilibrium volumes."),
     CommandSpec("scph", "Generate auxiliary harmonic FC2 with fixed-cell Phonopy SSCHA."),
     CommandSpec("bubble", "Add diagonal on-shell bubble shifts to existing SSCHA results."),
     CommandSpec(

@@ -6,6 +6,10 @@ YAML inputs with an AI assistant. It is stored in
 ``.agents/skills/nepkappa-input/`` and uses the parser, examples, and documentation
 from this checkout. Local validation requires terminal access and an installed
 NEP-kappa environment.
+For static calculations, it prefers the six-section input with QHA, SSCHA,
+and four-phonon switches inside ``force-constant``. Dynamic TD-BTE uses
+``tdbte`` and ``output``. Existing stage-first and preset inputs remain
+compatible.
 
 Using the skill
 -----------------

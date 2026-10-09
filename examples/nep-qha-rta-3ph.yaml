@@ -1,0 +1,32 @@
+# 3C-SiC: regenerate FC2/FC3 and run 3ph RTA at each T and V_QHA(T).
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: false
+calculator:
+  name: nep
+  nep-model: potentials/3C-SiC/nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  qha:
+    enabled: true
+    volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
+    mesh: [31, 31, 31]
+    temps: [0, 1000, 10]
+  sscha: false
+  four-phonon: false
+kappa:
+  engine: phono3py
+  mesh: [31, 31, 31]
+  temps: [300, 900, 300]
+  method: rta
+  isotope: true
+  qha-volumes: true
+plot:
+  layout: both
+  path: seekpath
+  tau: nu
+  temperature: 300
+  kappa: all
+output:
+  result-dir: calculations/example-runs/3c-sic-nep-qha-rta-3ph

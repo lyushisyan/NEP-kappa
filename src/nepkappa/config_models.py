@@ -38,6 +38,7 @@ class StructureConfig:
 class WorkflowPlanConfig:
     preset: str
     steps: StringValues
+    stages: Optional[Mapping[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,8 @@ class ForceConstantsConfig:
 
 @dataclass(frozen=True)
 class KappaConfig:
+    engine: Optional[str]
+    qha_volumes: bool
     mesh: Int3
     temperatures: FloatValues
     method: str
@@ -114,6 +117,7 @@ class FourPhononConfig:
     temperatures: Optional[FloatValues]
     supercell: Optional[Int3]
     solver: str
+    wigner: bool
     scalebroad: float
     isotopes: bool
     nonanalytic: bool
@@ -245,6 +249,9 @@ class WorkflowSections:
             workflow=WorkflowPlanConfig(
                 preset=cfg.workflow_preset,
                 steps=_tuple(cfg.workflow_steps),
+                stages=(
+                    None if cfg.workflow_stages is None else _mapping(cfg.workflow_stages)
+                ),
             ),
             structure=StructureConfig(
                 poscar=cfg.poscar,
@@ -301,6 +308,8 @@ class WorkflowSections:
                 parallel=_mapping(cfg.force_parallel),
             ),
             kappa=KappaConfig(
+                engine=cfg.kappa_engine,
+                qha_volumes=cfg.qha_volumes,
                 mesh=_tuple(cfg.mesh),
                 temperatures=_tuple(cfg.temps),
                 method=cfg.method,
@@ -323,6 +332,7 @@ class WorkflowSections:
                 temperatures=_tuple(cfg.fp_temps),
                 supercell=_tuple(cfg.fp_scell),
                 solver=cfg.fp_solver,
+                wigner=cfg.fp_wigner,
                 scalebroad=cfg.fp_scalebroad,
                 isotopes=cfg.fp_isotopes,
                 nonanalytic=cfg.fp_nonanalytic,

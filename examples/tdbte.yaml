@@ -2,9 +2,6 @@
 # The source directory needs phono3py_disp.yaml, fc2.hdf5 and fc3.hdf5.
 # Paths are relative to the launch directory. The mesh is a starting value,
 # not a convergence recommendation; see docs/source/tdbte.rst.
-workflow:
-  preset: custom
-  steps: [tdbte]
 tdbte:
   force-constants: calculations/3C-SiC/fc
   mesh: [5, 5, 5]

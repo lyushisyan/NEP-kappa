@@ -54,12 +54,14 @@ class WorkflowStageRunner:
             "fc2fc3": lambda: self.force_constants(include_fc3=True),
             "fc4": self.fourth_order,
             "qha": self.qha,
+            "qha-kappa": self.qha_kappa,
             "scph": self.scph,
             "bubble": self.bubble,
             "qha-sscha": self.qha_sscha,
             "kappa": self.kappa,
             "kappa4": self.kappa4,
             "plot": self.plot,
+            "report": self.report,
         }
         try:
             handler = handlers[step]
@@ -119,6 +121,14 @@ class WorkflowStageRunner:
             "QHA", QHAWorkflow(self.config, workflow=self.core).run
         )
 
+    def qha_kappa(self):
+        from nepkappa.qha_transport import QHA3PhWorkflow
+
+        return self.execution.run_stage(
+            "QHA-volume three-phonon kappa",
+            QHA3PhWorkflow(self.config, execution=self.execution).run,
+        )
+
     def scph(self):
         from nepkappa.sscha import PhonopySSCHAWorkflow
 
@@ -163,10 +173,43 @@ class WorkflowStageRunner:
         )
 
     def plot(self):
+        import copy
+        from pathlib import Path
+
         from nepkappa.plot import plot_results
 
+        config = self.config
+        if config.workflow_preset == "qha-kappa":
+            from nepkappa.sscha import temperature_directory_name
+
+            config = copy.copy(config)
+            config.result_dir = str(
+                Path(config.result_dir)
+                / "qha-kappa"
+                / temperature_directory_name(config.plot_temperature)
+            )
+        elif config.workflow_preset == "qha-sscha":
+            from nepkappa.sscha import temperature_directory_name
+
+            config = copy.copy(config)
+            temperature_dir = temperature_directory_name(config.plot_temperature)
+            config.result_dir = str(
+                Path(config.result_dir)
+                / "qha-sscha"
+                / temperature_dir
+                / config.scph_workdir
+                / temperature_dir
+            )
         return self.execution.run_stage(
-            "Plot results", lambda: plot_results(self.config)
+            "Plot results", lambda: plot_results(config)
+        )
+
+    def report(self):
+        from nepkappa.report import generate_report
+
+        return self.execution.run_stage(
+            "Report results",
+            lambda: generate_report(self.config.sections.output.result_dir),
         )
 
 
@@ -185,6 +228,12 @@ def execute_workflow_plan(config) -> CommandExecution:
     """Run a preset/custom stage plan behind the single ``nepkappa run`` entry."""
     execution = CommandExecution()
     steps = list(config.sections.workflow.steps)
+    resume_after = os.environ.get("NEPKAPPA_RESUME_AFTER")
+    if resume_after:
+        if resume_after not in steps:
+            raise ValueError(f"Cannot resume after absent stage '{resume_after}'.")
+        steps = steps[steps.index(resume_after) + 1 :]
+        print(f"[Plan] Resuming after completed stage '{resume_after}'")
     if os.environ.get("NEPKAPPA_FORCE_COLLECT") == "1":
         force_indices = [
             index for index, step in enumerate(steps) if step in {"fc2", "fc2fc3"}

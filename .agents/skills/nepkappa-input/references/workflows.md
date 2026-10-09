@@ -8,23 +8,24 @@ parser and input documentation for exact accepted fields and version changes.
 
 | Request | Starting point in `examples/` | Intended command |
 | --- | --- | --- |
-| NEP bulk RTA / serial LBTE | `nep-rta.yaml`; choose `kappa.method` | `run` |
-| HiPhive fitting | `nep-hiphive.yaml` | `run` |
-| Wigner transport | `wigner.yaml` | `run` |
-| VASP / MACE | `vasp-rta.yaml` / `mace-rta.yaml` | `run` |
-| Film geometry | `film.yaml`; combine fitting settings if requested | `run` |
-| Slurm LBTE / force jobs | `slurm-lbte.yaml` / `slurm-vasp.yaml` | `kappa` / `fc2fc3`, or full `run` |
-| FC4 generation only | `vasp-fc4.yaml` | `fc4` |
-| Thirdorder FC3 | `thirdorder.yaml`; adapt calculator for VASP | `fc2fc3` |
-| Isotropic QHA | `qha.yaml` | `run` or `qha` |
-| Fixed-volume Phonopy SSCHA | `sscha.yaml` | `run` or `scph` |
-| QHA-volume Phonopy SSCHA | `qha-sscha.yaml` | `run` or `qha-sscha` |
-| Both 3ph and 3ph+4ph | `bas-three-four-phonon.yaml` | `run` |
-| FourPhonon / existing FCs | `fourphonon.yaml` | `run` / `kappa4` |
-| Two or more model results | `compare.yaml` | `compare` |
-| q-mesh convergence | `converge-qmesh.yaml` | `converge` |
+| VASP harmonic FC2 and phonon plots | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `relax`, `fc2`, `plot` |
+| VASP QHA only | Adapt a six-section input with `force-constant.qha` settings | `qha` |
+| VASP 3ph RTA | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `run` |
+| NEP 3ph RTA + Wigner | `nep-rta-wigner-3ph.yaml` | `run` |
+| NEP 3ph LBTE + Wigner | `nep-lbte-wigner-3ph.yaml` | `run` |
+| NEP 3ph+4ph RTA | `nep-rta-3ph-4ph.yaml` | `run` |
+| QHA-volume 3ph RTA | `nep-qha-rta-3ph.yaml`; regenerate FC2/FC3 at each QHA volume | `run` |
+| QHA-volume SSCHA 3ph RTA | `nep-qha-sscha-rta-3ph.yaml` | `run` |
+| 3ph+4ph RTA with Wigner coherence | `nep-rta-wigner-3ph-4ph.yaml`; Wigner_Park executable | `run` |
+| 3ph LBTE + 4ph RTA | `nep-lbte-3ph-rta-4ph.yaml` | `run` |
+| 3ph LBTE + 4ph LBTE | `nep-lbte-3ph-lbte-4ph.yaml` | `run` |
 | Existing FC2 / transport plots | Minimal plotting sections; see `references/analysis.md` | `plot` |
-| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `tdbte` or custom `run` |
+| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `tdbte` or `run` |
+
+The public catalog is limited to these nine static inputs and TD-BTE. Other
+supported calculations can use a copied six-section input with changed settings;
+do not refer to removed example filenames. Site-specific Slurm resources belong
+in an external batch script or optional top-level `parallel` settings.
 
 For existing FC2/FC3 transport, adapt only the necessary settings from a
 transport example and use `kappa`. For harmonic-only generation use `fc2`.
@@ -33,10 +34,21 @@ request to reuse existing results into one that regenerates force constants.
 
 ## Cross-section checks
 
-- Normal full workflows use presets `three-phonon`, `four-phonon`, `qha`,
-  `scph`, or `qha-sscha`. Explicit stage lists require
-  `workflow.preset: custom`. Resolve the
-  actual plan in the target parser; the SCPH preset expands to `fc2fc3 -> scph`.
+- New static inputs use six top-level sections: `structure`, `calculator`,
+  `force-constant`, `kappa`, `plot`, and `output`. Put QHA, SSCHA, and four-phonon
+  switches and their options inside `force-constant`; 4PH means FC4 generation
+  plus conductivity. TD-BTE uses separate `tdbte` and `output` sections. Older
+  `workflow.stages`, presets, and custom steps remain valid for compatibility.
+  Do not mix nested static switches with an explicit workflow. QHA alone does
+  not automatically feed corrected FC2 into transport; use
+  `kappa.qha-volumes: true` for a new FC2/FC3/RTA calculation at each
+  temperature's QHA equilibrium volume. Set `kappa.engine` explicitly in new
+  examples. Put optional parallel settings in top-level `parallel` mappings.
+- For FourPhonon static inputs, set both `kappa.method-3ph` and
+  `kappa.method-4ph`. Supported pairs are `rta/rta`, `lbte/rta`, and
+  `lbte/lbte`; `rta/lbte` is unavailable. Wigner_Park requires `rta/rta`
+  and a Wigner_Park executable. Do not also set `kappa.method` or a
+  conflicting `force-constant.four-phonon.solver`.
 - `kappa.temps` uses `[T]` or `[T_min, T_max, T_step]`, not an arbitrary list of
   three temperatures. Check the step is positive and the range is ordered even
   if an installed parser only checks length. Read the relevant section before
@@ -75,8 +87,9 @@ request to reuse existing results into one that regenerates force constants.
   SSCHA implementation; QHA itself supports VASP.
 - The `scph` command selects Phonopy stochastic SSCHA, not the separate
   ALAMODE perturbative SCPH method. State the actual approximation in reports.
-- `qha-sscha.three-phonon` and `qha-sscha.four-phonon` are independent switches.
-  The latter needs Fourthorder and FourPhonon. Outside the coupled route, use
+- In the static form, `force-constant.sscha.run-transport` and
+  `force-constant.four-phonon.enabled` choose the three- and four-phonon routes
+  within QHA+SSCHA. The latter needs Fourthorder and FourPhonon. Outside the coupled route, use
   the BAs custom plan `[fc2fc3, kappa, fc4, kappa4]` for both channels. `kappa4`
   means combined 3ph+4ph transport, not conductivity from 4ph scattering alone.
 - `qha-sscha` interpolates each requested SSCHA temperature inside the

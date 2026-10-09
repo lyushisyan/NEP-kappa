@@ -1,0 +1,25 @@
+# 3C-SiC; run from the repository root. Configure VASP and licensed POTCAR.
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: true
+calculator:
+  name: vasp
+  vasp_command: /path/to/vasp_std
+  potcar_path: /path/to/potpaw_PBE
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+kappa:
+  engine: phono3py
+  mesh: [31, 31, 31]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: true
+plot:
+  layout: both
+  path: seekpath
+  tau: nu
+  temperature: 300
+  kappa: all
+output:
+  result-dir: calculations/example-runs/3c-sic-vasp-rta-3ph

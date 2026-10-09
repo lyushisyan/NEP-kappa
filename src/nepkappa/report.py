@@ -20,6 +20,7 @@ ARTIFACT_NAMES = {
     "qha-summary.yaml",
     "sscha-summary.yaml",
     "qha-sscha-summary.yaml",
+    "qha-kappa-summary.yaml",
     "fourphonon-summary.yaml",
     "bubble-summary.yaml",
     "bubble.hdf5",
@@ -59,6 +60,9 @@ def generate_report(result_dir):
         "result_directory": str(root),
         "provenance": _read_yaml_if_present(root / "provenance.yaml", warnings),
         "qha": _read_qha(root, warnings),
+        "qha_kappa": _read_yaml_if_present(
+            root / "qha-kappa" / "qha-kappa-summary.yaml", warnings
+        ),
         "sscha": _read_sscha(root, warnings),
         "bubble": _read_bubble(root, warnings),
         "tdbte": _read_yaml_if_present(root / "tdbte" / "audit.json", warnings),
@@ -217,7 +221,7 @@ def _read_approximations(root, warnings):
 
 
 def _read_fourphonon_transport(root, warnings):
-    """Read normalized 3ph+4ph tensors from FourPhonon summaries."""
+    """Read population and optional Wigner tensors from FourPhonon summaries."""
     records = []
     for path in sorted(root.rglob("fourphonon-summary.yaml")):
         data = _read_yaml_if_present(path, warnings)
@@ -228,37 +232,45 @@ def _read_fourphonon_transport(root, warnings):
         if not isinstance(solution, dict):
             continue
         temperatures = solution.get("temperatures") or []
-        diagonals = solution.get("diagonal") or []
-        if len(temperatures) != len(diagonals):
-            warnings.append(
-                f"Could not summarize {path.relative_to(root)}: "
-                "temperature and tensor lengths differ"
-            )
-            continue
-        for temperature, diagonal in zip(temperatures, diagonals):
-            try:
-                tensor = np.asarray(diagonal, dtype=float)
-                if tensor.size < 3 or not np.all(np.isfinite(tensor[:3])):
-                    raise ValueError("invalid diagonal tensor")
-                temperature = float(temperature)
-                if not np.isfinite(temperature):
-                    raise ValueError("invalid temperature")
-            except (TypeError, ValueError) as exc:
+        components = [("", solution)]
+        if (data.get("wigner") or {}).get("components_verified"):
+            components = [
+                ("-wigner-total", solution.get("total") or {}),
+                ("-population", solution),
+                ("-wigner-coherence", solution.get("coherence") or {}),
+            ]
+        for suffix, component in components:
+            diagonals = component.get("diagonal") or []
+            if len(temperatures) != len(diagonals):
                 warnings.append(
-                    f"Could not summarize {path.relative_to(root)}: {exc}"
+                    f"Could not summarize {path.relative_to(root)}: "
+                    "temperature and tensor lengths differ"
                 )
                 continue
-            records.append(
-                {
-                    "file": str(path.relative_to(root)),
-                    "method": f"3+4ph-{primary}",
-                    "temperature_K": temperature,
-                    "kxx_W_mK": float(tensor[0]),
-                    "kyy_W_mK": float(tensor[1]),
-                    "kzz_W_mK": float(tensor[2]),
-                    "kavg_W_mK": float(np.mean(tensor[:3])),
-                }
-            )
+            for temperature, diagonal in zip(temperatures, diagonals):
+                try:
+                    tensor = np.asarray(diagonal, dtype=float)
+                    if tensor.size < 3 or not np.all(np.isfinite(tensor[:3])):
+                        raise ValueError("invalid diagonal tensor")
+                    temperature = float(temperature)
+                    if not np.isfinite(temperature):
+                        raise ValueError("invalid temperature")
+                except (TypeError, ValueError) as exc:
+                    warnings.append(
+                        f"Could not summarize {path.relative_to(root)}: {exc}"
+                    )
+                    continue
+                records.append(
+                    {
+                        "file": str(path.relative_to(root)),
+                        "method": f"3+4ph-{primary}{suffix}",
+                        "temperature_K": temperature,
+                        "kxx_W_mK": float(tensor[0]),
+                        "kyy_W_mK": float(tensor[1]),
+                        "kzz_W_mK": float(tensor[2]),
+                        "kavg_W_mK": float(np.mean(tensor[:3])),
+                    }
+                )
     return records
 
 
@@ -356,6 +368,14 @@ def _render_markdown(report):
             f"| {row['temperature_K']:.6g} | {row['volume_A3']:.8g} |"
             for row in qha["points"]
         )
+    if report.get("qha_kappa"):
+        coupled = report["qha_kappa"]
+        lines.extend([
+            "", "## QHA-volume three-phonon transport", "",
+            f"- Method: {coupled.get('method', 'not recorded')}",
+            f"- Force constants: {coupled.get('force_constant_treatment', 'not recorded')}",
+            f"- Temperature cases: {len(coupled.get('cases') or [])}",
+        ])
     if report["sscha"]:
         lines.extend(
             [

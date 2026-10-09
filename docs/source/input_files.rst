@@ -1,10 +1,158 @@
 Input Files
 =============
 
-NEP-kappa 2.0.1 uses YAML input files. Each YAML file describes one workflow by
-grouping settings into the same stages used by the command line:
+NEP-kappa has two calculation input shapes. **Static** calculations use six
+top-level sections: ``structure``, ``calculator``, ``force-constant``,
+``kappa``, ``plot``, and ``output``. A standard NEP three-phonon input is:
 
-- ``workflow``: high-level preset or an advanced custom stage plan
+.. code-block:: yaml
+
+   structure:
+     poscar: examples/structures/Si/POSCAR_bulk
+     relaxation: true
+   calculator:
+     name: nep
+     nep_model: potentials/Si/Si_Bulk_Fan.txt
+   force-constant:
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
+     qha: false
+     sscha: false
+     four-phonon: false
+   kappa:
+     engine: phono3py
+     mesh: [21, 21, 21]
+     temps: [100, 1000, 50]
+     method: rta
+   plot:
+     layout: both
+     path: seekpath
+   output:
+     result_dir: calculations/example-runs/nep-rta
+
+The switches in ``force-constant`` select the static route automatically:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 39 61
+
+   * - Enabled switches
+     - ``nepkappa run`` stages
+   * - None
+     - Structure preparation, FC2/FC3, three-phonon conductivity
+   * - ``qha``
+     - QHA volume scan
+   * - ``qha`` with ``kappa.qha-volumes: true``
+     - QHA volume scan, then FC2/FC3 and phono3py RTA conductivity at each target temperature's equilibrium volume
+   * - ``sscha``
+     - FC2/FC3 and fixed-volume SSCHA; transport only with ``run-transport: true``
+   * - ``four-phonon``
+     - Structure preparation, FC2/FC3, FC4, and four-phonon conductivity
+   * - ``qha`` and ``sscha``
+     - QHA followed by SSCHA at QHA volumes
+   * - All three
+     - QHA-volume SSCHA with FC4 and four-phonon transport at each temperature
+
+Each switch may be ``false``, ``true``, or a mapping with ``enabled`` and
+method-specific settings. For example:
+
+.. code-block:: yaml
+
+   force-constant:
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
+     qha:
+       enabled: true
+       volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
+       temps: [0, 900, 10]
+     sscha:
+       enabled: true
+       temps: [300, 900, 300]
+       snapshots: 200
+       iterations: 4
+       run-transport: true
+     four-phonon:
+       enabled: false
+
+Set ``kappa.engine: phono3py`` for three-phonon transport and
+``kappa.engine: fourphonon`` when ``force-constant.four-phonon`` is enabled.
+Older inputs without ``engine`` infer the same choice from the four-phonon
+switch. When ``four-phonon`` is enabled, its mapping also accepts FC4 options
+such as ``dim-fc4`` and FourPhonon executable options such as ``command``.
+The default command is ``ShengBTE_cpu``; point it to the actual
+FourPhonon executable for your installation. A four-phonon switch executes
+both FC4 generation and conductivity. Standalone QHA plus four-phonon and
+standalone SSCHA plus four-phonon are rejected because those combinations do
+not have a supported corrected-FC2 transport path. The QHA+SSCHA route is a
+sequential QHA-volume approximation, not free-energy volume optimization.
+With ``parallel.kappa.backend: slurm`` and ``submit: false``, the FourPhonon stage
+prepares a job script for inspection instead of submitting the calculation.
+``qha`` and ``sscha`` are grouped under ``force-constant`` for input
+organization, but each launches its full temperature-dependent workflow.
+For QHA-coupled RTA transport, set ``kappa.qha-volumes: true``. NEP-kappa then
+recomputes FC2 and FC3 at every requested QHA equilibrium volume and runs
+phono3py at the corresponding temperature. This accounts for isotropic thermal
+expansion but does not itself add explicit anharmonic frequency renormalization.
+The requested ``kappa.temps`` must lie inside the QHA temperature range.
+Per-temperature results are saved under ``qha-kappa/TxxxxK/``;
+``nepkappa plot`` uses ``plot.temperature`` to select one case.
+
+Parallel settings are optional and separate from the six scientific sections:
+
+.. code-block:: yaml
+
+   parallel:
+     force-constant:
+       backend: slurm
+       jobs: 16
+       submit: false
+     kappa:
+       backend: slurm
+       submit: false
+
+``parallel.force-constant`` controls displaced-structure force jobs.
+``parallel.kappa`` controls phono3py LBTE or FourPhonon jobs according to
+``kappa.engine``. For FourPhonon it can also hold ``mpi-processes``,
+``mpi-launcher``, ``omp-threads``, and ``omp-stacksize``. Older nested
+parallel locations remain accepted; do not specify the same setting in both
+places. QHA-coupled calculations run their per-temperature force stages inside
+one allocation and do not support nested Slurm arrays.
+
+The ``structure.relaxation`` spelling controls optimization within the structure
+section; the older ``relaxation.enabled`` section remains accepted. If both
+are present, they must agree. QHA reads ``structure.poscar`` directly, so the
+static form rejects ``structure.relaxation: true`` when QHA is enabled.
+The ``plot`` section only configures plotting:
+run ``nepkappa plot input.yaml`` separately to create figures. Optional
+parameters use parser defaults; supercell, q mesh, and temperatures are
+research choices that require convergence checks.
+
+**Dynamic** TD-BTE calculations use a separate, shorter input:
+
+.. code-block:: yaml
+
+   tdbte:
+     force-constants: calculations/SiC/fc
+     mesh: [5, 5, 5]
+     temperature: 300
+     branches: [3, 4, 5]
+   output:
+     result-dir: calculations/SiC/tdbte
+
+With ``tdbte`` and ``output`` alone, ``nepkappa run`` selects the dynamic
+route. It reuses existing matching FC2/FC3 and metadata; it does not need a
+calculator or regenerate force constants. Do not mix static and dynamic
+sections in one new input. See :doc:`tdbte` for the physical model and its
+limits.
+
+The earlier ``workflow.stages`` interface remains available for advanced and
+existing inputs. It
+describes a calculation in six phases: structure, forces, force constants,
+temperature, transport, and analysis. Each phase selects a method and can
+enable supported features. Detailed numerical and external-program settings
+remain in the corresponding sections:
+
+- ``workflow``: a stage-first plan, an older preset, or an advanced step list
 - ``structure``: input POSCAR
 - ``calculator``: NEP, VASP, a generic ASE calculator, or an installed plugin
 - ``relaxation``: structure relaxation settings
@@ -30,15 +178,91 @@ for native VASP options.
 Command behavior
 ------------------
 
-Normal users select ``workflow.preset`` and use only:
+Run a stage-first input with:
 
 .. code-block:: bash
 
    nepkappa run input.yaml
 
-Presets are ``three-phonon``, ``four-phonon``, ``qha``, ``scph``, and
-``qha-sscha``. The
-following commands expose individual stages for advanced use:
+``nepkappa init input.yaml`` generates the six-section static form for all
+five supported initializer goals. Existing preset and stage-first inputs remain
+valid for compatibility.
+
+``workflow.stages`` is a mapping in fixed calculation order. An omitted or
+disabled phase does not run. ``structure.method: input`` uses the input
+structure; ``relax`` executes optimization. ``forces.method`` selects the
+calculator. ``force-constants`` selects a generation method and ordered force
+constant orders. ``temperature`` can be omitted or choose QHA, SSCHA, or
+QHA-volume SSCHA. ``transport`` chooses one solver route, and ``analysis``
+enables optional result operations.
+
+.. code-block:: yaml
+
+   workflow:
+     stages:
+       structure: {method: input}
+       forces: {method: nep}
+       force-constants:
+         method: finite-displacement
+         orders: [2, 3]
+         features: {compact: true}
+       temperature: {enabled: false}
+       transport:
+         method: three-phonon-rta
+         features: {isotope: false}
+       analysis:
+         method: plot
+         features: {report: true}
+
+The nine public static examples use the six-section form rather than this
+compatibility form. See ``examples/nep-rta-wigner-3ph-4ph.yaml`` for the
+four-phonon Wigner route. Supported stage-first choices are:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 49 29
+
+   * - Stage
+     - Methods
+     - Features
+   * - ``structure``
+     - ``input``, ``relax``
+     - Relaxation details in ``relaxation``
+   * - ``forces``
+     - NEP, VASP, MACE, or an installed ASE calculator/plugin name
+     - Calculator details in ``calculator``
+   * - ``force-constants``
+     - ``finite-displacement``, ``hiphive``, ``thirdorder``; ``orders`` is
+       ``[2]``, ``[2, 3]``, or ``[2, 3, 4]``
+     - ``compact``; numerical settings in ``force-constant``
+   * - ``temperature``
+     - ``qha``, ``sscha``, ``qha-sscha``
+     - ``bubble``, ``three-phonon``, ``four-phonon`` where supported
+   * - ``transport``
+     - ``three-phonon-rta``, ``three-phonon-lbte``,
+       ``three-phonon-wigner``, ``four-phonon-rta``,
+       ``four-phonon-wigner``
+     - ``isotope``; ``boundary-mfp`` for three-phonon or ``nonanalytic``
+       for four-phonon
+   * - ``analysis``
+     - ``tdbte``, ``plot``, or ``report``
+     - Enable additional operations with ``features: {report: true}``, etc.
+
+The stage compiler rejects conflicting choices between the stage map and
+detailed sections. Temperature workflows and a separate transport stage cannot
+be chained in this interface: QHA does not automatically update conductivity,
+and standalone SSCHA transport runs within its own stage. For QHA-volume
+SSCHA, enable its three/four-phonon transport under
+``temperature.features``. The older ``workflow.preset`` choices
+(``three-phonon``, ``four-phonon``, ``qha``, ``scph``, ``qha-sscha``) and
+``workflow.preset: custom`` with ``workflow.steps`` remain accepted.
+
+When ``force-constants.orders`` includes 4, the default export format becomes
+``both`` so the FourPhonon inputs are available. After a Slurm FourPhonon job
+finishes, any following analysis stages resume from the completed transport
+stage. Inspect the generated job script before submission.
+
+The following commands expose individual stages for advanced use:
 
 .. code-block:: bash
 
@@ -117,10 +341,50 @@ results belong in the ignored ``calculations/`` directory.
 Set ``harmonic-format: espresso`` when the harmonic input is an official
 ``espresso.ifc2`` file; this mode requires a matching custom ``CONTROL``.
 Solver choices are ``rta``, ``3ph-iterative``, and ``full-iterative``.
+In six-section static inputs, set both ``kappa.method-3ph`` and
+``kappa.method-4ph`` to ``rta`` or ``lbte``. NEP-kappa maps ``rta/rta`` to
+``rta``, ``lbte/rta`` to ``3ph-iterative``, and ``lbte/lbte`` to
+``full-iterative``. FourPhonon has no ``rta/lbte`` mode. Do not also set
+``kappa.method`` or a conflicting ``force-constant.four-phonon.solver``.
+This mapping follows the `FourPhonon manual
+<https://github.com/FourPhonon/FourPhonon/blob/main/Manual.md>`_.
 Sampling settings expose FourPhonon's 3ph/4ph scattering and phase-space
 process counts. MPI+OpenMP and Slurm resources are configured in the same
 section. Results are normalized to ``kappa4-rta.dat`` and
 ``kappa4-iterative.dat`` and summarized in ``fourphonon-summary.yaml``.
+
+Set ``fourphonon.wigner: true`` to use an executable built from FourPhonon's
+`Wigner_Park branch <https://github.com/FourPhonon/FourPhonon/tree/Wigner_Park>`_.
+This branch adds the four-phonon scattering rate to the three-phonon and isotope
+rates before evaluating the RTA population conductivity and the off-diagonal
+Wigner coherence term. It writes separate population, coherence, and total
+tensors; NEP-kappa checks that the total equals the sum of the first two and
+normalizes them to ``kappa4-rta.dat``, ``kappa4-rta-coherence.dat``, and
+``kappa4-rta-total.dat``. ``nepkappa report`` lists all three components.
+In the branch source, the RTA scattering rate and the coherence resonance
+factor have the forms
+
+.. math::
+
+   \Gamma_s = \Gamma_{s,3\mathrm{ph}} + \Gamma_{s,\mathrm{iso}}
+   + \Gamma_{s,4\mathrm{ph}}, \qquad
+   L_{ss'} = \frac{\Gamma_s+\Gamma_{s'}}
+   {4(\omega_s-\omega_{s'})^2+(\Gamma_s+\Gamma_{s'})^2}.
+
+The branch reconstructs ``rate`` from the RTA response vector when computing
+coherence; a mode with exactly zero diagonal group velocity receives zero
+reconstructed rate. This implementation detail should be considered when
+comparing very flat modes or other Wigner implementations.
+
+This mode requires ``solver: rta``, ``harmonic-format: shengbte``, and all four
+``sample-*`` settings set to ``-1``. The Wigner_Park branch does not support
+the newer FourPhonon sampling flags. Point ``fourphonon.command`` to the
+Wigner_Park executable, not a regular FourPhonon build. NEP-kappa invokes that
+external executable; it does not implement the Wigner formula itself. The
+FourPhonon Wigner_Park calculation is distinct from phono3py's experimental
+``kappa.wigner`` (SMM19) path. See ``examples/nep-rta-wigner-3ph-4ph.yaml`` for a
+complete input. Converge the force constants, q mesh, and scattering settings
+before interpreting material results.
 
 Automatically generated CONTROL files disable non-analytic corrections. Polar
 crystals such as SiC should set ``fourphonon.control`` to a validated CONTROL
@@ -921,7 +1185,20 @@ omitted while other supported plots remain available. A requested plot
 temperature not in the file uses the nearest stored temperature with a warning.
 Unsupported tensor dimensions, split-grid files and incomplete transport
 datasets produce explicit errors rather than silently mixing incompatible data.
-The generic plot reader does not yet interpret Wigner-only HDF5 schemas.
+For phono3py Wigner results, ``kappa_intra`` and ``kappa_inter`` are shown as
+particle and coherence contributions alongside the stored total ``kappa``;
+the reader checks that the components add to the total. Wigner component plots
+require a complete standard kappa HDF5 file, not a component-only file.
+
+When ``fourphonon/fourphonon-summary.yaml`` is present, ``nepkappa plot`` also
+reads completed FourPhonon conductivity tables. It includes each available
+RTA or iterative solution in ``kappa.png`` and, for Wigner_Park, particle,
+coherence and total. A matching phono3py kappa HDF5 adds a separate 3ph-only
+reference curve. Missing reference calculations are never inferred. The
+``BTE.w_3ph`` and ``BTE.w_4ph`` files in the nearest temperature directory
+produce two separate scattering-rate figures. Builds that additionally save
+``BTE.w_3ph4ph_NU`` or ``BTE.w_3ph_NU`` produce an N/U overlay; ordinary
+FourPhonon outputs do not supply that decomposition.
 
 ``path`` controls the high-symmetry path used for phonon dispersion:
 
@@ -965,7 +1242,9 @@ figure:
 - ``x``: plot only ``kappa_xx``
 - ``y``: plot only ``kappa_yy``
 - ``z``: plot only ``kappa_zz``
-- ``all``: plot ``kappa_xx``, ``kappa_yy``, ``kappa_zz``, and their average
+- ``all``: plot ``kappa_xx``, ``kappa_yy``, ``kappa_zz``, and their average for
+  a single solution; when Wigner components or multiple transport solutions
+  are present, compare their spatial averages on one axis
 
 ``temperature`` selects the target temperature for the relaxation-time and
 scattering-rate plots. The scattering rate is ``4 pi gamma`` in ps^-1, the
@@ -1003,8 +1282,13 @@ titles are intentionally omitted so the figures are easier to compose in papers.
 - ``group_velocity.png``: group velocity magnitude in km/s
 - ``relaxation_time.png``: relaxation time at the nearest available ``plot.temperature`` (default 300 K), when linewidths exist
 - ``scattering_rate.png``: available total, Normal, and/or Umklapp scattering rates at that temperature
+- ``scattering_rate_3ph.png`` and ``scattering_rate_4ph.png``: separate
+  FourPhonon rates, when their ``BTE.w_*`` files exist
+- ``scattering_rate_nu.png``: optional FourPhonon N and U overlay when an
+  ``*_NU`` file was written by the solver
 - ``cumulative_kappa.png``: cumulative conductivity against phonon frequency when ``mode_kappa`` is available
-- ``kappa.png``: selected thermal conductivity component or all diagonal components plus average
+- ``kappa.png``: selected conductivity component, or an average comparison
+  of available Wigner contributions and/or 3ph+4ph solver schemes
 - ``combined.png``: automatically arranged multi-panel figure when ``layout`` is ``combined`` or ``both``
 
 Multi-model comparison

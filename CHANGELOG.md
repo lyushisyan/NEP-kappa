@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Add a stage-first ``workflow.stages`` interface with per-stage method and
+  feature choices. Static inputs now use six sections with QHA, SSCHA, and
+  four-phonon switches inside ``force-constant``; the initializer emits this
+  layout for all its static goals. TD-BTE uses a separate ``tdbte``/``output``
+  input. Older preset and stage-first inputs remain supported.
+- Add an optional FourPhonon Wigner_Park RTA path for combined three/four-phonon
+  population, coherence, and total conductivity, with tensor consistency checks.
+- Expose independent `kappa.method-3ph` and `kappa.method-4ph` choices for
+  FourPhonon static inputs, and add 3C-SiC Wigner RTA, 3ph LBTE/4ph RTA,
+  and 3ph LBTE/4ph LBTE examples.
+- Limit the public `examples/` YAML catalog to nine 3C-SiC static
+  workflows and the separate TD-BTE input; update documentation links.
+- Add explicit `kappa.engine` selection, an optional top-level `parallel` section,
+  and 3C-SiC calculation inputs, including a bundled primitive structure.
+  QHA-coupled 3ph RTA now regenerates
+  FC2/FC3 and conductivity at each target temperature's QHA volume.
+- Plot RTA Normal and Umklapp rates together, Wigner particle/coherence/total
+  conductivity, and separate three-/four-phonon scattering rates. Compare only
+  conductivity solutions actually present in phono3py or FourPhonon outputs.
 - Build time-dependent BTE energy-shell kernels directly from matching FC2/FC3,
   phono3py metadata, and a q mesh.
 - Stream checksummed event chunks during integration, with optional Numba
@@ -11,9 +30,11 @@
   limitations and conservation, equilibrium, and entropy checks.
 - Update YAML examples, documentation, and the input-preparation Skill.
 
-Local verification: 371 tests passed; strict documentation build and a real
-SiC small-grid build-and-solve smoke test passed. Absolute-rate validation and
-mesh convergence remain separate from these implementation checks.
+Local verification: 457 tests passed with a fresh Numba cache; strict
+documentation build and a real SiC small-grid TD-BTE build-and-solve smoke test
+passed. The FourPhonon Wigner_Park interface has not yet been checked against a
+completed external-solver run. Absolute-rate validation and mesh convergence
+remain separate from these implementation checks.
 
 ## 2.0.1 — 2026-09-23
 

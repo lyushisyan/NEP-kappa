@@ -1,38 +1,41 @@
 Architecture
 ============
 
-The CLI reads a YAML configuration, resolves a workflow plan, and invokes
-stage handlers through the application layer. Calculators supply energies,
-forces, or stresses; the force-constant and transport stages consume those
-results and record artifacts and provenance.
+The user-facing calculation input has two shapes. Static inputs contain six
+sections and enable QHA, SSCHA, or four-phonon work inside
+``force-constant``. Dynamic TD-BTE inputs contain ``tdbte`` and ``output``
+and reuse completed FC2/FC3. The CLI compiles either shape into an ordered
+plan and invokes the scientific stage handlers. Calculators supply energies,
+forces, or stresses for static stages; dynamic TD-BTE reads existing matching
+force constants and metadata.
 
 .. code-block:: text
 
-   CLI / initializer
-          |
-   configuration + workflow plan
-          |
-   application / stage runner
-          |
-          +-- structure relaxation
-          +-- FC2 / FC3 / FC4 generation
-          +-- QHA / Phonopy SSCHA / QHA+SSCHA
-          +-- optional on-shell bubble postprocessing
-          +-- phono3py / FourPhonon transport
-          +-- TD-BTE (FC2/FC3 -> shell chunks -> dynamics)
-          +-- plotting / reports
+   Static: structure + calculator + force-constant + kappa + plot + output
+                  |
+          structure -> forces -> FC2/FC3 -> QHA/SSCHA/FC4 -> 3ph/4ph
+                                                          |
+                                                     plots/report
+
+   Dynamic: tdbte + output -> existing FC2/FC3 -> kernel -> populations(t)
+
+   Both shapes -> application / ordered stage runner
 
    Shared services: calculators, scheduler, artifacts, provenance, run state
 
-Module boundaries
------------------
+Implementation behind the stages
+--------------------------------
 
 ``command_registry.py`` defines the public command catalog. ``cli.py`` owns
 terminal handling and concise error reporting; ``initializer.py`` writes
 validated starter inputs. ``config.py`` validates YAML and exposes typed views
 through ``config_models.py`` while preserving historical attributes.
 
-``application.py`` constructs stage implementations and executes plans.
+``config.py`` also expands static nested switches and infers the separate
+dynamic TD-BTE route. ``stage_plan.py`` validates older explicit stage choices
+and compiles them to existing step names and backend settings.
+``application.py`` constructs stage implementations
+and executes those steps in order.
 ``stages/`` contains common lifecycle hooks and force/structure stages.
 ``workflow.py`` provides shared context and compatibility methods; it is
 still a larger module, as is the centralized parser.

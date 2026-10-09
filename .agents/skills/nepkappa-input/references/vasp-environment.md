@@ -2,7 +2,7 @@
 
 Use for VASP path discovery, moving calculations between hosts, and preparing
 VASP inputs. Inspect `src/nepkappa/adapters/vasp.py`, the calculator section of
-`docs/source/input_files.rst`, and `examples/slurm-vasp.yaml` in the matching
+`docs/source/input_files.rst`, and `examples/vasp-rta-3ph.yaml` in the matching
 checkout. VASP and its licensed POTCAR library are external installations,
 not bundled with NEP-kappa.
 

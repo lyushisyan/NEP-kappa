@@ -60,14 +60,15 @@ Source layout
 Maintaining examples and the skill
 ------------------------------------
 
-Prefer one example per distinct workflow and explain small variants in
-``examples/README.md``. Do not duplicate a full YAML just to change RTA to LBTE.
-Use public input paths and placeholder executable paths; specify
-``submit: false`` in Slurm examples.
+The public catalog intentionally contains nine 3C-SiC static
+workflows and one TD-BTE input. Explain their method differences in
+``examples/README.md``. Use public input paths and placeholder executable
+paths. Site-specific Slurm settings belong in an external batch script or
+optional ``parallel`` settings.
 
 When keys or templates change, update the input reference and
 ``.agents/skills/nepkappa-input/`` together. The example-catalog test validates
-workflow schemas, structures and model paths, and separate analysis schemas.
+the nine static inputs, the separate TD-BTE schema, and their public assets.
 Keep compatibility-only inputs under ``tests/fixtures/``.
 
 Baseline snapshots

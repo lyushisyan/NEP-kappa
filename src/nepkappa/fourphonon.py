@@ -25,6 +25,10 @@ KAPPA_FILES = {
     "rta": "BTE.KappaTensorVsT_RTA",
     "iterative": "BTE.KappaTensorVsT_CONV",
 }
+WIGNER_RTA_FILES = {
+    "coherence": "BTE.KappaCohTensorVsT_RTA",
+    "total": "BTE.KappaTotalTensorVsT_RTA",
+}
 
 
 class FourPhononWorkflow:
@@ -52,6 +56,7 @@ class FourPhononWorkflow:
             "backend": scheduler_backend,
             "status": "prepared",
             "solver": self.settings.solver,
+            "wigner": self.settings.wigner,
             "submitted": False,
             "command": command,
             "control": file_identity(control),
@@ -91,6 +96,7 @@ class FourPhononWorkflow:
             self.workdir,
             preferred=self._preferred_solution(),
             allow_no_kappa=self.settings.only_harmonic,
+            wigner=self.settings.wigner,
         )
         manifest["status"] = "complete"
         manifest["summary"] = str(self.workdir / "fourphonon-summary.yaml")
@@ -187,6 +193,12 @@ class FourPhononWorkflow:
         ]
         if self.settings.only_harmonic:
             collect.append("--allow-no-kappa")
+        if self.settings.wigner:
+            collect.append("--wigner")
+        following_steps = []
+        plan = list(self.cfg.sections.workflow.steps or [])
+        if "kappa4" in plan:
+            following_steps = plan[plan.index("kappa4") + 1 :]
         lines.extend(
             [
                 "",
@@ -200,6 +212,23 @@ class FourPhononWorkflow:
                 "",
             ]
         )
+        if following_steps:
+            config_path = getattr(self.cfg, "config_path", None)
+            if not config_path:
+                raise ValueError(
+                    "A deferred FourPhonon stage with following stages requires "
+                    "the original YAML config path."
+                )
+            resume = [
+                str(Path(sys.executable).resolve()),
+                "-m",
+                "nepkappa",
+                "run",
+                str(Path(config_path).resolve()),
+            ]
+            lines.extend(
+                [f"NEPKAPPA_RESUME_AFTER=kappa4 {shlex.join(resume)}", ""]
+            )
         script = self.workdir / "run.sh"
         script.write_text("\n".join(lines), encoding="utf-8")
         script.chmod(0o755)
@@ -249,13 +278,18 @@ def render_control(config, atoms):
         lines.extend(
             [f"  T_min={tmin:g},", f"  T_max={tmax:g},", f"  T_step={tstep:g},"]
         )
+    lines.append(f"  scalebroad={config.scalebroad:g},")
+    if not config.wigner:
+        lines.extend(
+            [
+                f"  num_sample_process_3ph={config.sample_3ph},",
+                f"  num_sample_process_3ph_phase_space={config.sample_3ph_phase_space},",
+                f"  num_sample_process_4ph={config.sample_4ph},",
+                f"  num_sample_process_4ph_phase_space={config.sample_4ph_phase_space}",
+            ]
+        )
     lines.extend(
         [
-            f"  scalebroad={config.scalebroad:g},",
-            f"  num_sample_process_3ph={config.sample_3ph},",
-            f"  num_sample_process_3ph_phase_space={config.sample_3ph_phase_space},",
-            f"  num_sample_process_4ph={config.sample_4ph},",
-            f"  num_sample_process_4ph_phase_space={config.sample_4ph_phase_space}",
             "&end",
             "&flags",
             f"  nonanalytic={_logical(config.nonanalytic)},",
@@ -264,7 +298,12 @@ def render_control(config, atoms):
             "  autoisotopes=.TRUE.,",
             f"  onlyharmonic={_logical(config.only_harmonic)},",
             "  espresso=.FALSE.,",
-            "  tdep=.FALSE.,",
+        ]
+    )
+    if not config.wigner:
+        lines.append("  tdep=.FALSE.,")
+    lines.extend(
+        [
             "  four_phonon=.TRUE.,",
             f"  four_phonon_iteration={_logical(four_iteration)}",
             "&end",
@@ -312,15 +351,61 @@ def read_kappa_tensor(path):
     return data[:, :10]
 
 
-def collect_outputs(workdir, preferred=None, allow_no_kappa=False):
-    """Normalize FourPhonon tensor outputs and write a YAML summary."""
+def collect_outputs(workdir, preferred=None, allow_no_kappa=False, wigner=False):
+    """Normalize FourPhonon tensors and optional Wigner_Park components."""
     workdir = Path(workdir).resolve()
+    fresh_after = None
+    manifest = workdir / "submission.yaml"
+    if wigner and manifest.is_file():
+        created_at = RunStateStore(manifest).read().get("created_at")
+        if created_at:
+            fresh_after = datetime.fromisoformat(created_at).timestamp() - 2
+    wigner_data = {}
+    if wigner:
+        # Validate all raw tensors before writing any normalized Wigner results.
+        for component, filename in {
+            "population": KAPPA_FILES["rta"],
+            **WIGNER_RTA_FILES,
+        }.items():
+            path = workdir / filename
+            if not path.is_file() or path.stat().st_size == 0:
+                raise FileNotFoundError(
+                    f"Missing Wigner_Park output {path}. Set fourphonon.command "
+                    "to an executable built from FourPhonon's Wigner_Park branch."
+                )
+            if fresh_after is not None and path.stat().st_mtime < fresh_after:
+                raise ValueError(f"Stale Wigner_Park output: {path}.")
+            wigner_data[component] = read_kappa_tensor(path)
+        population = wigner_data["population"]
+        for component in ("coherence", "total"):
+            data = wigner_data[component]
+            if data.shape[0] != population.shape[0] or not np.allclose(
+                data[:, 0], population[:, 0], rtol=0, atol=1e-6
+            ):
+                raise ValueError(
+                    f"{WIGNER_RTA_FILES[component]} temperatures do not match "
+                    f"{KAPPA_FILES['rta']}."
+                )
+        if not np.allclose(
+            wigner_data["total"][:, 1:10],
+            population[:, 1:10] + wigner_data["coherence"][:, 1:10],
+            rtol=5e-4,
+            atol=5e-4,
+        ):
+            raise ValueError(
+                "Wigner_Park total conductivity does not equal its "
+                "population plus coherence tensors."
+            )
     solutions = {}
     for name, filename in KAPPA_FILES.items():
+        if wigner and name != "rta":
+            continue
         path = workdir / filename
         if not path.is_file() or path.stat().st_size == 0:
             continue
-        data = read_kappa_tensor(path)
+        if fresh_after is not None and path.stat().st_mtime < fresh_after:
+            raise ValueError(f"Stale FourPhonon output: {path}.")
+        data = wigner_data["population"] if wigner else read_kappa_tensor(path)
         normalized = workdir / f"kappa4-{name}.dat"
         np.savetxt(
             normalized,
@@ -335,6 +420,22 @@ def collect_outputs(workdir, preferred=None, allow_no_kappa=False):
             "temperatures": data[:, 0].tolist(),
             "diagonal": data[:, [1, 5, 9]].tolist(),
         }
+        if wigner and name == "rta":
+            for component, filename in WIGNER_RTA_FILES.items():
+                component_path = workdir / filename
+                component_data = wigner_data[component]
+                component_normalized = workdir / f"kappa4-{name}-{component}.dat"
+                np.savetxt(
+                    component_normalized,
+                    component_data[:, [0, 1, 5, 9]],
+                    header="T(K) kxx(W/mK) kyy(W/mK) kzz(W/mK)",
+                    fmt="%.10g",
+                )
+                solutions[name][component] = {
+                    "source": str(component_path),
+                    "normalized": str(component_normalized),
+                    "diagonal": component_data[:, [1, 5, 9]].tolist(),
+                }
     if not solutions and not allow_no_kappa:
         expected = ", ".join(KAPPA_FILES.values())
         raise FileNotFoundError(
@@ -345,6 +446,11 @@ def collect_outputs(workdir, preferred=None, allow_no_kappa=False):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "primary": primary,
         "solutions": solutions,
+        "wigner": {
+            "requested": bool(wigner),
+            "components_verified": bool(wigner),
+            "implementation": "FourPhonon Wigner_Park" if wigner else None,
+        },
         "phase_space": {
             name: str(workdir / name)
             for name in ("BTE.P4", "BTE.P4_total", "BTE.Numprocess_4ph")
@@ -366,8 +472,9 @@ def main(argv=None):
     parser.add_argument("--collect", required=True, help="FourPhonon work directory")
     parser.add_argument("--preferred", choices=["rta", "iterative"], default=None)
     parser.add_argument("--allow-no-kappa", action="store_true")
+    parser.add_argument("--wigner", action="store_true")
     args = parser.parse_args(argv)
-    collect_outputs(args.collect, args.preferred, args.allow_no_kappa)
+    collect_outputs(args.collect, args.preferred, args.allow_no_kappa, args.wigner)
     return 0
 
 

@@ -1,0 +1,30 @@
+# 3C-SiC: solve 3ph BTE iteratively while treating 4ph scattering in RTA.
+# Requires a FourPhonon CPU executable with the iterative 3ph solver.
+# SiC is polar; provide a validated custom CONTROL for NAC if required.
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: true
+calculator:
+  name: nep
+  nep-model: potentials/3C-SiC/nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  four-phonon:
+    enabled: true
+    dim-fc4: [3, 3, 3]
+    command: ShengBTE_cpu
+kappa:
+  engine: fourphonon
+  mesh: [12, 12, 12]
+  temps: [300]
+  method-3ph: lbte
+  method-4ph: rta
+  isotope: true
+plot:
+  layout: both
+  path: seekpath
+  temperature: 300
+  kappa: all
+output:
+  result-dir: calculations/example-runs/3c-sic-nep-lbte-3ph-rta-4ph

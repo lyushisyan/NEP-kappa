@@ -60,6 +60,7 @@ ARTIFACT_NAMES = (
     "bulk_modulus-temperature.pdf",
     "Cp-temperature_polyfit.pdf",
     "qha-summary.yaml",
+    "qha-kappa/qha-kappa-summary.yaml",
     "tdbte-kernel/manifest.json",
     "tdbte-kernel/build-failure.json",
     "tdbte/audit.json",

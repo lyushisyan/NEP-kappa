@@ -21,9 +21,6 @@ and force-constant convention for all three files.
 
 For a two-atom primitive cell such as 3C-SiC::
 
-   workflow:
-     preset: custom
-     steps: [tdbte]
    tdbte:
      force-constants: calculations/SiC/fc
      mesh: [5, 5, 5]
@@ -40,8 +37,9 @@ From the launch directory::
    nepkappa run input.yaml
    nepkappa report calculations/SiC/time-bte
 
-``nepkappa tdbte input.yaml`` runs the same stage without needing the
-``workflow`` section. Validation checks options without constructing a kernel
+``nepkappa run input.yaml`` automatically selects the dynamic TD-BTE route
+when the file contains ``tdbte`` and ``output`` sections only.
+``nepkappa tdbte input.yaml`` runs the same stage. Validation checks options without constructing a kernel
 or starting integration; file contents are checked at execution. Relative
 paths resolve from the launch directory, not from the YAML file.
 ``examples/tdbte.yaml`` is the complete template. Its mesh is a starting value,

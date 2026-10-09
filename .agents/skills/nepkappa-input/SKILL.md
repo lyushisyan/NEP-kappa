@@ -51,9 +51,32 @@ Do not require a potential or FC3 for FC2-only plotting, or a calculator for
 TD-BTE using existing force constants or a kernel. Inspect available artifacts
 before promising plots.
 
-Use one minimal example. For a full workflow prefer a preset; small variants
-such as RTA versus LBTE should edit the relevant key, not create duplicate
-sections. Put user calculations under `calculations/<material-or-study>/`
+Use one minimal example. For static calculations, start from the six-section input
+in `examples/nep-rta-wigner-3ph.yaml`: structure, calculator, force-constant, kappa, plot,
+and output. `structure.relaxation` controls optimization. QHA, SSCHA, and
+four-phonon switches belong inside `force-constant` and select their full
+static workflows; read `docs/source/input_files.rst` for supported combinations.
+The four-phonon switch runs both FC4 and conductivity. For dynamic TD-BTE,
+use the separate `tdbte` and `output` shape in `examples/tdbte.yaml`.
+Omit unneeded parameter lines rather than inventing a new schema.
+Set `kappa.engine: phono3py` for three-phonon RTA/LBTE or
+`kappa.engine: fourphonon` with `force-constant.four-phonon: true`.
+For FourPhonon, use separate `kappa.method-3ph` and `kappa.method-4ph`
+settings and check supported pairings in `docs/source/input_files.rst`.
+Place optional Slurm/MPI/OpenMP settings in top-level `parallel.force-constant`
+or `parallel.kappa` rather than lengthening the scientific sections. For QHA
+thermal expansion to affect 3ph RTA, use `kappa.qha-volumes: true`; this runs
+FC2/FC3 and transport anew at each target QHA volume.
+For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
+six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
+first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
+constant orders without invoking transport.
+Advanced stage-first `workflow.stages` inputs remain valid even though the
+public catalog has nine static workflows. Existing `workflow.preset` and
+`workflow.steps` inputs remain valid; do not combine either with
+`workflow.stages`. Small variants such as RTA versus LBTE should edit the
+transport method, not create duplicate sections. Put user calculations under
+`calculations/<material-or-study>/`
 unless they choose another location. `examples/` is the public template catalog.
 
 Model identity is not established by its filename or directory. For readable
@@ -102,7 +125,8 @@ large simulation dependencies solely to validate a draft.
 Preparing an input does not itself authorize calculations. Do not invoke `run`,
 `converge`, `compare`, `plot`, `tdbte`, `sbatch`, or load a calculator as a
 validation shortcut. Adding a `plot` section does not add a plotting stage;
-give the explicit stage command or include it in an authorized custom plan.
+give the explicit stage command or enable `analysis.method: plot` in an
+authorized stage-first plan.
 When calculation execution was requested, continue within that scope after
 input checks.
 
