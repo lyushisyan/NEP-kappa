@@ -43,10 +43,10 @@ Three-phonon-only RTA and LBTE use ``kappa.method``. FourPhonon inputs set
 are RTA/RTA, LBTE/RTA, and LBTE/LBTE; Wigner_Park requires RTA/RTA. Standalone
 SSCHA is not part of this catalog.
 
-The six-section layout also supports individual stage commands. For example,
-``nepkappa stage fc2 examples/vasp-rta-3ph.yaml`` generates only FC2, and
-``nepkappa stage fc2fc3 examples/vasp-rta-3ph.yaml`` generates FC2 and FC3.
-Run ``nepkappa stage relax`` first when the input requests relaxation.
+The six-section layout also supports individual calculation commands. For example,
+``nepkappa fc2 examples/vasp-rta-3ph.yaml`` generates only FC2, and
+``nepkappa fc2fc3 examples/vasp-rta-3ph.yaml`` generates FC2 and FC3.
+Run ``nepkappa relax`` first when the input requests relaxation.
 
 External VASP, Fourthorder, and FourPhonon installations and site-specific
 Slurm settings must be configured before execution. The calculation can be

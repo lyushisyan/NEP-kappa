@@ -103,15 +103,14 @@ be on a filesystem shared by the login and compute nodes. Job IDs and generated
 script paths are recorded in ``output.result_dir/lbte-slurm/submission.yaml``;
 Slurm stdout and stderr files are written under ``lbte-slurm/logs``.
 
-To inspect every force-array, LBTE, and FourPhonon submission associated with
-one input file, run:
+To inspect active Slurm jobs, run:
 
 .. code-block:: bash
 
-   nepkappa status input.yaml
+   squeue -u "$USER"
 
-The command still reports the stored submission state when ``squeue`` is not
-available, for example after copying a result directory to another computer.
+Saved submission details remain in each result directory's submission YAML
+files, including when ``squeue`` is unavailable.
 
 Questions
 -----------

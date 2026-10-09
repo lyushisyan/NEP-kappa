@@ -67,9 +67,9 @@ Place optional Slurm/MPI/OpenMP settings in top-level `parallel.force-constant`
 or `parallel.kappa` rather than lengthening the scientific sections. For QHA
 thermal expansion to affect 3ph RTA, use `kappa.qha-volumes: true`; this runs
 FC2/FC3 and transport anew at each target QHA volume.
-For a VASP harmonic calculation, use `nepkappa stage fc2` on a suitable VASP
-six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa stage relax`
-first if `structure.relaxation: true`; `nepkappa stage fc2fc3` computes both force
+For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
+six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
+first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
 constant orders without invoking transport.
 Advanced stage-first `workflow.stages` inputs remain valid even though the
 public catalog has nine static workflows. Existing `workflow.preset` and
@@ -110,9 +110,9 @@ For ordinary inputs, validate the intended command without computing:
 nepkappa info input.yaml --for run
 ```
 
-Replace `run` with the actual stage (`fc2fc3`, `kappa`, `kappa4`, `qha`,
-`scph`, `qha-sscha`, `tdbte`, or `plot`) for stage-only inputs. `report` and
-`status` inspect results, not alternate YAML schemas.
+Replace `run` with the intended direct command (`relax`, `fc2`, `fc2fc3`,
+`qha`, `kappa`, `tdbte`, or `plot`) for a narrower check. `report` reads
+existing results rather than validating an alternate YAML schema.
 
 Repair the reported cause and repeat failed checks without dropping requested
 features. Check required files separately, distinguishing future stage outputs
@@ -120,10 +120,10 @@ from existing prerequisites. Do not require a model for transport-only reuse.
 If the CLI is unavailable, state which checks could not run; do not install
 large simulation dependencies solely to validate a draft.
 
-Preparing an input does not itself authorize calculations. Do not invoke `run`,
-`stage`, `plot`, `sbatch`, or load a calculator as a
-validation shortcut. Adding a `plot` section does not add a plotting stage;
-give the explicit stage command or enable `analysis.method: plot` in an
+Preparing an input does not itself authorize calculations. Do not invoke
+execution commands, `sbatch`, or load a calculator as a validation shortcut.
+Adding a `plot` section does not add a plotting stage; use `nepkappa plot`
+when plotting is authorized, or enable `analysis.method: plot` in an
 authorized stage-first plan.
 When calculation execution was requested, continue within that scope after
 input checks.

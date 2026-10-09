@@ -33,13 +33,13 @@ For a two-atom primitive cell such as 3C-SiC::
 
 From the launch directory::
 
-   nepkappa info input.yaml --for tdbte
-   nepkappa run input.yaml
+   nepkappa info input.yaml
+   nepkappa tdbte input.yaml
    nepkappa report calculations/SiC/time-bte
 
-``nepkappa run input.yaml`` automatically selects the dynamic TD-BTE route
+``nepkappa run input.yaml`` also selects the dynamic TD-BTE route
 when the file contains ``tdbte`` and ``output`` sections only.
-``nepkappa stage tdbte input.yaml`` runs the same stage. Validation checks options without constructing a kernel
+``info`` checks options without constructing a kernel
 or starting integration; file contents are checked at execution. Relative
 paths resolve from the launch directory, not from the YAML file.
 ``examples/tdbte.yaml`` is the complete template. Its mesh is a starting value,

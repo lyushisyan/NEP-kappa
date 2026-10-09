@@ -14,9 +14,9 @@ from nepkappa.command_registry import (
     COMMAND_SPECS,
     EXECUTION_COMMANDS,
     PUBLIC_COMMANDS,
-    STAGE_COMMANDS,
     VALIDATION_TARGETS,
     canonical_command,
+    resolve_calculation_command,
 )
 from nepkappa.config import (
     format_config,
@@ -72,17 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "stage":
-        return run_command(
-            args.stage_name,
-            args.config,
-            debug=args.debug,
-            invoked_as=f"stage {args.stage_name}",
-        )
     if args.command in EXECUTION_COMMANDS:
         return run_command(args.command, args.config, debug=args.debug)
-    if args.command == "status":
-        return status_command(args.config)
     if args.command == "report":
         return report_command(args.config)
     if args.command == "info":
@@ -111,13 +102,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     for spec in COMMAND_SPECS:
         command_parser = subparsers.add_parser(spec.name, help=spec.help)
-        if spec.name == "stage":
-            command_parser.add_argument(
-                "stage_name", choices=STAGE_COMMANDS,
-                help="Calculation stage to execute.",
-            )
-            command_parser.add_argument("config", help="YAML input file")
-            continue
         config_help = (
             "Result directory or workflow YAML input file"
             if spec.name == "report" else "YAML input file"
@@ -135,12 +119,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_command(command, config_path, *, debug=False, invoked_as=None) -> int:
+def run_command(command, config_path, *, debug=False) -> int:
     """Run one workflow command."""
     start_time = time.time()
-    requested_command = invoked_as or command
-    command = canonical_command(command)
-    args = parse_workflow_args(config_path, command=command)
+    requested_command = canonical_command(command)
+    command, args = parse_selected_command(config_path, command)
     args.config_path = str(Path(config_path).resolve())
     args.invoked_command = command
     os.makedirs(args.result_dir, exist_ok=True)
@@ -155,6 +138,8 @@ def run_command(command, config_path, *, debug=False, invoked_as=None) -> int:
             if log_mode == "a" and os.path.getsize(log_path) > 0:
                 print("\n" + "=" * 60)
             print(f"[main] Command: {requested_command}")
+            if command != requested_command:
+                print(f"[main] Input-selected operation: {command}")
             if config_path is not None:
                 print(f"[main] Reading arguments from {config_path}...")
             print(f"[main] Logging output to {log_path}")
@@ -200,24 +185,25 @@ def run_command(command, config_path, *, debug=False, invoked_as=None) -> int:
     return exit_code
 
 
+def parse_selected_command(config_path, command):
+    """Resolve input-selected operations before command-specific validation."""
+    if command in {"qha", "kappa"}:
+        plan = parse_workflow_args(config_path, command="plot")
+        try:
+            selected = resolve_calculation_command(command, plan)
+        except ValueError as exc:
+            raise SystemExit(f"nepkappa {command}: error: {exc}") from None
+    else:
+        selected = command
+    return selected, parse_workflow_args(config_path, command=selected)
+
+
 def info_command(config_path, command="run") -> int:
     """Validate and print a workflow's settings without running it."""
-    args = parse_workflow_args(config_path, command=command)
-    print(format_config(args, command=command))
-    return 0
-
-
-def status_command(config_path) -> int:
-    """Show persistent run state and live Slurm queue information."""
-    args = parse_workflow_args(config_path, command="status")
-    from nepkappa.run_state import discover_run_states, format_run_states
-    from nepkappa.scheduler import SlurmScheduler
-
-    records = discover_run_states(
-        args.result_dir,
-        scheduler=SlurmScheduler(),
-    )
-    print(format_run_states(records))
+    selected, args = parse_selected_command(config_path, command)
+    if selected != command:
+        print(f"Input-selected operation: {selected}")
+    print(format_config(args, command=selected))
     return 0
 
 

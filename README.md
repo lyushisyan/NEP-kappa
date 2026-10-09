@@ -114,9 +114,10 @@ include every higher-order anharmonic correction.
 
 The `scph` route produces **auxiliary harmonic FC2**, not a free-energy Hessian
 or a full dynamic phonon spectrum. Optional `scph.bubble: true` adds a separate
-**input-FC3, diagonal on-shell bubble frequency correction**. For existing SSCHA
-results, run `nepkappa stage bubble input.yaml` without repeating the sampling. This
-does not update FC2 or thermal conductivity; it is not the full ensemble-vertex
+**input-FC3, diagonal on-shell bubble frequency correction**. Enable it in the
+SSCHA input; an explicit custom `workflow.steps: [bubble]` can process existing
+results without repeating the sampling. This does not update FC2 or thermal
+conductivity; it is not the full ensemble-vertex
 SSCHA spectral method. See [bubble settings and limits](docs/source/input_files.rst).
 `qha-sscha` means **SSCHA at QHA
 equilibrium volumes**, not addition of frequencies or conductivities. It does
@@ -129,13 +130,18 @@ recorded in new summaries and displayed by `nepkappa report`.
 | --- | --- |
 | `nepkappa info input.yaml` | Check input settings and show the parsed workflow |
 | `nepkappa run input.yaml` | Run the selected workflow |
-| `nepkappa stage fc2 input.yaml` | Run only the selected calculation stage |
-| `nepkappa status input.yaml` | Inspect stored job state and the Slurm queue |
+| `nepkappa relax input.yaml` | Relax the structure |
+| `nepkappa fc2 input.yaml` | Generate FC2 |
+| `nepkappa fc2fc3 input.yaml` | Generate FC2 and FC3 |
+| `nepkappa qha input.yaml` | Run the QHA volume scan |
+| `nepkappa kappa input.yaml` | Compute conductivity using the input-selected route |
+| `nepkappa tdbte input.yaml` | Run time-dependent BTE from a dynamic input |
 | `nepkappa plot input.yaml` | Plot FC2 harmonic properties; add transport panels when available |
 | `nepkappa report input.yaml` | Write a result summary |
 
-Use `nepkappa stage --help` to see the available stages. A single stage can
-reuse existing force constants without restarting the full workflow.
+`kappa` selects phono3py, FourPhonon, QHA-volume transport, or QHA-volume
+SSCHA transport from the input. `qha` runs the QHA scan; `run` executes the
+complete sequence, including FC4 when four-phonon transport is enabled.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
@@ -200,8 +206,8 @@ QHA 体积上的 SSCHA、三/四声子、Wigner 和含时 BTE 的入口见
 
 ## Time-dependent BTE
 
-The package provides `nepkappa stage tdbte input.yaml`, or the
-custom workflow stage `tdbte`, for homogeneous fixed-frequency phonon occupation
+The package provides `nepkappa tdbte examples/tdbte.yaml` (or `run` with the
+same dynamic input) for homogeneous fixed-frequency phonon occupation
 dynamics. Use [tdbte.yaml](examples/tdbte.yaml) and the
 [TD-BTE guide](docs/source/tdbte.rst). Supply a directory containing matching
 `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, a `tdbte.mesh`, and the excitation.

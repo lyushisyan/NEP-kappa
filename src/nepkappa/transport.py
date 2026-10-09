@@ -72,7 +72,7 @@ class Phono3pyTransportWorkflow:
             paths = ", ".join(str(path) for path in missing)
             raise FileNotFoundError(
                 f"Missing required phono3py file(s): {paths}. "
-                "Run `nepkappa stage fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
+                "Run `nepkappa fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
                 f"and {self.disp_path.name} in {self.output_dir}."
             )
 

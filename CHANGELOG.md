@@ -2,12 +2,15 @@
 
 ## Unreleased
 
+- Expose ten direct commands: ``info``, ``run``, ``relax``, ``fc2``,
+  ``fc2fc3``, ``qha``, ``kappa``, ``tdbte``, ``plot``, and ``report``.
+  The input selects the transport backend and temperature-coupled route.
 - Keep ``nepkappa info`` as the sole input-inspection command; it checks and
   displays the selected workflow. Remove the ``init`` and ``validate`` CLI
   commands; copy an example YAML to start a new input.
-- Simplify the CLI to six top-level commands. Individual calculations use
-  ``nepkappa stage <name> input.yaml``; retired direct-stage, comparison, and
-  convergence commands are no longer accepted.
+- Remove the ``stage`` and ``status`` command entries. Earlier direct-stage,
+  comparison, and convergence commands beyond the ten listed above are no
+  longer accepted.
 - Add a stage-first ``workflow.stages`` interface with per-stage method and
   feature choices. Static inputs now use six sections with QHA, SSCHA, and
   four-phonon switches inside ``force-constant``. TD-BTE uses a separate ``tdbte``/``output``

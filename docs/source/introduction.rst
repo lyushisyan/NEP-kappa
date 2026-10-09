@@ -45,7 +45,7 @@ transport). These approximations have their own convergence requirements.
 Execution and analysis
 ------------------------
 
-``run`` executes a preset or custom stage list. Individual stage commands reuse
+``run`` executes a preset or custom stage list. Direct calculation commands reuse
 existing results. Slurm submission is available for force arrays, LBTE, and
 FourPhonon.
 Cached force jobs are reused only when their recorded inputs match.

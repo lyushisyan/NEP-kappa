@@ -11,9 +11,9 @@ A normal three-phonon workflow is equivalent to:
 
 .. code-block:: bash
 
-   nepkappa stage relax input.yaml
-   nepkappa stage fc2fc3 input.yaml
-   nepkappa stage kappa input.yaml
+   nepkappa relax input.yaml
+   nepkappa fc2fc3 input.yaml
+   nepkappa kappa input.yaml
 
 Plot and summarize completed results separately:
 
@@ -118,13 +118,18 @@ request both channels:
      preset: custom
      steps: [fc2fc3, kappa, fc4, kappa4]
 
-The ``kappa`` stage computes pure three-phonon transport. ``kappa4`` computes
-combined three-plus-four-phonon transport. The ``four-phonon`` preset runs the
+These are internal plan steps: ``kappa`` computes pure three-phonon transport,
+while ``kappa4`` computes combined three-plus-four-phonon transport. The public
+``nepkappa kappa`` command selects the route from the input. A custom plan
+containing both transport steps must be executed with ``nepkappa run``. The
+``four-phonon`` preset runs the
 combined route but does not independently add a pure-three-phonon reference.
 
 Thirdorder/Fourthorder and FourPhonon executables are additional prerequisites.
-For existing ShengBTE-format IFCs, use ``nepkappa stage kappa4 input.yaml``;
-for FC4 alone, use ``nepkappa stage fc4 input.yaml`` after configuring the input.
+For existing ShengBTE-format IFCs, use ``nepkappa kappa input.yaml``
+with a FourPhonon input. FC4 is generated as part of ``nepkappa run`` when
+four-phonon transport is enabled. An advanced custom input can select only
+the internal ``fc4`` step through ``nepkappa run``.
 The three retained 3ph+4ph templates demonstrate RTA/RTA, LBTE/RTA, and
 LBTE/LBTE choices.
 Auto-generated CONTROL files disable non-analytic corrections; a calculation
@@ -150,8 +155,9 @@ QHA and QHA-volume SSCHA
 Run a configured template with ``nepkappa run examples/<name>.yaml``.
 The coupled route regenerates force constants at each QHA volume, which stays
 fixed during SSCHA. Exported FC2 is the auxiliary harmonic matrix.
-``scph.bubble: true`` writes separate input-FC3 diagonal on-shell shifts;
-``nepkappa stage bubble input.yaml`` applies this step to existing SSCHA results.
+``scph.bubble: true`` writes separate input-FC3 diagonal on-shell shifts.
+An explicit custom plan with ``workflow.steps: [bubble]`` applies this step to
+existing SSCHA results through ``nepkappa run input.yaml``.
 Neither operation updates the conductivity with bubble corrections.
 See :doc:`input_files` for the method's limits.
 
@@ -162,8 +168,8 @@ SSCHA requires converged supercells, snapshot counts, iterations, transient
 iterations, and sampling mesh. Temperature-specific results are stored in the
 configured ``phonopy-sscha`` work directory.
 
-The public ``scph`` command remains available for custom fixed-volume SSCHA
-inputs, but this catalog does not include a standalone SSCHA example. In the
+Custom fixed-volume SSCHA inputs can still use ``nepkappa run``, but this catalog
+does not include a standalone SSCHA example. In the
 coupled six-section input, enable the nested QHA and SSCHA settings:
 
 .. code-block:: yaml
@@ -196,7 +202,7 @@ when generating NEP-kappa-managed scripts for inspection.
 ``info`` only inspects configuration. Executing a stage with
 ``submit: false`` may perform preparation before writing scripts. A complete
 workflow may also run earlier local stages. After reviewing generated scripts,
-set ``submit: true`` to submit and inspect with ``nepkappa status input.yaml``.
+set ``submit: true`` to submit and inspect the jobs with the site's Slurm tools.
 Force-array collection jobs continue the remaining workflow when supported.
 
 Plot existing results
@@ -243,7 +249,8 @@ Time-dependent BTE
 --------------------------------
 
 Use ``examples/tdbte.yaml`` with matching FC2/FC3 and phono3py metadata. Set
-``tdbte.force-constants``, ``mesh`` and the excitation, then validate with
-``--for tdbte``. The stage builds a kernel and solves it in disk-backed chunks;
+``tdbte.force-constants``, ``mesh`` and the excitation, then check with
+``nepkappa info input.yaml``. ``nepkappa tdbte input.yaml`` builds a kernel and
+solves it in disk-backed chunks;
 physical relaxation-rate validation remains separate from numerical audits.
 See :doc:`tdbte` for excitation definitions, numerical audits, and outputs.

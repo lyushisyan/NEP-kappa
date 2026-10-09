@@ -53,11 +53,12 @@ request to reuse existing results into one that regenerates force constants.
   three temperatures. Check the step is positive and the range is ordered even
   if an installed parser only checks length. Read the relevant section before
   applying temperature conventions to QHA, SCPH, or FourPhonon.
-- `kappa` needs `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5` in the result
-  directory. FC2/FC3 export must be `phono3py` or `both` if generation precedes
-  this stage. FourPhonon uses ShengBTE-format force constants; FC4 generation
-  alone does not calculate four-phonon thermal conductivity.
-- With relaxation enabled, stage-only `fc2`/`fc2fc3` expects
+- Phono3py `kappa` needs `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5` in
+  the result directory. FC2/FC3 export must be `phono3py` or `both` for that
+  route. A FourPhonon input makes the same `nepkappa kappa` command use
+  ShengBTE-format force constants; FC4 generation alone does not calculate
+  four-phonon thermal conductivity.
+- With relaxation enabled, direct `fc2`/`fc2fc3` expects
   `POSCAR_relaxed` in the result directory. It is a future output when `relax`
   precedes these stages in the full plan.
 - External ASE/plugin calculators, including MACE, support relaxation through

@@ -48,17 +48,16 @@ The QHA, SSCHA, and four-phonon switches are inside ``force-constant``.
 For time-dependent BTE, start from ``examples/tdbte.yaml``; it uses only
 ``tdbte`` and ``output`` sections.
 
-For analysis or restarts, use a stage command instead:
+For analysis or restarts, use the direct calculation command:
 
 .. code-block:: bash
 
    nepkappa info input.yaml --for kappa
-   nepkappa stage kappa input.yaml
+   nepkappa kappa input.yaml
 
-This recalculates transport from existing matching FC2, FC3, and phono3py
-metadata. See :doc:`tutorial` for stage prerequisites, QHA/SSCHA, and Slurm.
+This selects the transport route from the input and reuses its matching
+prerequisites. See :doc:`tutorial` for QHA/SSCHA and Slurm.
 
 ``info`` checks supported settings; it does not test model accuracy or
-external executables. ``nepkappa status input.yaml`` reads saved submission
-state and, where available, Slurm queue state. For a traceback, put ``--debug``
-before the command.
+external executables. Use the site's scheduler tools to inspect submitted jobs.
+For a traceback, put ``--debug`` before the command.

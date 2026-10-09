@@ -53,7 +53,7 @@ load a force calculator. Physical-rate and convergence validation remain separat
 from its numerical conservation checks.
 
 ``scheduler.py`` and ``slurm.py`` manage batch submission. ``run_state.py``
-records deferred execution; ``status`` can combine it with live queue state.
+records deferred execution; Slurm tools can inspect live queue state.
 ``artifacts.py`` stores force-job outputs and cache identities, and
 ``provenance.py`` records input hashes, versions, timings, and outputs.
 

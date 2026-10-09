@@ -257,57 +257,50 @@ When ``force-constants.orders`` includes 4, the default export format becomes
 finishes, any following analysis stages resume from the completed transport
 stage. Inspect the generated job script before submission.
 
-The following commands expose individual stages for advanced use:
+The public commands are:
 
 .. code-block:: bash
 
-   nepkappa stage relax input.yaml
-   nepkappa stage fc2 input.yaml
-   nepkappa stage fc2fc3 input.yaml
-   nepkappa stage fc4 input.yaml
-   nepkappa stage qha input.yaml
-   nepkappa stage scph input.yaml
-   nepkappa stage bubble input.yaml
-   nepkappa stage qha-sscha input.yaml
-   nepkappa stage tdbte input.yaml
-   nepkappa stage kappa input.yaml
-   nepkappa stage kappa4 input.yaml
-   nepkappa plot input.yaml
    nepkappa info input.yaml
-   nepkappa report calculations/runs/calculation
+   nepkappa run input.yaml
+   nepkappa relax input.yaml
+   nepkappa fc2 input.yaml
+   nepkappa fc2fc3 input.yaml
+   nepkappa qha input.yaml
+   nepkappa kappa input.yaml
+   nepkappa tdbte input.yaml
+   nepkappa plot input.yaml
+   nepkappa report input.yaml
 
-- ``nepkappa stage relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
-- ``nepkappa stage fc2`` generates ``phono3py_disp.yaml`` and ``fc2.hdf5`` only.
-- ``nepkappa stage fc2fc3`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
-- ``nepkappa stage fc4`` generates FourPhonon ``FORCE_CONSTANTS_4TH`` using ``Fourthorder_vasp.py``.
-- ``nepkappa stage qha`` computes isotropic quasi-harmonic thermal properties over a volume scan.
-- ``nepkappa stage scph`` runs Phonopy stochastic SSCHA.
-- ``nepkappa stage qha-sscha`` runs SSCHA at volumes interpolated from a completed QHA fit.
-- ``nepkappa stage kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
-- ``nepkappa stage kappa4`` runs FourPhonon with existing ShengBTE-format force constants.
-- ``nepkappa plot`` creates harmonic plots from FC2 and matching metadata, adding transport panels when compatible conductivity data exist.
-- ``nepkappa stage bubble`` postprocesses completed SSCHA results with diagonal on-shell frequency shifts; it does not update transport.
-- ``nepkappa stage tdbte`` builds a kernel from matching force constants and a q mesh,
-  or reuses a kernel, then evolves populations in chunks. Numerical audits do
-  not independently validate physical relaxation rates.
-- ``nepkappa report`` writes ``report.yaml`` and ``report.md`` from an existing result tree.
-- ``nepkappa run`` expands and executes the selected workflow preset. Without a
-  ``workflow`` section it preserves the legacy ``relax`` + ``fc2fc3`` +
-  ``kappa`` behavior.
 - ``nepkappa info`` checks and prints the parsed configuration without running a calculation.
+- ``nepkappa run`` executes the complete input-selected workflow, including FC4,
+  SSCHA, and bubble steps when enabled.
+- ``nepkappa relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
+- ``nepkappa fc2`` generates ``phono3py_disp.yaml`` and ``fc2.hdf5`` only.
+- ``nepkappa fc2fc3`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa qha`` computes isotropic quasi-harmonic thermal properties over a volume scan.
+- ``nepkappa kappa`` selects phono3py, FourPhonon, QHA-volume, or QHA-volume
+  SSCHA transport from the input and reuses the appropriate earlier results.
+- ``nepkappa tdbte`` builds or reuses a kernel from the separate dynamic input
+  and evolves populations in chunks.
+- ``nepkappa plot`` creates harmonic plots from FC2 and matching metadata, adding transport panels when compatible conductivity data exist.
+- ``nepkappa report`` writes ``report.yaml`` and ``report.md`` from an existing result tree.
 
-``nepkappa stage fc2fc3`` computes and writes FC2 first, then starts the FC3
+The four-phonon route generates FC4 during ``nepkappa run``. The dynamic input
+can use either ``nepkappa tdbte`` or ``nepkappa run``. Internal step names in
+an advanced ``workflow.steps`` plan are not separate CLI commands.
+
+``nepkappa fc2fc3`` computes and writes FC2 first, then starts the FC3
 displacement, force, and export stage.
 
-When ``relaxation.enabled`` is ``true``, ``nepkappa stage fc2`` and
-``nepkappa stage fc2fc3`` read
-``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa stage relax`` first, or
+When ``relaxation.enabled`` is ``true``, ``nepkappa fc2`` and
+``nepkappa fc2fc3`` read
+``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa relax`` first, or
 use ``nepkappa run``.
 
-Configuration validation is command-aware. For example, ``nepkappa stage scph``
-validates its calculator, structure, and ``scph`` sections, while
-``nepkappa stage kappa`` validates transport settings without requiring QHA or
-force-generation settings to be complete.
+Configuration validation is command-aware. For example, ``nepkappa fc2fc3``
+checks its calculator and force-constant settings, while ``nepkappa kappa``
+checks the transport route selected by the input.
 
 Finite-displacement FC2/FC3 and HiPhive force evaluations are resumable. NEP
 and external ASE force jobs are stored in
@@ -328,7 +321,7 @@ results belong in the ignored ``calculations/`` directory.
 ``fourphonon``
 ----------------
 
-``nepkappa stage kappa4`` stages ShengBTE-format ``FORCE_CONSTANTS_2ND``,
+With a FourPhonon input, ``nepkappa kappa`` stages ShengBTE-format ``FORCE_CONSTANTS_2ND``,
 ``FORCE_CONSTANTS_3RD``, and ``FORCE_CONSTANTS_4TH`` and runs FourPhonon.
 Set ``harmonic-format: espresso`` when the harmonic input is an official
 ``espresso.ifc2`` file; this mode requires a matching custom ``CONTROL``.
@@ -720,10 +713,9 @@ arrays. Set it to ``false`` to write full supercell force-constant arrays.
   ``FORCE_CONSTANTS_3RD``
 - ``both``: write both phono3py HDF5 files and ShengBTE text files
 
-The current ``nepkappa stage kappa`` command reads phono3py HDF5 files. Use
-``format: phono3py`` or ``format: both`` when the next stage is
-``nepkappa stage kappa``. Use ``format: shengbte`` when the next stage is a
-ShengBTE/FourPhonon workflow.
+For phono3py transport, ``nepkappa kappa`` reads FC2/FC3 HDF5 files, so use
+``format: phono3py`` or ``format: both``. For FourPhonon transport, use
+``format: shengbte`` or ``format: both`` and provide matching FC4.
 
 For native phono3py FC3, ``cutoff-fc3`` is an optional displaced-pair
 distance cutoff in Angstrom. For ``fc3-backend: thirdorder``, the same
@@ -753,7 +745,7 @@ Thirdorder FC3 route:
      fc3-workdir: fc3-thirdorder-runs
      format: shengbte
 
-With ``fc3-backend: thirdorder``, ``nepkappa stage fc2fc3`` generates FC2 first,
+With ``fc3-backend: thirdorder``, ``nepkappa fc2fc3`` generates FC2 first,
 runs ``thirdorder_vasp.py sow``, evaluates every ``3RD.POSCAR.*`` structure,
 and passes the ordered XML list to ``thirdorder_vasp.py reap``. VASP jobs keep
 their native ``vasprun.xml`` files. NEP jobs write a minimal force-only XML
@@ -771,7 +763,8 @@ FourPhonon FC4 route:
      fourthorder-command: Fourthorder_vasp.py
      fc4-workdir: fc4-runs
 
-``nepkappa stage fc4`` runs ``Fourthorder_vasp.py sow`` in
+When four-phonon work is enabled, ``nepkappa run`` calls
+``Fourthorder_vasp.py sow`` in
 ``output.result_dir/fc4-workdir``, calculates forces for every generated
 ``4TH.POSCAR.*`` structure with VASP, NEP, or an external ASE/plugin calculator, and pipes the resulting XML list
 into ``Fourthorder_vasp.py reap``. VASP supplies native ``vasprun.xml`` files;
@@ -934,18 +927,20 @@ Add these keys to the existing ``scph`` section (do not create a second section)
      bubble-epsilons: [0.05, 0.1]  # THz, principal-value regularization
      # bubble-grid-points: [0]    # Optional phono3py BZ grid indices for a pilot
 
-``nepkappa run input.yaml`` / ``nepkappa stage scph input.yaml`` applies the correction
-after each SSCHA temperature when ``bubble`` is true. To reuse already completed
-SSCHA results without evaluating an ASE calculator or running transport:
+``nepkappa run input.yaml`` applies the correction after each SSCHA
+temperature when ``bubble`` is true. An advanced custom input can select only
+the internal ``bubble`` step to reuse completed SSCHA results without
+resampling:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-   nepkappa info input.yaml --for bubble
-   nepkappa stage bubble input.yaml
-   nepkappa report input.yaml
+   workflow:
+     preset: custom
+     steps: [bubble]
 
-The explicit ``bubble`` command runs postprocessing regardless of the automatic
-``scph.bubble`` switch. It uses ``scph.temps`` and ``scph.workdir`` to locate
+Use ``nepkappa info input.yaml`` followed by ``nepkappa run input.yaml`` with
+that separate custom input. The internal bubble step uses ``scph.temps`` and
+``scph.workdir`` to locate
 ``T####K/fc2.hdf5``, ``phonopy_sscha.yaml``, and a completed ``summary.yaml``.
 The usual ``scph.transport-metadata`` and ``scph.transport-fc3`` overrides select
 matching phono3py metadata and FC3, otherwise those files are taken from
@@ -1013,9 +1008,9 @@ alias for ``qha-sscha.three-phonon`` when the new switch is omitted.
 Here FC2 is explicitly SSCHA-renormalized, whereas FC3 and FC4 are regenerated
 at the QHA equilibrium volume but are not themselves temperature-renormalized.
 
-The full ``scph`` preset expands to ``fc2fc3 -> scph``. Use
-``nepkappa stage scph input.yaml`` with explicit existing file paths to reuse a
-completed harmonic calculation. ``snapshots``, ``iterations``, ``transient``,
+The full ``scph`` preset expands to ``fc2fc3 -> scph``. An advanced custom
+input can select ``workflow.steps: [scph]`` to reuse an existing harmonic
+calculation through ``nepkappa run``. ``snapshots``, ``iterations``, ``transient``,
 supercell size, and the fitting mesh all require convergence testing.
 
 ``qha-sscha`` first runs QHA, interpolates the equilibrium primitive-cell
@@ -1092,7 +1087,7 @@ and redirects are not interpreted.
 Distributed LBTE with Slurm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The normal ``nepkappa stage kappa`` command can submit an LBTE calculation split over
+The normal ``nepkappa kappa`` command can submit an LBTE calculation split over
 irreducible grid points:
 
 .. code-block:: yaml

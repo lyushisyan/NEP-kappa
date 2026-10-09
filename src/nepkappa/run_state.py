@@ -88,7 +88,7 @@ def discover_run_states(output_dir, *, scheduler=None):
 
 
 def format_run_states(records):
-    """Format run-state records for the terminal status command."""
+    """Format stored and live scheduler run-state records."""
     if not records:
         return "No scheduler submissions were found."
     lines = []
