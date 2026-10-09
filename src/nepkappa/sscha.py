@@ -76,7 +76,7 @@ class PhonopySSCHAWorkflow:
         initial_fc2 = self._initial_fc2_path()
         if not initial_fc2.is_file():
             raise FileNotFoundError(
-                f"Initial FC2 not found: {initial_fc2}. Run `nepkappa fc2` first, "
+                f"Initial FC2 not found: {initial_fc2}. Run `nepkappa stage fc2` first, "
                 "or set scph.initial-fc2."
             )
         print("\n[Phonopy SSCHA] Stochastic self-consistent harmonic approximation")

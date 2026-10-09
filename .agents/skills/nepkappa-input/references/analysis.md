@@ -42,8 +42,7 @@ calculation. Imaginary modes require a stability warning, not absolute values
 or a claim of stable thermodynamics. A visually dense band path does not
 establish q-mesh convergence.
 
-Comparison uses the intersection of supported figures across datasets. The
-publication Figure1–6 scripts are separate research tools: do not promise that
+The publication Figure1–6 scripts are separate research tools: do not promise that
 `nepkappa plot` reproduces their custom panels, Wigner bubbles, pair-frequency
 maps, or TD-BTE snapshots. Check the plotting API before promising arbitrary
 panel-selection keys; `layout` controls arrangement, not a figure whitelist.

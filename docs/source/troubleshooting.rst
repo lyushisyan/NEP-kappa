@@ -15,8 +15,7 @@ Run from the same launch directory and Python environment used for the job:
 Replace ``kappa`` with the intended stage. Inspect ``run.log`` and the Slurm
 job's stdout/stderr. ``nepkappa --debug <command> input.yaml`` executes the
 command and prints a traceback on failure. ``validate`` and ``info`` do not
-execute calculations. Compare/convergence inputs have separate parsers;
-see :doc:`input_assistant`.
+execute calculations.
 
 Missing files or unexpected defaults
 --------------------------------------

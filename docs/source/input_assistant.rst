@@ -92,9 +92,6 @@ assumptions, and validation status. For a complete workflow it uses:
    nepkappa info input.yaml --for run
 
 Stage-only inputs use the corresponding target, such as ``--for kappa``.
-Comparison and convergence inputs use their separate Python parsers as
-described in the skill; they are not supported ``validate --for`` targets.
-
 Validation checks the configuration, not model accuracy or numerical convergence.
 File and environment checks are reported separately. Preparing an input does
 not submit a calculation.

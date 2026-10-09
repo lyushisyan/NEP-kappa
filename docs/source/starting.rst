@@ -44,9 +44,6 @@ The initializer writes the six-section static format shown in
 
 Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
 directory. To work elsewhere, use suitable relative paths or absolute paths.
-Convergence study ``base`` and ``study.directory`` are exceptions: they resolve
-from the study YAML's directory.
-
 For scripts, create a non-interactive input:
 
 .. code-block:: bash
@@ -73,7 +70,7 @@ For analysis or restarts, use a stage command instead:
 .. code-block:: bash
 
    nepkappa validate input.yaml --for kappa
-   nepkappa kappa input.yaml
+   nepkappa stage kappa input.yaml
 
 This recalculates transport from existing matching FC2, FC3, and phono3py
 metadata. See :doc:`tutorial` for stage prerequisites, QHA/SSCHA, and Slurm.

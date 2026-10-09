@@ -8,8 +8,8 @@ parser and input documentation for exact accepted fields and version changes.
 
 | Request | Starting point in `examples/` | Intended command |
 | --- | --- | --- |
-| VASP harmonic FC2 and phonon plots | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `relax`, `fc2`, `plot` |
-| VASP QHA only | Adapt a six-section input with `force-constant.qha` settings | `qha` |
+| VASP harmonic FC2 and phonon plots | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `stage relax`, `stage fc2`, `plot` |
+| VASP QHA only | Adapt a six-section input with `force-constant.qha` settings | `stage qha` |
 | VASP 3ph RTA | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `run` |
 | NEP 3ph RTA + Wigner | `nep-rta-wigner-3ph.yaml` | `run` |
 | NEP 3ph LBTE + Wigner | `nep-lbte-wigner-3ph.yaml` | `run` |
@@ -20,7 +20,7 @@ parser and input documentation for exact accepted fields and version changes.
 | 3ph LBTE + 4ph RTA | `nep-lbte-3ph-rta-4ph.yaml` | `run` |
 | 3ph LBTE + 4ph LBTE | `nep-lbte-3ph-lbte-4ph.yaml` | `run` |
 | Existing FC2 / transport plots | Minimal plotting sections; see `references/analysis.md` | `plot` |
-| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `tdbte` or `run` |
+| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `stage tdbte` or `run` |
 
 The public catalog is limited to these nine static inputs and TD-BTE. Other
 supported calculations can use a copied six-section input with changed settings;
@@ -28,7 +28,7 @@ do not refer to removed example filenames. Site-specific Slurm resources belong
 in an external batch script or optional top-level `parallel` settings.
 
 For existing FC2/FC3 transport, adapt only the necessary settings from a
-transport example and use `kappa`. For harmonic-only generation use `fc2`.
+transport example and use `stage kappa`. For harmonic-only generation use `stage fc2`.
 For plotting existing outputs use `plot`. Do not let a copied preset change a
 request to reuse existing results into one that regenerates force constants.
 
@@ -105,52 +105,3 @@ request to reuse existing results into one that regenerates force constants.
   distinct `parallel` sections. Use the corresponding example; check MPI
   processes and OpenMP threads agree with the requested allocation. Ask for
   missing site-specific settings.
-
-## Comparison inputs
-
-Comparison YAML has `datasets`, `compare`, and `plot` sections (with optional
-geometry). `datasets` lists labels and result directories. Harmonic comparison
-needs `fc2.hdf5` and compatible phonon metadata in each directory; transport
-figures additionally need compatible `kappa-m*.hdf5`. Only figures supported
-by every dataset are drawn. Inspect files and mesh selection before promising
-scattering or conductivity comparisons. It is not a normal workflow YAML.
-
-Neither `validate --for compare` nor `info --for compare` is supported.
-Use the installed package's read-only parser with the matching Python:
-
-```bash
-python -c 'import sys; from nepkappa.config import parse_compare_args; parse_compare_args(sys.argv[1]); print("Comparison configuration parsed successfully")' compare.yaml
-```
-
-Do not invoke `nepkappa compare` just to validate: it writes plots and results.
-
-## Convergence-study inputs
-
-Use `base`, `parameter`, `values`, and `study`, following the convergence
-example. `base` and `study.directory` resolve relative to the **study YAML's
-directory**. Paths inside the base workflow still use the launch directory.
-Make this explicit when the input and study files are in different folders.
-
-The swept dotted parameter must already exist in the base YAML. There must
-be at least two distinct values. Set `study.execute: false` for input-only
-preparation unless the user explicitly requests execution.
-
-Neither `validate --for converge` nor `info --for converge` is supported.
-Use the matching Python environment:
-
-```bash
-python -c 'import sys; from nepkappa.convergence import parse_convergence_args; parse_convergence_args(sys.argv[1]); print("Study configuration parsed successfully")' converge.yaml
-```
-
-This parser checks the study structure and base-file existence, but does not
-validate the dotted path or all generated workflows. Read the base YAML and
-verify the path exists; follow the parser's hyphen/underscore normalization.
-For full input validation, substitute each value into a temporary copy of the
-base and run workflow validation for the intended command from the same
-launch directory. Do not alter the original base during these checks.
-
-Do not use `nepkappa converge` as a read-only validator: even with
-`execute: false`, it creates case inputs and analysis outputs. Run it only
-when the user's request includes preparing the study outputs or execution.
-The last configured value is the comparison reference; do not present it as
-the exact physical answer or claim convergence from incomplete calculations.

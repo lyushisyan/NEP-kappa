@@ -597,7 +597,7 @@ class NEPPhononWorkflow:
             if not self.relaxed_poscar_path.exists():
                 raise FileNotFoundError(
                     f"Relaxed structure not found: {self.relaxed_poscar_path}. "
-                    "Run `nepkappa relax` first, or use `nepkappa run` for the full workflow."
+                    "Run `nepkappa stage relax` first, or use `nepkappa run` for the full workflow."
                 )
             print(f"  - Reading relaxed structure from {self.relaxed_poscar_path}")
             self.prim = read(str(self.relaxed_poscar_path))

@@ -50,8 +50,8 @@ existing results. Slurm submission is available for force arrays, LBTE, and
 FourPhonon.
 Cached force jobs are reused only when their recorded inputs match.
 
-``plot`` and ``compare`` read existing results. ``converge`` prepares parameter
-sweeps. ``report`` collects results and recorded calculation settings.
+``plot`` reads existing results, while ``report`` collects results and recorded
+calculation settings.
 
 Time-dependent dynamics
 -----------------------

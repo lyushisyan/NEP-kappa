@@ -11,9 +11,9 @@ A normal three-phonon workflow is equivalent to:
 
 .. code-block:: bash
 
-   nepkappa relax input.yaml
-   nepkappa fc2fc3 input.yaml
-   nepkappa kappa input.yaml
+   nepkappa stage relax input.yaml
+   nepkappa stage fc2fc3 input.yaml
+   nepkappa stage kappa input.yaml
 
 Plot and summarize completed results separately:
 
@@ -123,8 +123,8 @@ combined three-plus-four-phonon transport. The ``four-phonon`` preset runs the
 combined route but does not independently add a pure-three-phonon reference.
 
 Thirdorder/Fourthorder and FourPhonon executables are additional prerequisites.
-For existing ShengBTE-format IFCs, use ``nepkappa kappa4 input.yaml``;
-for FC4 alone, use ``nepkappa fc4 input.yaml`` after configuring the input.
+For existing ShengBTE-format IFCs, use ``nepkappa stage kappa4 input.yaml``;
+for FC4 alone, use ``nepkappa stage fc4 input.yaml`` after configuring the input.
 The three retained 3ph+4ph templates demonstrate RTA/RTA, LBTE/RTA, and
 LBTE/LBTE choices.
 Auto-generated CONTROL files disable non-analytic corrections; a calculation
@@ -151,7 +151,7 @@ Run a configured template with ``nepkappa run examples/<name>.yaml``.
 The coupled route regenerates force constants at each QHA volume, which stays
 fixed during SSCHA. Exported FC2 is the auxiliary harmonic matrix.
 ``scph.bubble: true`` writes separate input-FC3 diagonal on-shell shifts;
-``nepkappa bubble input.yaml`` applies this step to existing SSCHA results.
+``nepkappa stage bubble input.yaml`` applies this step to existing SSCHA results.
 Neither operation updates the conductivity with bubble corrections.
 See :doc:`input_files` for the method's limits.
 
@@ -198,33 +198,6 @@ when generating NEP-kappa-managed scripts for inspection.
 workflow may also run earlier local stages. After reviewing generated scripts,
 set ``submit: true`` to submit and inspect with ``nepkappa status input.yaml``.
 Force-array collection jobs continue the remaining workflow when supported.
-
-Compare models and test convergence
--------------------------------------
-
-To compare results, prepare a separate comparison YAML with two or more
-labeled result directories. Each must provide matching phonon metadata and FC2. Transport comparisons also
-need compatible conductivity files; otherwise only shared harmonic panels are
-drawn. Then:
-
-.. code-block:: bash
-
-   nepkappa compare compare.yaml
-
-For a mesh sweep, create a convergence input and set its ``base``.
-``base`` and ``study.directory`` resolve relative to the study YAML; paths
-inside the base workflow still resolve from the launch directory.
-The swept dotted key must already exist in the base input.
-
-.. code-block:: bash
-
-   nepkappa converge converge.yaml
-
-With ``study.execute: false`` this writes case inputs and analysis without
-running simulations. After inspection, enable execution to run the cases.
-Once complete, set it back to false and repeat for the CSV, figure, and summary.
-Errors are measured relative to the last configured case. All cases must be
-complete before convergence can be assessed.
 
 Plot existing results
 -----------------------------------------------------

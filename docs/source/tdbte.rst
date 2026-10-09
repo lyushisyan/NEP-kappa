@@ -39,7 +39,7 @@ From the launch directory::
 
 ``nepkappa run input.yaml`` automatically selects the dynamic TD-BTE route
 when the file contains ``tdbte`` and ``output`` sections only.
-``nepkappa tdbte input.yaml`` runs the same stage. Validation checks options without constructing a kernel
+``nepkappa stage tdbte input.yaml`` runs the same stage. Validation checks options without constructing a kernel
 or starting integration; file contents are checked at execution. Relative
 paths resolve from the launch directory, not from the YAML file.
 ``examples/tdbte.yaml`` is the complete template. Its mesh is a starting value,

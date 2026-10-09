@@ -33,8 +33,8 @@ phono3py metadata; see [the TD-BTE guide](../docs/source/tdbte.rst).
 
 The static inputs have six sections: `structure`, `calculator`,
 `force-constant`, `kappa`, `plot`, and `output`. To run only one stage from a
-six-section file, use `nepkappa fc2`, `nepkappa fc2fc3`, or `nepkappa qha`.
-If `structure.relaxation: true`, run `nepkappa relax` before a standalone
+six-section file, use `nepkappa stage fc2`, `nepkappa stage fc2fc3`, or `nepkappa stage qha`.
+If `structure.relaxation: true`, run `nepkappa stage relax` before a standalone
 force-constant command. The 4ph inputs set
 `kappa.method-3ph` and `kappa.method-4ph` separately. FourPhonon supports
 RTA/RTA, LBTE/RTA, and LBTE/LBTE; 3ph RTA with 4ph LBTE is unavailable.

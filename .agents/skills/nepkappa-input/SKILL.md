@@ -1,6 +1,6 @@
 ---
 name: nepkappa-input
-description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, SSCHA, QHA+SSCHA, existing-result plotting (including FC2-only), comparison, convergence studies, and time-dependent BTE. Use when turning calculation or plotting requirements into inputs or diagnosing input errors; preparing an input does not start calculations.
+description: Prepare, edit, explain, and validate NEP-kappa YAML inputs for phonons, thermal transport, QHA, SSCHA, QHA+SSCHA, existing-result plotting (including FC2-only), and time-dependent BTE. Use when turning calculation or plotting requirements into inputs or diagnosing input errors; preparing an input does not start calculations.
 ---
 
 # NEP-kappa input assistant
@@ -67,9 +67,9 @@ Place optional Slurm/MPI/OpenMP settings in top-level `parallel.force-constant`
 or `parallel.kappa` rather than lengthening the scientific sections. For QHA
 thermal expansion to affect 3ph RTA, use `kappa.qha-volumes: true`; this runs
 FC2/FC3 and transport anew at each target QHA volume.
-For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
-six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
-first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
+For a VASP harmonic calculation, use `nepkappa stage fc2` on a suitable VASP
+six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa stage relax`
+first if `structure.relaxation: true`; `nepkappa stage fc2fc3` computes both force
 constant orders without invoking transport.
 Advanced stage-first `workflow.stages` inputs remain valid even though the
 public catalog has nine static workflows. Existing `workflow.preset` and
@@ -99,11 +99,11 @@ values, and keep essential unresolved fields visible in a labeled draft.
 Use a distinct output directory when changing the material or study.
 
 Ordinary input paths resolve from the **launch directory**, not the YAML
-location. Convergence `base` and `study.directory` resolve from the study YAML.
+location.
 State the launch directory in the handoff.
 
-Use `submit: false` / `study.execute: false` for input-only drafts, while
-preserving separately authorized execution and explicit user settings.
+Use `submit: false` for input-only drafts, while preserving separately
+authorized execution and explicit user settings.
 For ordinary inputs, validate the intended command without computing:
 
 ```bash
@@ -112,8 +112,7 @@ nepkappa info input.yaml --for run
 ```
 
 Replace `run` with the actual stage (`fc2fc3`, `kappa`, `kappa4`, `qha`,
-`scph`, `qha-sscha`, `tdbte`, or `plot`) for stage-only inputs. Comparison/convergence
-use separate read-only parsers shown in the workflow reference. `report` and
+`scph`, `qha-sscha`, `tdbte`, or `plot`) for stage-only inputs. `report` and
 `status` inspect results, not alternate YAML schemas.
 
 Repair the reported cause and repeat failed checks without dropping requested
@@ -123,7 +122,7 @@ If the CLI is unavailable, state which checks could not run; do not install
 large simulation dependencies solely to validate a draft.
 
 Preparing an input does not itself authorize calculations. Do not invoke `run`,
-`converge`, `compare`, `plot`, `tdbte`, `sbatch`, or load a calculator as a
+`stage`, `plot`, `sbatch`, or load a calculator as a
 validation shortcut. Adding a `plot` section does not add a plotting stage;
 give the explicit stage command or enable `analysis.method: plot` in an
 authorized stage-first plan.

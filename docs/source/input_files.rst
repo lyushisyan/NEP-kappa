@@ -166,10 +166,6 @@ remain in the corresponding sections:
 - ``tdbte``: dynamics from FC2/FC3 or an existing energy-shell kernel; see :doc:`tdbte`
 - ``output``: progress display and result directory
 
-The ``compare`` command uses a smaller YAML file with ``datasets``, ``compare``,
-and ``plot`` sections. The original two-way ``reference``/``candidate`` schema
-remains supported for compatibility.
-
 YAML validation is strict. Unknown sections and keys are rejected before a
 calculation starts, and likely misspellings include a suggested supported key.
 Free-form VASP ``vasp_kwargs`` and relaxation-stage mappings remain available
@@ -266,55 +262,52 @@ The following commands expose individual stages for advanced use:
 
 .. code-block:: bash
 
-   nepkappa relax input.yaml
-   nepkappa fc2 input.yaml
-   nepkappa fc2fc3 input.yaml
-   nepkappa fc4 input.yaml
-   nepkappa qha input.yaml
-   nepkappa scph input.yaml
-   nepkappa bubble input.yaml
-   nepkappa qha-sscha input.yaml
-   nepkappa tdbte input.yaml
-   nepkappa kappa input.yaml
-   nepkappa kappa4 input.yaml
+   nepkappa stage relax input.yaml
+   nepkappa stage fc2 input.yaml
+   nepkappa stage fc2fc3 input.yaml
+   nepkappa stage fc4 input.yaml
+   nepkappa stage qha input.yaml
+   nepkappa stage scph input.yaml
+   nepkappa stage bubble input.yaml
+   nepkappa stage qha-sscha input.yaml
+   nepkappa stage tdbte input.yaml
+   nepkappa stage kappa input.yaml
+   nepkappa stage kappa4 input.yaml
    nepkappa plot input.yaml
-   nepkappa compare compare.yaml
    nepkappa info input.yaml
    nepkappa report calculations/runs/calculation
 
-- ``nepkappa relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
-- ``nepkappa fc2`` generates ``phono3py_disp.yaml`` and ``fc2.hdf5`` only.
-- ``nepkappa fc2fc3`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
-- ``nepkappa fc4`` generates FourPhonon ``FORCE_CONSTANTS_4TH`` using ``Fourthorder_vasp.py``.
-- ``nepkappa qha`` computes isotropic quasi-harmonic thermal properties over a volume scan.
-- ``nepkappa scph`` runs Phonopy stochastic SSCHA.
-- ``nepkappa qha-sscha`` runs SSCHA at volumes interpolated from a completed QHA fit.
-- ``nepkappa kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
-- ``nepkappa kappa4`` runs FourPhonon with existing ShengBTE-format force constants.
+- ``nepkappa stage relax`` relaxes the structure and writes ``POSCAR_relaxed`` to ``output.result_dir``.
+- ``nepkappa stage fc2`` generates ``phono3py_disp.yaml`` and ``fc2.hdf5`` only.
+- ``nepkappa stage fc2fc3`` generates ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa stage fc4`` generates FourPhonon ``FORCE_CONSTANTS_4TH`` using ``Fourthorder_vasp.py``.
+- ``nepkappa stage qha`` computes isotropic quasi-harmonic thermal properties over a volume scan.
+- ``nepkappa stage scph`` runs Phonopy stochastic SSCHA.
+- ``nepkappa stage qha-sscha`` runs SSCHA at volumes interpolated from a completed QHA fit.
+- ``nepkappa stage kappa`` computes thermal conductivity using existing ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5``.
+- ``nepkappa stage kappa4`` runs FourPhonon with existing ShengBTE-format force constants.
 - ``nepkappa plot`` creates harmonic plots from FC2 and matching metadata, adding transport panels when compatible conductivity data exist.
-- ``nepkappa bubble`` postprocesses completed SSCHA results with diagonal on-shell frequency shifts; it does not update transport.
-- ``nepkappa tdbte`` builds a kernel from matching force constants and a q mesh,
+- ``nepkappa stage bubble`` postprocesses completed SSCHA results with diagonal on-shell frequency shifts; it does not update transport.
+- ``nepkappa stage tdbte`` builds a kernel from matching force constants and a q mesh,
   or reuses a kernel, then evolves populations in chunks. Numerical audits do
   not independently validate physical relaxation rates.
-- ``nepkappa compare`` overlays DFT and multiple potential-model result directories in the same standard figures.
-- ``nepkappa converge`` generates and analyzes a parameter sweep from one base workflow YAML.
 - ``nepkappa report`` writes ``report.yaml`` and ``report.md`` from an existing result tree.
 - ``nepkappa run`` expands and executes the selected workflow preset. Without a
   ``workflow`` section it preserves the legacy ``relax`` + ``fc2fc3`` +
   ``kappa`` behavior.
 - ``nepkappa info`` prints the parsed configuration without running a calculation.
 
-``nepkappa fc2fc3`` computes and writes FC2 first, then starts the FC3
+``nepkappa stage fc2fc3`` computes and writes FC2 first, then starts the FC3
 displacement, force, and export stage.
 
-When ``relaxation.enabled`` is ``true``, ``nepkappa fc2`` and
-``nepkappa fc2fc3`` read
-``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa relax`` first, or
+When ``relaxation.enabled`` is ``true``, ``nepkappa stage fc2`` and
+``nepkappa stage fc2fc3`` read
+``POSCAR_relaxed`` from ``output.result_dir``. Run ``nepkappa stage relax`` first, or
 use ``nepkappa run``.
 
-Configuration validation is command-aware. For example, ``nepkappa scph``
+Configuration validation is command-aware. For example, ``nepkappa stage scph``
 validates its calculator, structure, and ``scph`` sections, while
-``nepkappa kappa`` validates transport settings without requiring QHA or
+``nepkappa stage kappa`` validates transport settings without requiring QHA or
 force-generation settings to be complete.
 
 Finite-displacement FC2/FC3 and HiPhive force evaluations are resumable. NEP
@@ -336,7 +329,7 @@ results belong in the ignored ``calculations/`` directory.
 ``fourphonon``
 ----------------
 
-``nepkappa kappa4`` stages ShengBTE-format ``FORCE_CONSTANTS_2ND``,
+``nepkappa stage kappa4`` stages ShengBTE-format ``FORCE_CONSTANTS_2ND``,
 ``FORCE_CONSTANTS_3RD``, and ``FORCE_CONSTANTS_4TH`` and runs FourPhonon.
 Set ``harmonic-format: espresso`` when the harmonic input is an official
 ``espresso.ifc2`` file; this mode requires a matching custom ``CONTROL``.
@@ -728,9 +721,9 @@ arrays. Set it to ``false`` to write full supercell force-constant arrays.
   ``FORCE_CONSTANTS_3RD``
 - ``both``: write both phono3py HDF5 files and ShengBTE text files
 
-The current ``nepkappa kappa`` command reads phono3py HDF5 files. Use
+The current ``nepkappa stage kappa`` command reads phono3py HDF5 files. Use
 ``format: phono3py`` or ``format: both`` when the next stage is
-``nepkappa kappa``. Use ``format: shengbte`` when the next stage is a
+``nepkappa stage kappa``. Use ``format: shengbte`` when the next stage is a
 ShengBTE/FourPhonon workflow.
 
 For native phono3py FC3, ``cutoff-fc3`` is an optional displaced-pair
@@ -761,7 +754,7 @@ Thirdorder FC3 route:
      fc3-workdir: fc3-thirdorder-runs
      format: shengbte
 
-With ``fc3-backend: thirdorder``, ``nepkappa fc2fc3`` generates FC2 first,
+With ``fc3-backend: thirdorder``, ``nepkappa stage fc2fc3`` generates FC2 first,
 runs ``thirdorder_vasp.py sow``, evaluates every ``3RD.POSCAR.*`` structure,
 and passes the ordered XML list to ``thirdorder_vasp.py reap``. VASP jobs keep
 their native ``vasprun.xml`` files. NEP jobs write a minimal force-only XML
@@ -779,7 +772,7 @@ FourPhonon FC4 route:
      fourthorder-command: Fourthorder_vasp.py
      fc4-workdir: fc4-runs
 
-``nepkappa fc4`` runs ``Fourthorder_vasp.py sow`` in
+``nepkappa stage fc4`` runs ``Fourthorder_vasp.py sow`` in
 ``output.result_dir/fc4-workdir``, calculates forces for every generated
 ``4TH.POSCAR.*`` structure with VASP, NEP, or an external ASE/plugin calculator, and pipes the resulting XML list
 into ``Fourthorder_vasp.py reap``. VASP supplies native ``vasprun.xml`` files;
@@ -942,14 +935,14 @@ Add these keys to the existing ``scph`` section (do not create a second section)
      bubble-epsilons: [0.05, 0.1]  # THz, principal-value regularization
      # bubble-grid-points: [0]    # Optional phono3py BZ grid indices for a pilot
 
-``nepkappa run input.yaml`` / ``nepkappa scph input.yaml`` applies the correction
+``nepkappa run input.yaml`` / ``nepkappa stage scph input.yaml`` applies the correction
 after each SSCHA temperature when ``bubble`` is true. To reuse already completed
 SSCHA results without evaluating an ASE calculator or running transport:
 
 .. code-block:: bash
 
    nepkappa validate input.yaml --for bubble
-   nepkappa bubble input.yaml
+   nepkappa stage bubble input.yaml
    nepkappa report input.yaml
 
 The explicit ``bubble`` command runs postprocessing regardless of the automatic
@@ -1022,7 +1015,7 @@ Here FC2 is explicitly SSCHA-renormalized, whereas FC3 and FC4 are regenerated
 at the QHA equilibrium volume but are not themselves temperature-renormalized.
 
 The full ``scph`` preset expands to ``fc2fc3 -> scph``. Use
-``nepkappa scph input.yaml`` with explicit existing file paths to reuse a
+``nepkappa stage scph input.yaml`` with explicit existing file paths to reuse a
 completed harmonic calculation. ``snapshots``, ``iterations``, ``transient``,
 supercell size, and the fitting mesh all require convergence testing.
 
@@ -1100,7 +1093,7 @@ and redirects are not interpreted.
 Distributed LBTE with Slurm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The normal ``nepkappa kappa`` command can submit an LBTE calculation split over
+The normal ``nepkappa stage kappa`` command can submit an LBTE calculation split over
 irreducible grid points:
 
 .. code-block:: yaml
@@ -1290,82 +1283,3 @@ titles are intentionally omitted so the figures are easier to compose in papers.
 - ``kappa.png``: selected conductivity component, or an average comparison
   of available Wigner contributions and/or 3ph+4ph solver schemes
 - ``combined.png``: automatically arranged multi-panel figure when ``layout`` is ``combined`` or ``both``
-
-Multi-model comparison
-------------------------
-
-``nepkappa compare compare.yaml`` reads completed DFT and machine-learning
-potential result directories, then overlays the figures supported by every
-dataset. Each directory needs matching phonon metadata and ``fc2.hdf5``.
-Transport figures additionally require compatible ``kappa-m*.hdf5`` data;
-FC2-only comparisons are supported. If one dataset lacks transport data,
-the shared comparison contains harmonic figures only.
-
-.. code-block:: yaml
-
-   datasets:
-     - label: DFT
-       directory: calculations/example-runs/dft
-     - label: NEP-1
-       directory: calculations/example-runs/nep-1
-     - label: NEP-2
-       directory: calculations/example-runs/nep-2
-     - label: MACE
-       directory: calculations/example-runs/mace
-
-   compare:
-     compare_dir: comparison
-
-   plot:
-     layout: both
-     path: seekpath
-     tau: total
-     temperature: 300
-     kappa: all
-     dpi: 300
-
-``compare.compare_dir`` receives ``compare.log`` and a ``plots/`` directory.
-The ``layout``, ``path``, ``tau``, ``temperature``, ``kappa``, and ``dpi``
-settings follow the same rules as ``nepkappa plot``.
-
-Convergence-study input
--------------------------
-
-``nepkappa converge`` reads a small study YAML rather than a normal workflow
-YAML. It copies a base workflow, changes one dotted YAML parameter for every
-configured value, and gives every case an isolated result directory.
-
-.. code-block:: yaml
-
-   base: input.yaml
-   parameter: kappa.mesh
-   values:
-     - [15, 15, 15]
-     - [21, 21, 21]
-     - [27, 27, 27]
-     - [31, 31, 31]
-
-   study:
-     directory: studies/qmesh
-     execute: false
-     temperature: 300
-     component: average
-     tolerance: 0.02
-
-``parameter`` must already exist in the base YAML. Typical paths include
-``kappa.mesh``, ``force-constant.dim-fc2``,
-``force-constant.dim-fc3``, ``force-constant.dim-fc4``, and
-``scph.snapshots``. Unknown paths and duplicate values are rejected.
-
-``execute: false`` prepares inputs and analyzes whichever results already
-exist. ``execute: true`` also invokes the base workflow for every case. This
-works with local workflows and Slurm-enabled base inputs. The target component
-may be ``x``, ``y``, ``z``, or ``average``. The HDF5 temperature closest to
-``study.temperature`` is used.
-
-The final configured value is used as the reference. ``convergence.csv`` and
-``convergence.png`` show the available results, while
-``convergence-summary.yaml`` records relative errors and completion state. To
-avoid a premature scientific conclusion, the earliest converged case is
-reported only when all configured cases are complete and that case plus every
-later case is within ``tolerance`` of the final reference.

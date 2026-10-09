@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Simplify the CLI to eight top-level commands. Individual calculations use
+  ``nepkappa stage <name> input.yaml``; retired direct-stage, comparison, and
+  convergence commands are no longer accepted.
 - Add a stage-first ``workflow.stages`` interface with per-stage method and
   feature choices. Static inputs now use six sections with QHA, SSCHA, and
   four-phonon switches inside ``force-constant``; the initializer emits this
@@ -30,7 +33,7 @@
   limitations and conservation, equilibrium, and entropy checks.
 - Update YAML examples, documentation, and the input-preparation Skill.
 
-Local verification: 457 tests passed with a fresh Numba cache; strict
+Local verification: 459 tests passed with a fresh Numba cache; strict
 documentation build and a real SiC small-grid TD-BTE build-and-solve smoke test
 passed. The FourPhonon Wigner_Park interface has not yet been checked against a
 completed external-solver run. Absolute-rate validation and mesh convergence

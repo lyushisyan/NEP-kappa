@@ -116,7 +116,7 @@ include every higher-order anharmonic correction.
 The `scph` route produces **auxiliary harmonic FC2**, not a free-energy Hessian
 or a full dynamic phonon spectrum. Optional `scph.bubble: true` adds a separate
 **input-FC3, diagonal on-shell bubble frequency correction**. For existing SSCHA
-results, run `nepkappa bubble input.yaml` without repeating the sampling. This
+results, run `nepkappa stage bubble input.yaml` without repeating the sampling. This
 does not update FC2 or thermal conductivity; it is not the full ensemble-vertex
 SSCHA spectral method. See [bubble settings and limits](docs/source/input_files.rst).
 `qha-sscha` means **SSCHA at QHA
@@ -131,11 +131,13 @@ recorded in new summaries and displayed by `nepkappa report`.
 | `nepkappa init input.yaml` | Create an input interactively |
 | `nepkappa validate input.yaml` | Check input syntax and supported settings |
 | `nepkappa run input.yaml` | Run the selected workflow |
+| `nepkappa stage fc2 input.yaml` | Run only the selected calculation stage |
 | `nepkappa status input.yaml` | Inspect stored job state and the Slurm queue |
 | `nepkappa plot input.yaml` | Plot FC2 harmonic properties; add transport panels when available |
 | `nepkappa report input.yaml` | Write a result summary |
 
-Stage commands allow restarts and reuse of existing force constants.
+Use `nepkappa stage --help` to see the available stages. A single stage can
+reuse existing force constants without restarting the full workflow.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
@@ -200,7 +202,7 @@ QHA 体积上的 SSCHA、三/四声子、Wigner 和含时 BTE 的入口见
 
 ## Time-dependent BTE
 
-The package provides `nepkappa tdbte input.yaml`, or the
+The package provides `nepkappa stage tdbte input.yaml`, or the
 custom workflow stage `tdbte`, for homogeneous fixed-frequency phonon occupation
 dynamics. Use [tdbte.yaml](examples/tdbte.yaml) and the
 [TD-BTE guide](docs/source/tdbte.rst). Supply a directory containing matching

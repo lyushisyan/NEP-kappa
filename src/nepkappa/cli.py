@@ -13,13 +13,13 @@ from nepkappa import __version__
 from nepkappa.command_registry import (
     COMMAND_SPECS,
     EXECUTION_COMMANDS,
+    PUBLIC_COMMANDS,
+    STAGE_COMMANDS,
     VALIDATION_TARGETS,
     canonical_command,
 )
 from nepkappa.config import (
-    format_compare_config,
     format_config,
-    parse_compare_args,
     parse_workflow_args,
 )
 from nepkappa.provenance import ProvenanceRecorder
@@ -72,12 +72,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "stage":
+        return run_command(
+            args.stage_name,
+            args.config,
+            debug=args.debug,
+            invoked_as=f"stage {args.stage_name}",
+        )
     if args.command in EXECUTION_COMMANDS:
         return run_command(args.command, args.config, debug=args.debug)
-    if args.command == "compare":
-        return compare_command(args.config, debug=args.debug)
-    if args.command == "converge":
-        return convergence_command(args.config, debug=args.debug)
     if args.command == "status":
         return status_command(args.config)
     if args.command == "report":
@@ -105,10 +108,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show Python tracebacks when a command fails.",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command", required=True,
+        metavar="{" + ",".join(PUBLIC_COMMANDS) + "}",
+    )
 
     for spec in COMMAND_SPECS:
         command_parser = subparsers.add_parser(spec.name, help=spec.help)
+        if spec.name == "stage":
+            command_parser.add_argument(
+                "stage_name", choices=STAGE_COMMANDS,
+                help="Calculation stage to execute.",
+            )
+            command_parser.add_argument("config", help="YAML input file")
+            continue
         if spec.name == "init":
             command_parser.add_argument(
                 "config",
@@ -147,11 +160,10 @@ def build_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--non-interactive", action="store_true")
             command_parser.add_argument("--force", action="store_true")
             continue
-        config_help = {
-            "compare": "YAML comparison input file",
-            "convergence": "YAML convergence-study input file",
-            "report": "Result directory or workflow YAML input file",
-        }.get(spec.config_kind, "YAML input file")
+        config_help = (
+            "Result directory or workflow YAML input file"
+            if spec.name == "report" else "YAML input file"
+        )
         command_parser.add_argument("config", help=config_help)
         if spec.name in {"info", "validate"}:
             command_parser.add_argument(
@@ -169,10 +181,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_command(command, config_path, *, debug=False) -> int:
+def run_command(command, config_path, *, debug=False, invoked_as=None) -> int:
     """Run one workflow command."""
     start_time = time.time()
-    requested_command = command
+    requested_command = invoked_as or command
     command = canonical_command(command)
     args = parse_workflow_args(config_path, command=command)
     args.config_path = str(Path(config_path).resolve())
@@ -189,8 +201,6 @@ def run_command(command, config_path, *, debug=False) -> int:
             if log_mode == "a" and os.path.getsize(log_path) > 0:
                 print("\n" + "=" * 60)
             print(f"[main] Command: {requested_command}")
-            if requested_command == "fc":
-                print("[main] `fc` is deprecated; use `fc2fc3` instead.")
             if config_path is not None:
                 print(f"[main] Reading arguments from {config_path}...")
             print(f"[main] Logging output to {log_path}")
@@ -307,83 +317,6 @@ def init_command(args) -> int:
     print(f"Created validated {answers.preset} input: {path.resolve()}")
     print(f"Next: nepkappa run {path}")
     return 0
-
-
-def compare_command(config_path, *, debug=False) -> int:
-    """Run multi-model comparison plotting."""
-    start_time = time.time()
-    args = parse_compare_args(config_path)
-    os.makedirs(args.compare_dir, exist_ok=True)
-    log_path = os.path.join(args.compare_dir, "compare.log")
-    recorder = ProvenanceRecorder(args.compare_dir, "compare", config_path, args)
-
-    with open(log_path, "w", encoding="utf-8") as log_file:
-        stdout = Tee(sys.stdout, log_file)
-        stderr = Tee(sys.stderr, log_file)
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            print("[main] Command: compare")
-            print(f"[main] Reading arguments from {config_path}...")
-            print(f"[main] Logging output to {log_path}")
-            print("-" * 60)
-            print(format_compare_config(args))
-            print("-" * 60)
-
-            exit_code = 0
-            failure = None
-            try:
-                manifest_path = recorder.start()
-                print(f"[main] Provenance manifest: {manifest_path}")
-                from nepkappa.plot import compare_results
-
-                compare_results(args)
-            except Exception as exc:
-                exit_code = 1
-                failure = exc
-                print(f"\n[Error] Comparison failed: {exc}")
-                if debug:
-                    import traceback
-
-                    traceback.print_exc()
-                else:
-                    print("[Hint] Re-run with 'nepkappa --debug ...' for a traceback.")
-            finally:
-                try:
-                    recorder.finish(
-                        "complete" if exit_code == 0 else "failed", error=failure
-                    )
-                except Exception as exc:
-                    exit_code = 1
-                    print(f"\n[Error] Could not finalize provenance manifest: {exc}")
-                print("-" * 60)
-                print(f"Total Execution Time: {format_duration(time.time() - start_time)}")
-                print("-" * 60)
-
-    print("-" * 60)
-    print(f"Compare log saved to: {log_path}")
-    return exit_code
-
-
-def convergence_command(config_path, *, debug=False) -> int:
-    """Prepare, optionally execute, and analyze a convergence study."""
-    from nepkappa.convergence import parse_convergence_args, run_convergence_study
-
-    try:
-        config = parse_convergence_args(config_path)
-        config.directory.mkdir(parents=True, exist_ok=True)
-        summary = run_convergence_study(
-            config,
-            run_case=lambda path: run_command("run", path, debug=debug),
-        )
-        return 1 if summary["failed_cases"] else 0
-    except Exception as exc:
-        print(f"[Error] Convergence study failed: {exc}")
-        if debug:
-            import traceback
-
-            traceback.print_exc()
-        else:
-            print("[Hint] Re-run with 'nepkappa --debug ...' for a traceback.")
-        return 1
 
 
 def format_duration(seconds):
