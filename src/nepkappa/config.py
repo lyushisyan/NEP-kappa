@@ -1722,7 +1722,12 @@ def resolve_force_constant_dimensions(args):
 
 def iter_display_args(args, command=None):
     """Iterate over user-facing config values, hiding inactive route settings."""
-    compatibility_only = {"config_path", "invoked_command"}
+    if command is None:
+        command = "tdbte" if args.workflow_steps == ["tdbte"] else "run"
+    # The plan is derived internally from the six-section input, not a user option.
+    compatibility_only = {
+        "config_path", "invoked_command", "workflow_preset", "workflow_steps",
+    }
     hiphive_only = {"n_structures", "rattle_std", "cutoffs", "min_dist"}
     thirdorder_only = {"thirdorder_command", "fc3_workdir"}
     vasp_only = {
@@ -1764,7 +1769,6 @@ def iter_display_args(args, command=None):
         "progress",
         "result_dir",
     }
-    plan_fields = {"workflow_preset", "workflow_steps"}
     calculator_fields = {
         "nep_model",
         "calculator",
@@ -1802,12 +1806,12 @@ def iter_display_args(args, command=None):
     command_fields = None
     tdbte_fields = {name for name in vars(args) if name.startswith("tdbte_")}
     if command == "tdbte":
-        command_fields = {"result_dir"} | plan_fields | tdbte_fields
+        command_fields = {"result_dir"} | tdbte_fields
     elif command == "run":
         command_fields = (
-            common | plan_fields | calculator_fields | fc2_fields | fc3_fields
+            common | calculator_fields | fc2_fields | fc3_fields
             | fc4_fields | kappa_fields | qha_only | scph_only
-            | qha_sscha_only | fourphonon_only | tdbte_fields
+            | qha_sscha_only | fourphonon_only
         )
     elif command == "relax":
         command_fields = common | calculator_fields
@@ -1824,7 +1828,7 @@ def iter_display_args(args, command=None):
         if args.scph_run_transport:
             command_fields |= kappa_fields
     elif command == "bubble":
-        command_fields = common | scph_only | {"workflow_preset"}
+        command_fields = common | scph_only
     elif command == "qha":
         command_fields = common | calculator_fields | qha_only
     elif command == "qha-sscha":
@@ -1847,7 +1851,7 @@ def iter_display_args(args, command=None):
             name for name in vars(args) if name.startswith("plot_")
         }
     if command == "run" and args.workflow_steps == ["tdbte"]:
-        command_fields = {"result_dir"} | plan_fields | tdbte_fields
+        command_fields = {"result_dir"} | tdbte_fields
     for arg, value in vars(args).items():
         if value is None:
             continue
@@ -1877,6 +1881,8 @@ def iter_display_args(args, command=None):
             continue
         if not args.fp_enabled and arg in fourphonon_only:
             continue
+        if not args.fp_enabled and arg in fc4_fields and command == "run":
+            continue
         if args.calculator == "vasp" and arg == "nep_model" and value is None:
             continue
         if not args.use_hiphive and arg in hiphive_only:
@@ -1896,7 +1902,7 @@ def iter_display_args(args, command=None):
 
 def format_config(args, command=None):
     """Return a readable multi-line configuration summary."""
-    lines = ["Running Workflow with configuration:"]
+    lines = ["Input configuration:"]
     for arg, value in iter_display_args(args, command=command):
         lines.append(f"  {arg:<15} : {value}")
     return "\n".join(lines)
