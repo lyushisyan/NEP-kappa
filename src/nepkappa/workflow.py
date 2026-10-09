@@ -562,8 +562,6 @@ class NEPPhononWorkflow:
         if include_fc3:
             pair_cutoff = getattr(self.cfg, "cutoff_fc3", None)
             if pair_cutoff is None:
-                pair_cutoff = getattr(self.cfg, "pair_cutoff_fc3", None)
-            if pair_cutoff is None:
                 ph3.generate_displacements()
             else:
                 ph3.generate_displacements(cutoff_pair_distance=pair_cutoff)

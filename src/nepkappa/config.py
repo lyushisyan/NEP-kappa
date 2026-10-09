@@ -8,7 +8,6 @@ import json
 import math
 import re
 from pathlib import Path
-from types import SimpleNamespace
 
 from nepkappa.config_models import WorkflowConfig
 
@@ -91,12 +90,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         nargs="+",
         default=None,
         help="Advanced custom stage list used with workflow.preset: custom",
-    )
-    parser.add_argument(
-        "--workflow_stages",
-        type=json_dict,
-        default=None,
-        help="Stage-first workflow choices compiled into an ordered plan",
     )
 
     parser.add_argument("--poscar", default="POSCAR", help="Input structure file")
@@ -243,13 +236,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Relax structure",
     )
     parser.add_argument(
-        "--dim",
-        type=int,
-        nargs=3,
-        default=None,
-        help="[Deprecated] Supercell dimension used for both FC2 and FC3",
-    )
-    parser.add_argument(
         "--dim_fc2",
         "--dim-fc2",
         dest="dim_fc2",
@@ -282,14 +268,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="FC3 cutoff: phono3py positive Angstrom; thirdorder negative shell or positive nm",
-    )
-    parser.add_argument(
-        "--pair_cutoff_fc3",
-        "--pair-cutoff-fc3",
-        dest="pair_cutoff_fc3",
-        type=float,
-        default=None,
-        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--thirdorder_command",
@@ -704,6 +682,7 @@ def parse_yaml_input_file(filename):
         data = load_yaml_strict(handle) or {}
     if not isinstance(data, dict):
         raise ValueError("YAML input must be a mapping of sections and options.")
+    validate_input_shape(data)
     data = expand_input_modes(data)
 
     flat = {}
@@ -711,53 +690,59 @@ def parse_yaml_input_file(filename):
     section_aliases = {
         normalize_yaml_key(section): section for section in sections
     }
-    legacy_keys = set(yaml_arg_order()) | {"name"}
-
     for raw_section, section_data in data.items():
         normalized_section = normalize_yaml_key(raw_section)
         section = section_aliases.get(normalized_section)
         if section is None:
-            if normalized_section not in legacy_keys:
-                raise_unknown_yaml_key(
-                    str(raw_section),
-                    "top level",
-                    [*sections, *legacy_keys],
-                )
-            flat[normalized_section] = section_data
-            continue
+            raise_unknown_yaml_key(str(raw_section), "top level", sections)
 
         if section_data is None:
             continue
         if not isinstance(section_data, dict):
             raise ValueError(f"YAML section '{raw_section}' must be a mapping.")
         valid_keys = sections[section]
+        seen_keys = set()
         for key, value in section_data.items():
             normalized_key = normalize_yaml_key(key)
+            if normalized_key in seen_keys:
+                raise ValueError(
+                    f"Duplicate YAML key '{key}' after '-'/'_' normalization "
+                    f"in section '{section}'."
+                )
+            seen_keys.add(normalized_key)
             if normalized_key not in valid_keys:
                 raise_unknown_yaml_key(str(key), f"section '{section}'", valid_keys)
             if section == "structure" and normalized_key == "relaxation":
-                if "do_relax" in flat and flat["do_relax"] != value:
+                if isinstance(value, dict):
+                    options = {
+                        normalize_yaml_key(name): setting
+                        for name, setting in value.items()
+                    }
+                    if len(options) != len(value):
+                        raise ValueError(
+                            "Duplicate structure.relaxation option after "
+                            "'-'/'_' normalization."
+                        )
+                    unknown = options.keys() - {"enabled", "workdir", "stages"}
+                    if unknown:
+                        raise_unknown_yaml_key(
+                            sorted(unknown)[0], "structure.relaxation",
+                            {"enabled", "workdir", "stages"},
+                        )
+                    flat["do_relax"] = options.get("enabled", True)
+                    if "workdir" in options:
+                        flat["vasp_relax_workdir"] = options["workdir"]
+                    if "stages" in options:
+                        flat["vasp_relax_stages"] = options["stages"]
+                elif isinstance(value, bool):
+                    flat["do_relax"] = value
+                else:
                     raise ValueError(
-                        "structure.relaxation conflicts with relaxation.enabled."
+                        "structure.relaxation must be true, false, or a mapping."
                     )
-                flat["do_relax"] = value
                 continue
             if section == "workflow":
                 flat[f"workflow_{normalized_key}"] = value
-                continue
-            if section == "relaxation":
-                if normalized_key == "enabled":
-                    if "do_relax" in flat and flat["do_relax"] != value:
-                        raise ValueError(
-                            "relaxation.enabled conflicts with structure.relaxation."
-                        )
-                    flat["do_relax"] = value
-                elif normalized_key == "workdir":
-                    flat["vasp_relax_workdir"] = value
-                elif normalized_key == "stages":
-                    flat["vasp_relax_stages"] = value
-                else:
-                    flat[normalized_key] = value
                 continue
             if section == "calculator":
                 if normalized_key == "name":
@@ -844,23 +829,61 @@ def parse_yaml_input_file(filename):
                 continue
             flat[normalized_key] = value
 
-    aliases = {
-        "name": "calculator",
-    }
-    for alias, canonical in aliases.items():
-        if alias in flat and canonical not in flat:
-            flat[canonical] = flat[alias]
-
-    if "workflow_stages" in flat:
-        from nepkappa.stage_plan import compile_stage_plan
-
-        compile_stage_plan(flat["workflow_stages"], flat)
-
     args = []
     for key in yaml_arg_order():
         if key in flat:
             append_arg(args, key, flat[key])
     return args
+
+
+def validate_input_shape(data):
+    """Accept only the public static or dynamic YAML shape before expansion."""
+    static = {
+        "structure", "calculator", "force_constant", "kappa", "plot", "output"
+    }
+    dynamic = {"tdbte", "output"}
+    optional = {"parallel"}
+    names = {normalize_yaml_key(name): name for name in data}
+    if len(names) != len(data):
+        raise ValueError("Duplicate top-level section after '-'/'_' normalization.")
+    if "tdbte" in names:
+        unexpected = names.keys() - dynamic
+        if unexpected:
+            if unexpected & static:
+                raise ValueError(
+                    "Dynamic tdbte input cannot mix static sections: "
+                    + ", ".join(sorted(unexpected)) + "."
+                )
+            raise ValueError(
+                "Dynamic input accepts only tdbte and output; remove: "
+                + ", ".join(sorted(unexpected)) + "."
+            )
+        missing = dynamic - names.keys()
+        if missing:
+            raise ValueError(
+                "Dynamic input requires: " + ", ".join(sorted(missing)) + "."
+            )
+    else:
+        unexpected = names.keys() - static - optional
+        if unexpected:
+            raise_unknown_yaml_key(
+                str(names[sorted(unexpected)[0]]),
+                "top level",
+                {
+                    "structure", "calculator", "force-constant", "kappa",
+                    "plot", "output", "parallel",
+                },
+            )
+        missing = static - names.keys()
+        if missing:
+            raise ValueError(
+                "Static input requires six sections; missing: "
+                + ", ".join(name.replace("_", "-") for name in sorted(missing))
+                + "."
+            )
+    for original in names.values():
+        if not isinstance(data[original], dict):
+            raise ValueError(f"YAML section '{original}' must be a mapping.")
 
 
 def expand_input_modes(data):
@@ -907,10 +930,9 @@ def expand_input_modes(data):
                 "kappa.method-3ph and kappa.method-4ph require "
                 "force-constant.four-phonon: true."
             )
-        if engine == "fourphonon" and "fourphonon" not in keys:
+        if engine == "fourphonon":
             raise ValueError(
-                "kappa.engine: fourphonon requires force-constant.four-phonon "
-                "or a legacy fourphonon section."
+                "kappa.engine: fourphonon requires force-constant.four-phonon: true."
             )
         return data
     incompatible = {"workflow", "qha", "scph", "qha_sscha", "fourphonon"}
@@ -1020,11 +1042,9 @@ def expand_input_modes(data):
             if kappa_values.get(source) is True:
                 four_options[target] = True
     structure = data.get(keys.get("structure"), {})
-    relaxation = data.get(keys.get("relaxation"), {})
-    relax_requested = (
-        isinstance(structure, dict) and structure.get("relaxation") is True
-    ) or (
-        isinstance(relaxation, dict) and relaxation.get("enabled") is True
+    relaxation = structure.get("relaxation") if isinstance(structure, dict) else None
+    relax_requested = relaxation is True or (
+        isinstance(relaxation, dict) and relaxation.get("enabled", True) is True
     )
     if qha_on and relax_requested:
         raise ValueError(
@@ -1217,7 +1237,7 @@ def load_yaml_strict(stream):
 def yaml_input_sections():
     """Return supported YAML sections and their documented keys."""
     return {
-        "workflow": {"preset", "steps", "stages"},
+        "workflow": {"preset", "steps"},
         "structure": {
             "poscar",
             "relaxation",
@@ -1228,7 +1248,6 @@ def yaml_input_sections():
             "periodic_axis",
         },
         "calculator": {
-            "calculator",
             "name",
             "factory",
             "kwargs",
@@ -1242,18 +1261,11 @@ def yaml_input_sections():
             "vasp_path",
             "potcar_path",
         },
-        "relaxation": {
-            "enabled",
-            "workdir",
-            "stages",
-        },
         "force-constant": {
-            "dim",
             "dim_fc2",
             "dim_fc3",
             "fc3_backend",
             "cutoff_fc3",
-            "pair_cutoff_fc3",
             "thirdorder_command",
             "fc3_workdir",
             "dim_fc4",
@@ -1263,7 +1275,6 @@ def yaml_input_sections():
             "use_hiphive",
             "compact_fc",
             "format",
-            "fc_format",
             "n_structures",
             "rattle_std",
             "cutoffs",
@@ -1384,7 +1395,6 @@ def yaml_arg_order():
         "tdbte_branches", "tdbte_samples",
         "workflow_preset",
         "workflow_steps",
-        "workflow_stages",
         "poscar",
         "dimensionality",
         "effective_thickness",
@@ -1408,12 +1418,10 @@ def yaml_arg_order():
         "vasp_relax_workdir",
         "vasp_relax_stages",
         "do_relax",
-        "dim",
         "dim_fc2",
         "dim_fc3",
         "fc3_backend",
         "cutoff_fc3",
-        "pair_cutoff_fc3",
         "thirdorder_command",
         "fc3_workdir",
         "dim_fc4",
@@ -1597,18 +1605,9 @@ def parse_workflow_args(config_path, command=None):
     args = parser.parse_args(tokens, namespace=WorkflowConfig())
     args.config_path = str(Path(config_path).resolve())
     cutoff = args.cutoff_fc3
-    legacy = args.pair_cutoff_fc3
-    if legacy is not None:
-        if args.fc3_backend != "phono3py":
-            parser.error("Legacy pair-cutoff-fc3 requires fc3-backend: phono3py; use cutoff-fc3.")
-        if cutoff is not None and cutoff != legacy:
-            parser.error("Conflicting cutoff-fc3 and legacy pair-cutoff-fc3 values.")
-        cutoff = legacy
     if cutoff is None and args.fc3_backend == "thirdorder":
         cutoff = -3.0
     args.cutoff_fc3 = cutoff
-    # Retain the internal alias for existing Python integrations.
-    args.pair_cutoff_fc3 = cutoff if args.fc3_backend == "phono3py" else None
     resolve_force_constant_dimensions(args)
     resolve_workflow_plan(args, parser=parser)
     targets = set(args.workflow_steps) if command == "run" else {command}
@@ -1660,7 +1659,7 @@ def parse_workflow_args(config_path, command=None):
         )
     if "qha-kappa" in targets:
         if not args.qha_enabled or not args.qha_volumes:
-            parser.error("qha-kappa requires qha.enabled and kappa.qha-volumes: true.")
+            parser.error("qha-kappa requires force-constant.qha.enabled and kappa.qha-volumes: true.")
         if args.method != "rta" or args.kappa_engine == "fourphonon":
             parser.error("qha-kappa currently supports phono3py RTA only.")
         if str((args.force_parallel or {}).get("backend", "none")).lower() == "slurm":
@@ -1673,7 +1672,7 @@ def parse_workflow_args(config_path, command=None):
                 parser.error("qha-kappa requires 0 <= minimum <= maximum and step > 0 in kappa.temps.")
             requested = [minimum, maximum]
         if len(args.qha_temps) != 3:
-            parser.error("qha.temps must contain [minimum, maximum, step].")
+            parser.error("force-constant.qha.temps must contain [minimum, maximum, step].")
         qha_minimum, qha_maximum, _ = args.qha_temps
         if min(requested) < qha_minimum or max(requested) > qha_maximum:
             parser.error("kappa.temps must lie within the QHA temperature range.")
@@ -1710,241 +1709,22 @@ def parse_workflow_args(config_path, command=None):
     return args
 
 
-def parse_compare_args(config_path):
-    """Parse a two-result or multi-model comparison YAML file."""
-    if yaml is None:
-        raise RuntimeError(
-            "YAML input files require PyYAML. Install it with: pip install PyYAML"
-        )
-    path = Path(config_path)
-    if not path.exists():
-        raise FileNotFoundError(f"input file not found: {config_path}")
-    if path.suffix.lower() not in (".yaml", ".yml"):
-        raise ValueError("NEP-kappa compare files must end in .yaml or .yml.")
-
-    with open(path, "r", encoding="utf-8") as handle:
-        data = load_yaml_strict(handle) or {}
-    if not isinstance(data, dict):
-        raise ValueError("Compare YAML input must be a mapping.")
-
-    compare_sections = {
-        "datasets": {"directory", "label"},
-        "reference": {"dft_dir", "label"},
-        "candidate": {"nep_dir", "label"},
-        "compare": {"compare_dir"},
-        "structure": {
-            "dimensionality",
-            "effective_thickness",
-            "effective_area",
-            "vacuum_axis",
-            "periodic_axis",
-        },
-        "plot": {
-            "layout",
-            "path",
-            "path_points",
-            "path_segments",
-            "tau",
-            "kappa",
-            "temperature",
-            "dpi",
-        },
-    }
-    for section, section_data in data.items():
-        if section not in compare_sections:
-            raise_unknown_yaml_key(section, "compare top level", compare_sections)
-        if section == "datasets":
-            if not isinstance(section_data, list):
-                raise ValueError("YAML section 'datasets' must be a list.")
-            for index, dataset in enumerate(section_data):
-                if not isinstance(dataset, dict):
-                    raise ValueError(
-                        f"datasets[{index}] must be a mapping with directory and label."
-                    )
-                for key in dataset:
-                    normalized_key = normalize_yaml_key(key)
-                    if normalized_key not in compare_sections["datasets"]:
-                        raise_unknown_yaml_key(
-                            key, f"datasets[{index}]", compare_sections["datasets"]
-                        )
-            continue
-        if not isinstance(section_data, dict):
-            raise ValueError(f"YAML section '{section}' must be a mapping.")
-        valid_keys = compare_sections[section]
-        for key in section_data:
-            normalized_key = normalize_yaml_key(key)
-            if normalized_key not in valid_keys:
-                raise_unknown_yaml_key(key, f"section '{section}'", valid_keys)
-
-    raw_datasets = data.get("datasets")
-    if raw_datasets is not None and (
-        "reference" in data or "candidate" in data
-    ):
-        raise ValueError(
-            "Use either 'datasets' or the legacy 'reference'/'candidate' sections, "
-            "not both."
-        )
-    if raw_datasets is not None:
-        if len(raw_datasets) < 2:
-            raise ValueError("YAML section 'datasets' requires at least two entries.")
-        datasets = []
-        for index, raw_dataset in enumerate(raw_datasets):
-            dataset = normalize_mapping_keys(raw_dataset)
-            directory = required_section_value(
-                dataset, f"datasets[{index}]", "directory"
-            )
-            label = str(dataset.get("label", f"Dataset {index + 1}"))
-            if not label.strip():
-                raise ValueError(f"datasets[{index}].label must not be empty.")
-            datasets.append({"directory": directory, "label": label})
-    else:
-        reference = normalize_mapping_keys(require_mapping(data, "reference"))
-        candidate = normalize_mapping_keys(require_mapping(data, "candidate"))
-        datasets = [
-            {
-                "directory": required_section_value(
-                    reference, "reference", "dft_dir"
-                ),
-                "label": str(reference.get("label", "DFT")),
-            },
-            {
-                "directory": required_section_value(
-                    candidate, "candidate", "nep_dir"
-                ),
-                "label": str(candidate.get("label", "NEP")),
-            },
-        ]
-    compare = require_mapping(data, "compare")
-    plot = data.get("plot", {}) or {}
-    structure = data.get("structure", {}) or {}
-    if not isinstance(plot, dict):
-        raise ValueError("YAML section 'plot' must be a mapping.")
-    if not isinstance(structure, dict):
-        raise ValueError("YAML section 'structure' must be a mapping.")
-    compare = normalize_mapping_keys(compare)
-    plot = normalize_mapping_keys(plot)
-    structure = normalize_mapping_keys(structure)
-
-    args = SimpleNamespace(
-        datasets=datasets,
-        # Compatibility attributes for callers using the original two-way schema.
-        dft_dir=datasets[0]["directory"],
-        nep_dir=datasets[1]["directory"],
-        compare_dir=required_section_value(compare, "compare", "compare_dir"),
-        reference_label=datasets[0]["label"],
-        candidate_label=datasets[1]["label"],
-        dimensionality=int(structure.get("dimensionality", 3)),
-        effective_thickness=structure.get("effective_thickness", None),
-        effective_area=structure.get("effective_area", None),
-        vacuum_axis=str(structure.get("vacuum_axis", "z")),
-        periodic_axis=str(structure.get("periodic_axis", "z")),
-        plot_layout=str(plot.get("layout", "separate")),
-        plot_path=str(plot.get("path", "seekpath")),
-        plot_path_points=plot.get("path_points", None),
-        plot_path_segments=plot.get("path_segments", None),
-        plot_tau=str(plot.get("tau", "total")),
-        plot_kappa=str(plot.get("kappa", "all")),
-        plot_temperature=float(plot.get("temperature", 300.0)),
-        plot_dpi=int(plot.get("dpi", 300)),
-        mesh=None,
-    )
-    validate_compare_args(args)
-    return args
-
-
-def require_mapping(data, section):
-    """Return a required YAML section mapping."""
-    section_data = data.get(section)
-    if not isinstance(section_data, dict):
-        raise ValueError(f"YAML section '{section}' is required and must be a mapping.")
-    return section_data
-
-
-def normalize_mapping_keys(data):
-    """Return a copy of a mapping with YAML keys normalized to option names."""
-    return {normalize_yaml_key(key): value for key, value in data.items()}
-
-
-def required_section_value(section_data, section, key):
-    """Return a required section value."""
-    value = section_data.get(key)
-    if value in (None, ""):
-        raise ValueError(f"YAML section '{section}' requires '{key}'.")
-    return str(value)
-
-
-def validate_compare_args(args):
-    """Validate compare command options."""
-    labels = [dataset["label"] for dataset in args.datasets]
-    if len(labels) != len(set(labels)):
-        raise ValueError("Dataset labels must be unique.")
-    if args.dimensionality not in (1, 2, 3):
-        raise ValueError("structure.dimensionality must be 1, 2, or 3.")
-    geometry_error = validate_effective_geometry(args)
-    if geometry_error:
-        raise ValueError(geometry_error)
-    if args.plot_layout not in ("separate", "combined", "both"):
-        raise ValueError("plot.layout must be separate, combined, or both.")
-    if args.plot_path not in ("seekpath", "custom"):
-        raise ValueError("plot.path must be seekpath or custom.")
-    if args.plot_tau not in ("total", "normal", "umklapp", "nu", "all"):
-        raise ValueError("plot.tau must be total, normal, umklapp, nu, or all.")
-    if args.plot_kappa not in ("x", "y", "z", "all"):
-        raise ValueError("plot.kappa must be x, y, z, or all.")
-    if args.plot_dpi <= 0:
-        raise ValueError("plot.dpi must be positive.")
-
-
-def format_compare_config(args):
-    """Return a readable multi-line comparison configuration summary."""
-    lines = ["Running comparison with configuration:"]
-    for index, dataset in enumerate(args.datasets, start=1):
-        lines.append(
-            f"  dataset_{index:<9} : {dataset['label']} -> {dataset['directory']}"
-        )
-    for key in [
-        "compare_dir",
-        "dimensionality",
-        "effective_thickness",
-        "effective_area",
-        "vacuum_axis",
-        "periodic_axis",
-        "plot_layout",
-        "plot_path",
-        "plot_tau",
-        "plot_kappa",
-        "plot_temperature",
-        "plot_dpi",
-    ]:
-        value = getattr(args, key)
-        if value is None:
-            continue
-        if args.dimensionality != 2 and key in {"effective_thickness", "vacuum_axis"}:
-            continue
-        if args.dimensionality != 1 and key in {"effective_area", "periodic_axis"}:
-            continue
-        lines.append(f"  {key:<18} : {value}")
-    return "\n".join(lines)
-
-
 def resolve_force_constant_dimensions(args):
-    """Resolve deprecated dim into explicit FC2, FC3, and FC4 dimensions."""
-    legacy_dim = args.dim
+    """Fill omitted FC dimensions from the standard defaults."""
     default_dim = [4, 4, 1]
     if args.dim_fc2 is None:
-        args.dim_fc2 = list(legacy_dim or default_dim)
+        args.dim_fc2 = list(default_dim)
     if args.dim_fc3 is None:
-        args.dim_fc3 = list(legacy_dim or default_dim)
+        args.dim_fc3 = list(default_dim)
     if args.dim_fc4 is None:
-        args.dim_fc4 = list(legacy_dim or args.dim_fc3)
+        args.dim_fc4 = list(args.dim_fc3)
 
 
 def iter_display_args(args, command=None):
     """Iterate over user-facing config values, hiding inactive route settings."""
-    compatibility_only = {"dim", "config_path", "invoked_command", "pair_cutoff_fc3"}
+    compatibility_only = {"config_path", "invoked_command"}
     hiphive_only = {"n_structures", "rattle_std", "cutoffs", "min_dist"}
     thirdorder_only = {"thirdorder_command", "fc3_workdir"}
-    phono3py_fc3_only = {"pair_cutoff_fc3"}
     vasp_only = {
         "vasp_command",
         "vasp_path",
@@ -1984,7 +1764,7 @@ def iter_display_args(args, command=None):
         "progress",
         "result_dir",
     }
-    plan_fields = {"workflow_preset", "workflow_steps", "workflow_stages"}
+    plan_fields = {"workflow_preset", "workflow_steps"}
     calculator_fields = {
         "nep_model",
         "calculator",
@@ -2009,7 +1789,7 @@ def iter_display_args(args, command=None):
         "force_parallel",
     }
     fc3_fields = {
-        "dim_fc3", "fc3_backend", "cutoff_fc3", "pair_cutoff_fc3", "thirdorder_command",
+        "dim_fc3", "fc3_backend", "cutoff_fc3", "thirdorder_command",
         "fc3_workdir",
     }
     fc4_fields = {
@@ -2103,8 +1883,6 @@ def iter_display_args(args, command=None):
             continue
         if args.fc3_backend != "thirdorder" and arg in thirdorder_only:
             continue
-        if args.fc3_backend != "phono3py" and arg in phono3py_fc3_only:
-            continue
         if args.calculator != "vasp" and arg in vasp_only:
             continue
         if args.calculator in {"nep", "vasp"} and arg in external_calculator_only:
@@ -2143,40 +1921,40 @@ def validate_qha(args):
         return None
     ratios = args.qha_volume_ratios
     if not isinstance(ratios, (list, tuple)) or len(ratios) < 5:
-        return "qha.volume-ratios requires at least 5 values."
+        return "force-constant.qha.volume-ratios requires at least 5 values."
     if any(not math.isfinite(value) or value <= 0 for value in ratios):
-        return "qha.volume-ratios values must be finite and positive."
+        return "force-constant.qha.volume-ratios values must be finite and positive."
     if any(right <= left for left, right in zip(ratios, ratios[1:])):
-        return "qha.volume-ratios must be strictly ascending and unique."
+        return "force-constant.qha.volume-ratios must be strictly ascending and unique."
     for name, values in (("dim-fc2", args.qha_dim_fc2), ("mesh", args.qha_mesh)):
         if values is not None and (
             len(values) != 3 or any(int(value) <= 0 for value in values)
         ):
-            return f"qha.{name} must contain three positive integers."
+            return f"force-constant.qha.{name} must contain three positive integers."
     if not isinstance(args.qha_temps, (list, tuple)) or len(args.qha_temps) != 3:
-        return "qha.temps must contain exactly [minimum, maximum, step]."
+        return "force-constant.qha.temps must contain exactly [minimum, maximum, step]."
     tmin, tmax, tstep = args.qha_temps
     if tmin < 0 or tmax <= tmin or tstep <= 0:
-        return "qha.temps must satisfy 0 <= minimum < maximum and step > 0."
+        return "force-constant.qha.temps must satisfy 0 <= minimum < maximum and step > 0."
     intervals = (tmax - tmin) / tstep
     if not math.isclose(intervals, round(intervals), rel_tol=1.0e-10, abs_tol=1.0e-10):
-        return "qha.temps step must divide the requested temperature interval."
+        return "force-constant.qha.temps step must divide the requested temperature interval."
     if not math.isfinite(args.qha_pressure):
-        return "qha.pressure must be finite."
+        return "force-constant.qha.pressure must be finite."
     if not math.isfinite(args.qha_imaginary_frequency_tolerance):
-        return "qha.imaginary-frequency-tolerance must be finite."
+        return "force-constant.qha.imaginary-frequency-tolerance must be finite."
     if not math.isfinite(args.qha_cutoff_frequency) or args.qha_cutoff_frequency < 0:
-        return "qha.cutoff-frequency must be finite and non-negative."
+        return "force-constant.qha.cutoff-frequency must be finite and non-negative."
     if args.qha_relax_fmax <= 0:
-        return "qha.relax-fmax must be positive."
+        return "force-constant.qha.relax-fmax must be positive."
     if args.qha_relax_steps <= 0:
-        return "qha.relax-steps must be positive."
+        return "force-constant.qha.relax-steps must be positive."
     if args.qha_displacement_distance <= 0:
-        return "qha.displacement-distance must be positive."
+        return "force-constant.qha.displacement-distance must be positive."
     if not isinstance(args.qha_vasp_relax_kwargs, dict):
-        return "qha.vasp-relax-kwargs must be a mapping."
+        return "force-constant.qha.vasp-relax-kwargs must be a mapping."
     if not isinstance(args.qha_vasp_static_kwargs, dict):
-        return "qha.vasp-static-kwargs must be a mapping."
+        return "force-constant.qha.vasp-static-kwargs must be a mapping."
     if args.dimensionality != 3:
         return "QHA currently supports only structure.dimensionality: 3."
     return None
@@ -2190,19 +1968,19 @@ def validate_bubble(args):
         return "bubble currently supports only structure.dimensionality: 3."
     workdir = Path(args.scph_workdir)
     if workdir.is_absolute() or ".." in workdir.parts or not workdir.parts:
-        return "scph.workdir must be a non-empty relative path inside output.result-dir."
+        return "force-constant.sscha.workdir must be a non-empty relative path inside output.result-dir."
     if any(value <= 0 for value in args.scph_bubble_mesh):
-        return "scph.bubble-mesh must contain three positive integers."
+        return "force-constant.sscha.bubble-mesh must contain three positive integers."
     epsilons = args.scph_bubble_epsilons
     if not epsilons or any(not math.isfinite(v) or v <= 0 for v in epsilons):
-        return "scph.bubble-epsilons must contain finite positive widths in THz."
+        return "force-constant.sscha.bubble-epsilons must contain finite positive widths in THz."
     if len(set(epsilons)) != len(epsilons):
-        return "scph.bubble-epsilons must not contain duplicates."
+        return "force-constant.sscha.bubble-epsilons must not contain duplicates."
     points = args.scph_bubble_grid_points
     if points is not None and (not points or min(points) < 0 or len(set(points)) != len(points)):
-        return "scph.bubble-grid-points must contain distinct non-negative BZ grid indices."
+        return "force-constant.sscha.bubble-grid-points must contain distinct non-negative BZ grid indices."
     if not math.isfinite(args.scph_cutoff_frequency) or args.scph_cutoff_frequency < 0:
-        return "scph.cutoff-frequency must be finite and non-negative."
+        return "force-constant.sscha.cutoff-frequency must be finite and non-negative."
     return _validate_scph_temperatures(args)
 
 
@@ -2214,25 +1992,25 @@ def validate_scph(args):
         return "SCPH currently supports only structure.dimensionality: 3."
     workdir = Path(args.scph_workdir)
     if workdir.is_absolute() or ".." in workdir.parts:
-        return "scph.workdir must be a relative path inside output.result-dir."
+        return "force-constant.sscha.workdir must be a relative path inside output.result-dir."
     if args.calculator == "vasp":
         return (
             "scph requires an ASE calculator such as nep or mace; "
             "the command-driven VASP backend is not supported."
         )
     if args.scph_snapshots <= 0 or args.scph_iterations <= 0:
-        return "scph.snapshots and scph.iterations must be positive."
+        return "force-constant.sscha.snapshots and force-constant.sscha.iterations must be positive."
     if not 0 <= args.scph_transient < args.scph_iterations:
-        return "scph.transient must satisfy 0 <= transient < iterations."
+        return "force-constant.sscha.transient must satisfy 0 <= transient < iterations."
     if len(args.scph_sscha_mesh) != 3 or any(
         value <= 0 for value in args.scph_sscha_mesh
     ):
-        return "scph.sscha-mesh must contain three positive integers."
+        return "force-constant.sscha.sscha-mesh must contain three positive integers."
     if (
         not math.isfinite(args.scph_cutoff_frequency)
         or args.scph_cutoff_frequency < 0
     ):
-        return "scph.cutoff-frequency must be finite and non-negative."
+        return "force-constant.sscha.cutoff-frequency must be finite and non-negative."
     if args.scph_run_transport:
         temps_error = validate_temps(args.temps)
         if temps_error:
@@ -2241,11 +2019,7 @@ def validate_scph(args):
 
 
 def qha_sscha_transport_flags(args):
-    """Return effective three- and four-phonon QHA+SSCHA switches.
-
-    ``scph.run-transport`` remains the backward-compatible spelling for the
-    three-phonon switch when the dedicated ``qha-sscha`` option is omitted.
-    """
+    """Return the three- and four-phonon switches for QHA-volume SSCHA."""
     configured_three_phonon = getattr(args, "qha_sscha_three_phonon", None)
     if configured_three_phonon is None:
         three_phonon = bool(getattr(args, "scph_run_transport", False))
@@ -2260,16 +2034,13 @@ def validate_qha_sscha(args):
     if not getattr(args, "qha_enabled", False) or not getattr(
         args, "scph_enabled", False
     ):
-        return "qha-sscha requires both qha and scph sections."
+        return "QHA-volume SSCHA requires force-constant.qha and force-constant.sscha."
     three_phonon, four_phonon = qha_sscha_transport_flags(args)
     if (
         getattr(args, "qha_sscha_three_phonon", None) is False
         and getattr(args, "scph_run_transport", False)
     ):
-        return (
-            "qha-sscha.three-phonon: false conflicts with the legacy "
-            "scph.run-transport: true setting. Remove one of them."
-        )
+        return "QHA-volume SSCHA transport switches disagree."
     if three_phonon:
         temps_error = validate_temps(args.temps)
         if temps_error:
@@ -2277,18 +2048,18 @@ def validate_qha_sscha(args):
     if four_phonon:
         if not args.fp_enabled:
             return (
-                "qha-sscha.four-phonon: true requires a fourphonon section."
+                "QHA-volume SSCHA four-phonon transport requires force-constant.four-phonon."
             )
         if args.fp_harmonic_format != "shengbte":
             return (
                 "QHA+SSCHA four-phonon transport requires "
-                "fourphonon.harmonic-format: shengbte."
+                "force-constant.four-phonon.harmonic-format: shengbte."
             )
         backend = str((args.fp_parallel or {}).get("backend", "none")).lower()
         if backend == "slurm":
             return (
                 "qha-sscha does not support nested FourPhonon Slurm jobs; submit "
-                "the whole run as one batch job with fourphonon.parallel.backend: none."
+                "the whole run as one batch job with force-constant.four-phonon.parallel.backend: none."
             )
     return None
 
@@ -2296,12 +2067,12 @@ def validate_qha_sscha(args):
 def _validate_scph_temperatures(args):
     """Validate the shared SCPH/SSCHA temperature-range convention."""
     if len(args.scph_temps) != 3:
-        return "scph.temps must contain [minimum, maximum, step]."
+        return "force-constant.sscha.temps must contain [minimum, maximum, step]."
     tmin, tmax, tstep = args.scph_temps
     if not all(math.isfinite(value) for value in (tmin, tmax, tstep)):
-        return "scph.temps values must be finite."
+        return "force-constant.sscha.temps values must be finite."
     if tmin < 0 or tmax < tmin or tstep <= 0:
-        return "scph.temps must satisfy 0 <= minimum <= maximum and step > 0."
+        return "force-constant.sscha.temps must satisfy 0 <= minimum <= maximum and step > 0."
     return None
 
 
@@ -2316,38 +2087,38 @@ def validate_fourphonon(args):
         return "FourPhonon transport currently supports only dimensionality: 3."
     for name, values in (("mesh", args.fp_mesh), ("scell", args.fp_scell)):
         if len(values) != 3 or any(int(value) <= 0 for value in values):
-            return f"fourphonon.{name} must contain three positive integers."
+            return f"force-constant.four-phonon.{name} must contain three positive integers."
     temps_error = validate_temps(args.fp_temps)
     if temps_error:
-        return temps_error.replace("--temps", "fourphonon.temps")
+        return temps_error.replace("--temps", "force-constant.four-phonon.temps")
     if any(not math.isfinite(value) or value <= 0 for value in args.fp_temps):
-        return "fourphonon.temps values must be finite and positive."
+        return "force-constant.four-phonon.temps values must be finite and positive."
     if len(args.fp_temps) == 3:
         tmin, tmax, tstep = args.fp_temps
         if tmax < tmin or tstep <= 0:
-            return "fourphonon.temps must satisfy minimum <= maximum and step > 0."
+            return "force-constant.four-phonon.temps must satisfy minimum <= maximum and step > 0."
     if not math.isfinite(args.fp_scalebroad) or args.fp_scalebroad <= 0:
-        return "fourphonon.scalebroad must be finite and positive."
+        return "force-constant.four-phonon.scalebroad must be finite and positive."
     if args.fp_mpi_processes <= 0 or args.fp_omp_threads <= 0:
         return "fourphonon MPI processes and OpenMP threads must be positive."
     if not args.fp_command:
-        return "fourphonon.command must not be empty."
+        return "force-constant.four-phonon.command must not be empty."
     if not isinstance(args.fp_mpi_launcher, list) or not all(
         isinstance(token, str) for token in args.fp_mpi_launcher
     ):
-        return "fourphonon.mpi-launcher must be a list of strings."
+        return "force-constant.four-phonon.mpi-launcher must be a list of strings."
     if "{nproc}" not in args.fp_mpi_launcher:
-        return "fourphonon.mpi-launcher must contain a {nproc} token."
+        return "force-constant.four-phonon.mpi-launcher must contain a {nproc} token."
     workdir = Path(args.fp_workdir)
     if workdir.is_absolute() or ".." in workdir.parts:
-        return "fourphonon.workdir must be relative to output.result-dir."
+        return "force-constant.four-phonon.workdir must be relative to output.result-dir."
     if args.fp_nonanalytic and not args.fp_control:
         return (
-            "fourphonon.nonanalytic requires fourphonon.control with dielectric "
+            "force-constant.four-phonon.nonanalytic requires force-constant.four-phonon.control with dielectric "
             "and Born-charge data."
         )
     if args.fp_harmonic_format == "espresso" and not args.fp_control:
-        return "fourphonon.harmonic-format: espresso requires fourphonon.control."
+        return "force-constant.four-phonon.harmonic-format: espresso requires force-constant.four-phonon.control."
     samples = {
         "sample-3ph": args.fp_sample_3ph,
         "sample-3ph-phase-space": args.fp_sample_3ph_phase_space,
@@ -2356,27 +2127,27 @@ def validate_fourphonon(args):
     }
     for name, value in samples.items():
         if value != -1 and value <= 0:
-            return f"fourphonon.{name} must be -1 or a positive integer."
+            return f"force-constant.four-phonon.{name} must be -1 or a positive integer."
     if args.fp_solver != "rta" and args.fp_sample_3ph > 0:
-        return "Three-phonon sampling requires fourphonon.solver: rta."
+        return "Three-phonon sampling requires force-constant.four-phonon.solver: rta."
     if args.fp_solver == "full-iterative" and args.fp_sample_4ph > 0:
         return "Four-phonon sampling is incompatible with full-iterative solving."
     if args.fp_wigner:
         if args.fp_solver != "rta":
-            return "fourphonon.wigner currently requires fourphonon.solver: rta."
+            return "force-constant.four-phonon.wigner currently requires force-constant.four-phonon.solver: rta."
         if args.fp_only_harmonic:
-            return "fourphonon.wigner requires a transport calculation, not only-harmonic."
+            return "force-constant.four-phonon.wigner requires a transport calculation, not only-harmonic."
         if args.fp_harmonic_format != "shengbte":
-            return "fourphonon.wigner currently requires harmonic-format: shengbte."
+            return "force-constant.four-phonon.wigner currently requires harmonic-format: shengbte."
         if any(value != -1 for value in samples.values()):
             return (
-                "fourphonon.wigner requires all sample-* settings to be -1; "
+                "force-constant.four-phonon.wigner requires all sample-* settings to be -1; "
                 "the Wigner_Park branch does not support sampling."
             )
 
     settings = args.fp_parallel or {}
     if not isinstance(settings, dict):
-        return "fourphonon.parallel must be a mapping."
+        return "force-constant.four-phonon.parallel must be a mapping."
     settings = {normalize_yaml_key(key): value for key, value in settings.items()}
     args.fp_parallel = settings
     valid = {
@@ -2386,23 +2157,23 @@ def validate_fourphonon(args):
     }
     unknown = sorted(set(settings) - valid)
     if unknown:
-        return f"Unknown fourphonon.parallel key '{unknown[0].replace('_', '-')}'."
+        return f"Unknown force-constant.four-phonon.parallel key '{unknown[0].replace('_', '-')}'."
     backend = str(settings.get("backend", "none")).lower()
     if backend not in {"none", "slurm"}:
-        return "fourphonon.parallel.backend must be 'none' or 'slurm'."
+        return "force-constant.four-phonon.parallel.backend must be 'none' or 'slurm'."
     for key in ("nodes", "ntasks", "cpus_per_task"):
         if settings.get(key) is not None:
             try:
                 if int(settings[key]) <= 0:
                     raise ValueError
             except (TypeError, ValueError):
-                return f"fourphonon.parallel.{key} must be a positive integer."
+                return f"force-constant.four-phonon.parallel.{key} must be a positive integer."
     for key in ("preamble", "extra_sbatch"):
         value = settings.get(key, [])
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-            return f"fourphonon.parallel.{key} must be a list of strings."
+            return f"force-constant.four-phonon.parallel.{key} must be a list of strings."
     if "submit" in settings and not isinstance(settings["submit"], bool):
-        return "fourphonon.parallel.submit must be true or false."
+        return "force-constant.four-phonon.parallel.submit must be true or false."
     return None
 
 
@@ -2421,11 +2192,8 @@ def validate_force_constant_backends(args):
                 f"{backend} must be a negative integer neighbor shell or a "
                 "positive cutoff distance in nm."
             )
-    pair_cutoff = getattr(args, "pair_cutoff_fc3", None)
-    if pair_cutoff is not None:
-        if args.fc3_backend != "phono3py":
-            return "force-constant.pair-cutoff-fc3 is only valid with fc3-backend: phono3py."
-        if not math.isfinite(pair_cutoff) or pair_cutoff <= 0:
+    if args.fc3_backend == "phono3py" and args.cutoff_fc3 is not None:
+        if not math.isfinite(args.cutoff_fc3) or args.cutoff_fc3 <= 0:
             return "force-constant.cutoff-fc3 must be a positive distance in Angstrom for phono3py."
     return None
 

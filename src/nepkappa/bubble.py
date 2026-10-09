@@ -224,7 +224,7 @@ def run_bubble_temperature(config, temperature_dir, temperature):
     else:
         points = np.asarray(settings.bubble_grid_points, dtype=int)
         if np.any(points >= len(ph.grid.addresses)):
-            raise ValueError("scph.bubble-grid-points contains an out-of-range BZ grid index.")
+            raise ValueError("force-constant.sscha.bubble-grid-points contains an out-of-range BZ grid index.")
         # Explicit points may not be IR representatives; do not invent weights.
         selected_weights = None
         coverage = "selected BZ grid points; not a full-BZ integral"

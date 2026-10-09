@@ -45,3 +45,6 @@ htmlcov/
 # Local verification suite and reference data
 /tests/
 /benchmarks/
+
+# Local scratch previews and draft inputs
+/tmp/

@@ -108,28 +108,16 @@ Three- and four-phonon conductivity
 -------------------------------------
 
 ``examples/nep-rta-3ph-4ph.yaml`` computes combined three-plus-four-phonon
-conductivity. If a separate pure-three-phonon reference is also needed, use
-matching FC2/FC3 in a three-phonon ``kappa`` stage. A custom stage plan can
-request both channels:
-
-.. code-block:: yaml
-
-   workflow:
-     preset: custom
-     steps: [fc2fc3, kappa, fc4, kappa4]
-
-These are internal plan steps: ``kappa`` computes pure three-phonon transport,
-while ``kappa4`` computes combined three-plus-four-phonon transport. The public
-``nepkappa kappa`` command selects the route from the input. A custom plan
-containing both transport steps must be executed with ``nepkappa run``. The
-``four-phonon`` preset runs the
-combined route but does not independently add a pure-three-phonon reference.
+conductivity. To obtain a separate pure-three-phonon reference, prepare a
+second six-section input with ``kappa.engine: phono3py`` and run
+``nepkappa kappa`` against matching FC2/FC3 and the same q mesh. The
+four-phonon input selects the combined route through ``kappa.engine:
+fourphonon``; one ``nepkappa kappa`` invocation runs only its selected route.
 
 Thirdorder/Fourthorder and FourPhonon executables are additional prerequisites.
 For existing ShengBTE-format IFCs, use ``nepkappa kappa input.yaml``
 with a FourPhonon input. FC4 is generated as part of ``nepkappa run`` when
-four-phonon transport is enabled. An advanced custom input can select only
-the internal ``fc4`` step through ``nepkappa run``.
+four-phonon transport is enabled.
 The three retained 3ph+4ph templates demonstrate RTA/RTA, LBTE/RTA, and
 LBTE/LBTE choices.
 Auto-generated CONTROL files disable non-analytic corrections; a calculation
@@ -155,9 +143,7 @@ QHA and QHA-volume SSCHA
 Run a configured template with ``nepkappa run examples/<name>.yaml``.
 The coupled route regenerates force constants at each QHA volume, which stays
 fixed during SSCHA. Exported FC2 is the auxiliary harmonic matrix.
-``scph.bubble: true`` writes separate input-FC3 diagonal on-shell shifts.
-An explicit custom plan with ``workflow.steps: [bubble]`` applies this step to
-existing SSCHA results through ``nepkappa run input.yaml``.
+``force-constant.sscha.bubble: true`` writes separate input-FC3 diagonal on-shell shifts.
 Neither operation updates the conductivity with bubble corrections.
 See :doc:`input_files` for the method's limits.
 
@@ -238,8 +224,8 @@ convergence checks. Existing same-named plot files may be replaced.
 With transport HDF5 present, select its matching mesh. Scattering/lifetime
 panels need linewidth data; cumulative conductivity needs ``mode_kappa``.
 Unsupported or incomplete transport files raise an error.
-Adding a ``plot`` section alone does not add a plotting stage
-to a workflow: use the explicit command above or a custom stage plan.
+Adding a ``plot`` section alone does not generate figures; run the explicit
+``nepkappa plot`` command after the necessary outputs exist.
 
 ``report`` summarizes existing results. Custom manuscript figures use separate
 scripts. See :doc:`input_files` for built-in panels

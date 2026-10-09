@@ -8,8 +8,7 @@ from this checkout. Local validation requires terminal access and an installed
 NEP-kappa environment.
 For static calculations, it prefers the six-section input with QHA, SSCHA,
 and four-phonon switches inside ``force-constant``. Dynamic TD-BTE uses
-``tdbte`` and ``output``. Existing stage-first and preset inputs remain
-compatible.
+``tdbte`` and ``output``. Older stage-first and preset inputs are rejected.
 
 Using the skill
 -----------------

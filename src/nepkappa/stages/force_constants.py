@@ -182,8 +182,6 @@ class FiniteDisplacementStage(HostStage):
 
         pair_cutoff = getattr(cfg, "cutoff_fc3", None)
         if pair_cutoff is None:
-            pair_cutoff = getattr(cfg, "pair_cutoff_fc3", None)
-        if pair_cutoff is None:
             ph3.generate_displacements()
         else:
             ph3.generate_displacements(cutoff_pair_distance=pair_cutoff)

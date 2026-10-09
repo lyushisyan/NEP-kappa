@@ -113,10 +113,9 @@ implemented in this package. Transport with renormalized FC2 does not by itself
 include every higher-order anharmonic correction.
 
 The `scph` route produces **auxiliary harmonic FC2**, not a free-energy Hessian
-or a full dynamic phonon spectrum. Optional `scph.bubble: true` adds a separate
+or a full dynamic phonon spectrum. Optional `force-constant.sscha.bubble: true` adds a separate
 **input-FC3, diagonal on-shell bubble frequency correction**. Enable it in the
-SSCHA input; an explicit custom `workflow.steps: [bubble]` can process existing
-results without repeating the sampling. This does not update FC2 or thermal
+SSCHA input. This does not update FC2 or thermal
 conductivity; it is not the full ensemble-vertex
 SSCHA spectral method. See [bubble settings and limits](docs/source/input_files.rst).
 `qha-sscha` means **SSCHA at QHA

@@ -27,12 +27,11 @@ Implementation behind the stages
 --------------------------------
 
 ``command_registry.py`` defines the public command catalog. ``cli.py`` owns
-terminal handling and concise error reporting. ``config.py`` validates YAML and exposes typed views
-through ``config_models.py`` while preserving historical attributes.
+terminal handling and concise error reporting. ``config.py`` validates the two
+public YAML shapes and exposes typed views through ``config_models.py``.
 
 ``config.py`` also expands static nested switches and infers the separate
-dynamic TD-BTE route. ``stage_plan.py`` validates older explicit stage choices
-and compiles them to existing step names and backend settings.
+dynamic TD-BTE route.
 ``application.py`` constructs stage implementations
 and executes those steps in order.
 ``stages/`` contains common lifecycle hooks and force/structure stages.
@@ -57,12 +56,12 @@ records deferred execution; Slurm tools can inspect live queue state.
 ``artifacts.py`` stores force-job outputs and cache identities, and
 ``provenance.py`` records input hashes, versions, timings, and outputs.
 
-Maintaining compatibility
--------------------------
+Maintaining the input contract
+------------------------------
 
-Scientific behavior and existing accepted YAML keys should stay stable during
-structural cleanup. Introduce a new stage behind the application interface and
-add parser, stage, and numerical checks appropriate to its behavior.
+Keep the six-section static schema and the separate dynamic schema explicit.
+Introduce a new stage behind the application interface and add parser, stage,
+and numerical checks appropriate to its behavior.
 Keep backend-specific details out of CLI handlers. Update the public example
 catalog, input reference, and skill when the user-facing interface changes.
 

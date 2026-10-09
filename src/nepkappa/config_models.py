@@ -1,4 +1,4 @@
-"""Typed, read-only views over the legacy flat workflow configuration.
+"""Typed, read-only views over the internal workflow configuration.
 
 The views let new code depend on cohesive configuration sections while the
 existing workflows continue to use their historical ``config.option`` API.
@@ -38,7 +38,6 @@ class StructureConfig:
 class WorkflowPlanConfig:
     preset: str
     steps: StringValues
-    stages: Optional[Mapping[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -72,7 +71,6 @@ class ForceConstantsConfig:
     dim_fc4: Int3
     fc3_backend: str
     cutoff_fc3: Optional[float]
-    pair_cutoff_fc3: Optional[float]
     cutoff_fc4: float
     thirdorder_command: Optional[str]
     fourthorder_command: Optional[str]
@@ -249,9 +247,6 @@ class WorkflowSections:
             workflow=WorkflowPlanConfig(
                 preset=cfg.workflow_preset,
                 steps=_tuple(cfg.workflow_steps),
-                stages=(
-                    None if cfg.workflow_stages is None else _mapping(cfg.workflow_stages)
-                ),
             ),
             structure=StructureConfig(
                 poscar=cfg.poscar,
@@ -291,7 +286,6 @@ class WorkflowSections:
                 dim_fc4=_tuple(cfg.dim_fc4),
                 fc3_backend=cfg.fc3_backend,
                 cutoff_fc3=cfg.cutoff_fc3,
-                pair_cutoff_fc3=cfg.pair_cutoff_fc3,
                 cutoff_fc4=cfg.cutoff_fc4,
                 thirdorder_command=cfg.thirdorder_command,
                 fourthorder_command=cfg.fourthorder_command,

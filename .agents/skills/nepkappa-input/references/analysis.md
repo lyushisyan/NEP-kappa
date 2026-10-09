@@ -76,9 +76,8 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
 - `temperature` defines the initial Bose state. `excitation: 0.01` increases
   selected occupations by 1%, not by 1 K, 1% total energy, or a laser fluence.
   Explain which branches at which q points are excited (currently every q).
-- Use `nepkappa info input.yaml` for validation and `nepkappa run input.yaml`
-  for the dynamic TD-BTE input. An explicit custom plan can still contain
-  the internal `tdbte` step.
+- Use `nepkappa info input.yaml` for validation and `nepkappa tdbte input.yaml`
+  or `nepkappa run input.yaml` for the dynamic TD-BTE input.
   Validation checks options, not source existence or physical normalization.
   Do not run the ODE just to validate an input.
 - Use a fresh output directory: an existing `result-dir/tdbte/` is refused.

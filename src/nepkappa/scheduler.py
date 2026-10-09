@@ -2,22 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 
 
-@dataclass(frozen=True)
-class SchedulerSnapshot:
-    """One non-mutating view of jobs known to a scheduler."""
-
-    jobs: dict[str, str]
-    source: str
-    error: str | None = None
-
-
 class SlurmScheduler:
-    """Submit Slurm jobs and query their current queue states."""
+    """Submit Slurm jobs and their dependent collection scripts."""
 
     def __init__(self, *, run=None):
         self._run = run or subprocess.run
@@ -60,47 +50,3 @@ class SlurmScheduler:
             job_ids[name] = job_id
             dependency = job_id
         return job_ids
-
-    def query(self, jobs):
-        """Query ``squeue`` for a mapping of logical job names to IDs."""
-        normalized = {str(name): str(job_id) for name, job_id in jobs.items()}
-        if not normalized:
-            return SchedulerSnapshot({}, source="squeue")
-        command = [
-            "squeue",
-            "--noheader",
-            "--format=%i|%T",
-            "--jobs",
-            ",".join(normalized.values()),
-        ]
-        try:
-            result = self._run(
-                command,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            return SchedulerSnapshot(
-                {name: "unknown" for name in normalized},
-                source="stored",
-                error="squeue is not available",
-            )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip()
-            return SchedulerSnapshot(
-                {name: "unknown" for name in normalized},
-                source="stored",
-                error=f"squeue failed: {detail}",
-            )
-
-        by_id = {}
-        for line in result.stdout.splitlines():
-            job_id, separator, state = line.strip().partition("|")
-            if separator and job_id:
-                by_id[job_id] = state.lower()
-        states = {
-            name: by_id.get(job_id, "not-in-queue")
-            for name, job_id in normalized.items()
-        }
-        return SchedulerSnapshot(states, source="squeue")

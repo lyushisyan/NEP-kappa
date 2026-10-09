@@ -71,11 +71,11 @@ For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
 six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
 first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
 constant orders without invoking transport.
-Advanced stage-first `workflow.stages` inputs remain valid even though the
-public catalog has nine static workflows. Existing `workflow.preset` and
-`workflow.steps` inputs remain valid; do not combine either with
-`workflow.stages`. Small variants such as RTA versus LBTE should edit the
-transport method, not create duplicate sections. Put user calculations under
+All six static sections must be present; use `{}` for an unused section. The
+separate dynamic input has only `tdbte` and `output`. Older top-level
+`workflow`, `relaxation`, `qha`, `scph`, and `fourphonon` sections and flat
+parameters are rejected. Small variants such as RTA versus LBTE should edit
+the transport method, not create duplicate sections. Put user calculations under
 `calculations/<material-or-study>/`
 unless they choose another location. `examples/` is the public template catalog.
 
@@ -122,9 +122,8 @@ large simulation dependencies solely to validate a draft.
 
 Preparing an input does not itself authorize calculations. Do not invoke
 execution commands, `sbatch`, or load a calculator as a validation shortcut.
-Adding a `plot` section does not add a plotting stage; use `nepkappa plot`
-when plotting is authorized, or enable `analysis.method: plot` in an
-authorized stage-first plan.
+Adding a `plot` section does not run plotting; use `nepkappa plot` when
+plotting is authorized.
 When calculation execution was requested, continue within that scope after
 input checks.
 

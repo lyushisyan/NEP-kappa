@@ -11,10 +11,12 @@
 - Remove the ``stage`` and ``status`` command entries. Earlier direct-stage,
   comparison, and convergence commands beyond the ten listed above are no
   longer accepted.
-- Add a stage-first ``workflow.stages`` interface with per-stage method and
-  feature choices. Static inputs now use six sections with QHA, SSCHA, and
-  four-phonon switches inside ``force-constant``. TD-BTE uses a separate ``tdbte``/``output``
-  input. Older preset and stage-first inputs remain supported.
+- Require six static sections with QHA, SSCHA, and four-phonon switches inside
+  ``force-constant``. TD-BTE uses only ``tdbte`` and ``output``. Old top-level
+  presets, stage plans, flat parameters, and deprecated FC cutoff/dimension
+  aliases are rejected.
+- Remove unused comparison, convergence, stage-first compilation, and
+  scheduler-status query code, along with obsolete plotting helpers.
 - Add an optional FourPhonon Wigner_Park RTA path for combined three/four-phonon
   population, coherence, and total conductivity, with tensor consistency checks.
 - Expose independent `kappa.method-3ph` and `kappa.method-4ph` choices for
@@ -38,7 +40,7 @@
   limitations and conservation, equilibrium, and entropy checks.
 - Update YAML examples, documentation, and the input-preparation Skill.
 
-Local verification: 459 tests passed with a fresh Numba cache; strict
+Local verification: 417 tests passed; strict
 documentation build and a real SiC small-grid TD-BTE build-and-solve smoke test
 passed. The FourPhonon Wigner_Park interface has not yet been checked against a
 completed external-solver run. Absolute-rate validation and mesh convergence

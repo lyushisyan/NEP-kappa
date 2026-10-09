@@ -53,9 +53,9 @@ Source layout
   and ``tdbte_quadrature.py`` owns the surface integration rule.
 - ``artifacts.py``, ``provenance.py``, ``run_state.py``: cache and result identity.
 - ``scheduler.py`` and ``slurm.py``: scheduler interaction.
-- ``plot.py``, ``report.py``, ``convergence.py``: analysis.
+- ``plot.py`` and ``report.py``: result analysis and reporting.
 
-``workflow.py`` retains compatibility methods used by the stage implementations.
+``workflow.py`` retains the shared context used by the stage implementations.
 
 Maintaining examples and the skill
 ------------------------------------
@@ -69,7 +69,8 @@ optional ``parallel`` settings.
 When keys or templates change, update the input reference and
 ``.agents/skills/nepkappa-input/`` together. The example-catalog test validates
 the nine static inputs, the separate TD-BTE schema, and their public assets.
-Keep compatibility-only inputs under ``tests/fixtures/``.
+Keep internal fixture inputs in ``tests/fixtures/`` aligned with the public
+six-section static or two-section dynamic shapes.
 
 Baseline snapshots
 --------------------
