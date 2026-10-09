@@ -180,9 +180,8 @@ Run a stage-first input with:
 
    nepkappa run input.yaml
 
-``nepkappa init input.yaml`` generates the six-section static form for all
-five supported initializer goals. Existing preset and stage-first inputs remain
-valid for compatibility.
+Copy one of the nine static examples to start a six-section input. Existing
+preset and stage-first inputs remain valid for compatibility.
 
 ``workflow.stages`` is a mapping in fixed calculation order. An omitted or
 disabled phase does not run. ``structure.method: input`` uses the input
@@ -295,7 +294,7 @@ The following commands expose individual stages for advanced use:
 - ``nepkappa run`` expands and executes the selected workflow preset. Without a
   ``workflow`` section it preserves the legacy ``relax`` + ``fc2fc3`` +
   ``kappa`` behavior.
-- ``nepkappa info`` prints the parsed configuration without running a calculation.
+- ``nepkappa info`` checks and prints the parsed configuration without running a calculation.
 
 ``nepkappa stage fc2fc3`` computes and writes FC2 first, then starts the FC3
 displacement, force, and export stage.
@@ -941,7 +940,7 @@ SSCHA results without evaluating an ASE calculator or running transport:
 
 .. code-block:: bash
 
-   nepkappa validate input.yaml --for bubble
+   nepkappa info input.yaml --for bubble
    nepkappa stage bubble input.yaml
    nepkappa report input.yaml
 

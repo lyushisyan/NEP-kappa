@@ -85,12 +85,8 @@ def main(argv: list[str] | None = None) -> int:
         return status_command(args.config)
     if args.command == "report":
         return report_command(args.config)
-    if args.command == "init":
-        return init_command(args)
     if args.command == "info":
         return info_command(args.config, command=args.workflow)
-    if args.command == "validate":
-        return validate_command(args.config, command=args.workflow)
 
     parser.error("missing command")
     return 2
@@ -122,60 +118,18 @@ def build_parser() -> argparse.ArgumentParser:
             )
             command_parser.add_argument("config", help="YAML input file")
             continue
-        if spec.name == "init":
-            command_parser.add_argument(
-                "config",
-                nargs="?",
-                default="nepkappa.yaml",
-                help="YAML file to create (default: nepkappa.yaml)",
-            )
-            command_parser.add_argument(
-                "--preset",
-                choices=(
-                    "three-phonon",
-                    "four-phonon",
-                    "qha",
-                    "scph",
-                    "qha-sscha",
-                ),
-            )
-            command_parser.add_argument(
-                "--calculator", choices=("nep", "mace", "vasp")
-            )
-            command_parser.add_argument("--structure", help="POSCAR/structure path")
-            command_parser.add_argument(
-                "--model", help="NEP/MACE model or MACE foundation"
-            )
-            command_parser.add_argument("--result-dir")
-            command_parser.add_argument(
-                "--dim", nargs=3, type=int, metavar=("NX", "NY", "NZ")
-            )
-            command_parser.add_argument(
-                "--mesh", nargs=3, type=int, metavar=("QX", "QY", "QZ")
-            )
-            command_parser.add_argument("--vasp-command")
-            command_parser.add_argument("--potcar-path")
-            command_parser.add_argument("--fourphonon-command")
-            command_parser.add_argument("--slurm", action="store_true")
-            command_parser.add_argument("--non-interactive", action="store_true")
-            command_parser.add_argument("--force", action="store_true")
-            continue
         config_help = (
             "Result directory or workflow YAML input file"
             if spec.name == "report" else "YAML input file"
         )
         command_parser.add_argument("config", help=config_help)
-        if spec.name in {"info", "validate"}:
+        if spec.name == "info":
             command_parser.add_argument(
                 "--for",
                 dest="workflow",
                 choices=VALIDATION_TARGETS,
-                default=None if spec.name == "info" else "run",
-                help=(
-                    "Show only settings for this workflow (default: all)."
-                    if spec.name == "info"
-                    else "Target workflow whose settings are checked (default: run)."
-                ),
+                default="run",
+                help="Check and show this workflow's settings (default: run).",
             )
 
     return parser
@@ -246,17 +200,10 @@ def run_command(command, config_path, *, debug=False, invoked_as=None) -> int:
     return exit_code
 
 
-def info_command(config_path, command=None) -> int:
-    """Print parsed config values without running the workflow."""
+def info_command(config_path, command="run") -> int:
+    """Validate and print a workflow's settings without running it."""
     args = parse_workflow_args(config_path, command=command)
     print(format_config(args, command=command))
-    return 0
-
-
-def validate_command(config_path, command="run") -> int:
-    """Validate one workflow configuration without creating result files."""
-    parse_workflow_args(config_path, command=command)
-    print(f"Configuration is valid for '{command}': {Path(config_path).resolve()}")
     return 0
 
 
@@ -287,35 +234,6 @@ def report_command(source) -> int:
     print(f"Report generated for: {result_dir}")
     for output in outputs:
         print(f"  - {output}")
-    return 0
-
-
-def init_command(args) -> int:
-    """Create a validated starter YAML through the input initializer."""
-    from nepkappa.initializer import initialize_input
-
-    try:
-        path, answers = initialize_input(
-            args.config,
-            preset=args.preset,
-            calculator=args.calculator,
-            structure=args.structure,
-            model=args.model,
-            result_dir=args.result_dir,
-            dimension=args.dim,
-            mesh=args.mesh,
-            use_slurm=args.slurm,
-            vasp_command=args.vasp_command,
-            potcar_path=args.potcar_path,
-            fourphonon_command=args.fourphonon_command,
-            interactive=not args.non_interactive,
-            overwrite=args.force,
-        )
-    except (FileExistsError, ValueError) as exc:
-        print(f"[Error] Could not create input: {exc}")
-        return 1
-    print(f"Created validated {answers.preset} input: {path.resolve()}")
-    print(f"Next: nepkappa run {path}")
     return 0
 
 

@@ -193,7 +193,7 @@ Configure allocation sizes, MPI/OpenMP settings, environment setup, and a
 shared result directory for the actual cluster. Start with ``submit: false``
 when generating NEP-kappa-managed scripts for inspection.
 
-``validate`` and ``info`` only inspect configuration. Executing a stage with
+``info`` only inspects configuration. Executing a stage with
 ``submit: false`` may perform preparation before writing scripts. A complete
 workflow may also run earlier local stages. After reviewing generated scripts,
 set ``submit: true`` to submit and inspect with ``nepkappa status input.yaml``.
@@ -221,7 +221,6 @@ From the directory relative to which those paths are defined:
 
 .. code-block:: bash
 
-   nepkappa validate plot.yaml --for plot
    nepkappa info plot.yaml --for plot
    nepkappa plot plot.yaml
 

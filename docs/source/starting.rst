@@ -8,7 +8,6 @@ After :doc:`installation`, run these commands from the repository root:
 
 .. code-block:: bash
 
-   nepkappa validate examples/nep-rta-wigner-3ph.yaml
    nepkappa info examples/nep-rta-wigner-3ph.yaml
 
 To run this example in an appropriate compute allocation, execute
@@ -31,37 +30,21 @@ Create your own input
 
 .. code-block:: bash
 
-   nepkappa init input.yaml
-   nepkappa validate input.yaml
+   cp examples/nep-rta-wigner-3ph.yaml input.yaml
    nepkappa info input.yaml
    nepkappa run input.yaml
 
-The initializer asks for the calculation type, structure, calculator, numerical
-settings, and output directory. Provide a structure and potential for the same
-material. Existing input files are preserved unless ``--force`` is supplied.
-The initializer writes the six-section static format shown in
-:doc:`input_files` for all supported static goals.
+Edit the copied file's structure, calculator, numerical settings, and output
+directory for your material. Provide a structure and potential for the same
+material. The six-section static format is described in :doc:`input_files`.
 
 Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
 directory. To work elsewhere, use suitable relative paths or absolute paths.
-For scripts, create a non-interactive input:
-
-.. code-block:: bash
-
-   nepkappa init input.yaml --non-interactive \
-     --preset three-phonon --calculator nep \
-     --structure examples/structures/3C-SiC/POSCAR_primitive \
-     --model potentials/3C-SiC/nep_3C-SiC.txt \
-     --dim 3 3 3 --mesh 21 21 21
-
 Choose another workflow
 -------------------------
 
 Select a template from :doc:`examples` and run it with the same ``run`` command.
-The initializer's ``--preset`` option sets the QHA, SSCHA, and four-phonon
-switches inside ``force-constant``. Available goals are ``three-phonon``,
-``four-phonon``, ``qha``, ``scph``, and ``qha-sscha``. The ``scph``
-choice selects the implemented Phonopy stochastic SSCHA route.
+The QHA, SSCHA, and four-phonon switches are inside ``force-constant``.
 For time-dependent BTE, start from ``examples/tdbte.yaml``; it uses only
 ``tdbte`` and ``output`` sections.
 
@@ -69,13 +52,13 @@ For analysis or restarts, use a stage command instead:
 
 .. code-block:: bash
 
-   nepkappa validate input.yaml --for kappa
+   nepkappa info input.yaml --for kappa
    nepkappa stage kappa input.yaml
 
 This recalculates transport from existing matching FC2, FC3, and phono3py
 metadata. See :doc:`tutorial` for stage prerequisites, QHA/SSCHA, and Slurm.
 
-Validation checks supported settings; it does not test model accuracy or
+``info`` checks supported settings; it does not test model accuracy or
 external executables. ``nepkappa status input.yaml`` reads saved submission
 state and, where available, Slurm queue state. For a traceback, put ``--debug``
 before the command.

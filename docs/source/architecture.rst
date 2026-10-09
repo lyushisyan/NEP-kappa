@@ -27,8 +27,7 @@ Implementation behind the stages
 --------------------------------
 
 ``command_registry.py`` defines the public command catalog. ``cli.py`` owns
-terminal handling and concise error reporting; ``initializer.py`` writes
-validated starter inputs. ``config.py`` validates YAML and exposes typed views
+terminal handling and concise error reporting. ``config.py`` validates YAML and exposes typed views
 through ``config_models.py`` while preserving historical attributes.
 
 ``config.py`` also expands static nested switches and infers the separate

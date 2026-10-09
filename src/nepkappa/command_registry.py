@@ -25,9 +25,7 @@ COMMAND_SPECS = (
     CommandSpec("plot", "Plot completed results."),
     CommandSpec("status", "Show saved and scheduler job states."),
     CommandSpec("report", "Summarize completed results."),
-    CommandSpec("init", "Create a YAML input interactively."),
-    CommandSpec("validate", "Check an input without running it."),
-    CommandSpec("info", "Show parsed input settings."),
+    CommandSpec("info", "Check and show parsed input settings."),
 )
 
 PUBLIC_COMMANDS = tuple(spec.name for spec in COMMAND_SPECS)

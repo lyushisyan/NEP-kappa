@@ -17,7 +17,7 @@ above it. Verify `src/nepkappa/config.py` and `examples/`; a copied skill may
 need a separately supplied repository path.
 
 Check `nepkappa --version` and, when relevant, `nepkappa --help` and
-`nepkappa validate --help`. Match the installation to the sources:
+`nepkappa info --help`. Match the installation to the sources:
 
 ```bash
 python -c 'import nepkappa; print(nepkappa.__version__); print(nepkappa.__file__)'
@@ -107,7 +107,6 @@ authorized execution and explicit user settings.
 For ordinary inputs, validate the intended command without computing:
 
 ```bash
-nepkappa validate input.yaml --for run
 nepkappa info input.yaml --for run
 ```
 

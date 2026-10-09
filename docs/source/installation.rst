@@ -15,7 +15,7 @@ Dependency availability may vary with the platform.
    source .venv/bin/activate
    python -m pip install -e .
    nepkappa --version
-   nepkappa validate examples/nep-rta-wigner-3ph.yaml
+   nepkappa info examples/nep-rta-wigner-3ph.yaml
 
 The editable installation uses this checkout directly. After local source
 updates, the command sees them; reinstall when dependency declarations change.

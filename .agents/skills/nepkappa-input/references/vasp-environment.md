@@ -71,7 +71,7 @@ Inspect limited header metadata, not full licensed contents. Never commit
 POTCAR data into public examples or distribute it without authorization.
 
 Do not call `resolve_potcar` merely to inspect: library assembly writes files.
-Run `validate input.yaml --for <stage>` and `info` for syntax/plan checks only.
+Run `nepkappa info input.yaml --for <stage>` for syntax and plan checks only.
 Report separately: configured command, binary existence/executable bit,
 environment/MPI checks, POTCAR checks, and whether a compute-node smoke test
 has actually run. Remote or compute-node access not exercised remains unverified.

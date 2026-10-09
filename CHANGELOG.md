@@ -2,13 +2,15 @@
 
 ## Unreleased
 
-- Simplify the CLI to eight top-level commands. Individual calculations use
+- Keep ``nepkappa info`` as the sole input-inspection command; it checks and
+  displays the selected workflow. Remove the ``init`` and ``validate`` CLI
+  commands; copy an example YAML to start a new input.
+- Simplify the CLI to six top-level commands. Individual calculations use
   ``nepkappa stage <name> input.yaml``; retired direct-stage, comparison, and
   convergence commands are no longer accepted.
 - Add a stage-first ``workflow.stages`` interface with per-stage method and
   feature choices. Static inputs now use six sections with QHA, SSCHA, and
-  four-phonon switches inside ``force-constant``; the initializer emits this
-  layout for all its static goals. TD-BTE uses a separate ``tdbte``/``output``
+  four-phonon switches inside ``force-constant``. TD-BTE uses a separate ``tdbte``/``output``
   input. Older preset and stage-first inputs remain supported.
 - Add an optional FourPhonon Wigner_Park RTA path for combined three/four-phonon
   population, coherence, and total conductivity, with tensor consistency checks.

@@ -33,7 +33,7 @@ files are workflow demonstrations, not converged material results. See
    * - ``tdbte.yaml``
      - Population dynamics from existing matching FC2/FC3 and metadata.
 
-Use ``nepkappa validate examples/<name>.yaml`` to check an input without
+Use ``nepkappa info examples/<name>.yaml`` to check an input without
 running it. Ordinary workflow inputs use ``nepkappa run``; plotting and
 reporting are separate commands. The TD-BTE route needs completed force
 constants and does not regenerate them.

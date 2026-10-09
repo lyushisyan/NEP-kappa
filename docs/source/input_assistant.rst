@@ -88,11 +88,10 @@ assumptions, and validation status. For a complete workflow it uses:
 
 .. code-block:: bash
 
-   nepkappa validate input.yaml --for run
    nepkappa info input.yaml --for run
 
 Stage-only inputs use the corresponding target, such as ``--for kappa``.
-Validation checks the configuration, not model accuracy or numerical convergence.
+``info`` checks the configuration, not model accuracy or numerical convergence.
 File and environment checks are reported separately. Preparing an input does
 not submit a calculation.
 

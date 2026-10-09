@@ -21,13 +21,12 @@ Keep a separate `output.result-dir` for each calculation.
 For a first read-only check:
 
 ```bash
-nepkappa validate examples/nep-rta-wigner-3ph.yaml
 nepkappa info examples/nep-rta-wigner-3ph.yaml
 ```
 
 To calculate, copy an input and set a distinct result directory. `nepkappa run`
 executes the static or TD-BTE workflow; `nepkappa plot` and `nepkappa report`
-operate on completed results. `validate` does not run simulations or verify
+operate on completed results. `info` does not run simulations or verify
 external executables. The TD-BTE input requires existing FC2/FC3 and matching
 phono3py metadata; see [the TD-BTE guide](../docs/source/tdbte.rst).
 

@@ -33,7 +33,7 @@ For a two-atom primitive cell such as 3C-SiC::
 
 From the launch directory::
 
-   nepkappa validate input.yaml --for tdbte
+   nepkappa info input.yaml --for tdbte
    nepkappa run input.yaml
    nepkappa report calculations/SiC/time-bte
 

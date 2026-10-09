@@ -29,7 +29,6 @@ nepkappa --version
 Check the bundled 3C-SiC NEP input from the **repository root**:
 
 ```bash
-nepkappa validate examples/nep-rta-wigner-3ph.yaml
 nepkappa info examples/nep-rta-wigner-3ph.yaml
 ```
 
@@ -39,11 +38,11 @@ To perform the calculation in an appropriate compute allocation, use
 are starting settings, not a convergence claim. Validation checks the
 configuration, not every external program or the accuracy of a potential.
 
-For your own material, create a separate input:
+For your own material, copy and edit a matching example input:
 
 ```bash
-nepkappa init input.yaml
-nepkappa validate input.yaml
+cp examples/nep-rta-wigner-3ph.yaml input.yaml
+nepkappa info input.yaml
 nepkappa run input.yaml
 ```
 
@@ -128,8 +127,7 @@ recorded in new summaries and displayed by `nepkappa report`.
 
 | Command | Purpose |
 | --- | --- |
-| `nepkappa init input.yaml` | Create an input interactively |
-| `nepkappa validate input.yaml` | Check input syntax and supported settings |
+| `nepkappa info input.yaml` | Check input settings and show the parsed workflow |
 | `nepkappa run input.yaml` | Run the selected workflow |
 | `nepkappa stage fc2 input.yaml` | Run only the selected calculation stage |
 | `nepkappa status input.yaml` | Inspect stored job state and the Slurm queue |
@@ -188,8 +186,8 @@ NEP-kappa 用一个 YAML 输入文件组织声子和晶格热输运计算。
 安装后在项目根目录运行：
 
 ```bash
-nepkappa init input.yaml       # 交互式生成自己的输入文件
-nepkappa validate input.yaml   # 检查配置
+cp examples/nep-rta-wigner-3ph.yaml input.yaml  # 复制示例后修改结构、势函数和输出目录
+nepkappa info input.yaml       # 检查并显示配置
 nepkappa run input.yaml        # 执行所选流程
 nepkappa report input.yaml     # 汇总已有结果
 ```

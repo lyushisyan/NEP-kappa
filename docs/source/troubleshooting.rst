@@ -9,13 +9,11 @@ Run from the same launch directory and Python environment used for the job:
 .. code-block:: bash
 
    nepkappa --version
-   nepkappa validate input.yaml --for kappa
    nepkappa info input.yaml --for kappa
 
 Replace ``kappa`` with the intended stage. Inspect ``run.log`` and the Slurm
 job's stdout/stderr. ``nepkappa --debug <command> input.yaml`` executes the
-command and prints a traceback on failure. ``validate`` and ``info`` do not
-execute calculations.
+command and prints a traceback on failure. ``info`` does not execute calculations.
 
 Missing files or unexpected defaults
 --------------------------------------
