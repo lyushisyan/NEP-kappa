@@ -221,8 +221,8 @@ as separate PNGs and a 2-by-2 combination. No potential or FC3 is required.
 The mesh and temperatures control harmonic-property sampling and require
 convergence checks. Existing same-named plot files may be replaced.
 
-With transport HDF5 present, select its matching mesh. Scattering/lifetime
-panels need linewidth data; cumulative conductivity needs ``mode_kappa``.
+With transport HDF5 present, select its matching mesh. The scattering-rate
+panel needs linewidth data; cumulative conductivity needs ``mode_kappa``.
 Unsupported or incomplete transport files raise an error.
 Adding a ``plot`` section alone does not generate figures; run the explicit
 ``nepkappa plot`` command after the necessary outputs exist.

@@ -37,7 +37,6 @@ DEFAULT_FIGURES = [
     "dos",
     "heat_capacity",
     "group_velocity",
-    "relaxation_time",
     "scattering_rate",
     "kappa",
 ]
@@ -538,14 +537,12 @@ def available_figures(transports, include_fourphonon=False):
     """Return standard figures plus analyses supported by every dataset."""
     required = {"heat_capacity": {"temperature", "volume_heat_capacity"},
                 "group_velocity": {"frequency", "group_velocity"},
-                "relaxation_time": {"frequency", "gamma", "tau_temperature_index"},
                 "scattering_rate": {"frequency", "gamma", "tau_temperature_index"},
                 "kappa": {"temperature", "kappa"}}
     figures = [name for name in DEFAULT_FIGURES if name not in required or
                (transports and all(required[name] <= set(t) for t in transports))]
-    for name in ("relaxation_time", "scattering_rate"):
-        if name in figures and not all(t.get("gamma") for t in transports):
-            figures.remove(name)
+    if "scattering_rate" in figures and not all(t.get("gamma") for t in transports):
+        figures.remove("scattering_rate")
     if transports and all("mode_kappa" in transport for transport in transports):
         figures.append("cumulative_kappa")
     if include_fourphonon and len(transports) == 1:
@@ -650,7 +647,6 @@ def write_separate_figures(figures, plot_data, plot_dir, dpi):
         "dos": (5.6, 4.6),
         "heat_capacity": (5.8, 4.6),
         "group_velocity": (5.8, 4.6),
-        "relaxation_time": (5.8, 4.6),
         "scattering_rate": (5.8, 4.6),
         "scattering_rate_3ph": (5.8, 4.6),
         "scattering_rate_4ph": (5.8, 4.6),
@@ -700,8 +696,6 @@ def draw_figure(name, ax, plot_data):
         draw_heat_capacity(ax, plot_data["transport"])
     elif name == "group_velocity":
         draw_group_velocity(ax, plot_data["transport"])
-    elif name == "relaxation_time":
-        draw_relaxation_time(ax, plot_data["transport"])
     elif name == "scattering_rate":
         draw_scattering_rate(ax, plot_data["transport"])
     elif name == "scattering_rate_3ph":
@@ -785,51 +779,11 @@ def draw_group_velocity(ax, transport):
     ax.grid(color="0.9", linewidth=0.9)
 
 
-def draw_relaxation_time(ax, transport):
-    """Draw relaxation time from total, normal, and/or Umklapp scattering."""
-    frequency = transport["frequency"]
-    temp_index = transport["tau_temperature_index"]
-    tau_mode = transport["tau_mode"]
-    channels = tau_channels(tau_mode, transport["gamma"])
-    colors = {
-        "total": "tab:orange",
-        "normal": "tab:blue",
-        "umklapp": "tab:green",
-    }
-    labels = {
-        "total": "total",
-        "normal": "N",
-        "umklapp": "U",
-    }
-
-    for name in channels:
-        gamma = transport["gamma"][name][temp_index]
-        tau = np.full_like(gamma, np.nan, dtype=float)
-        positive = gamma > 0
-        tau[positive] = 1.0 / (4.0 * np.pi * gamma[positive])
-        valid = np.isfinite(frequency) & np.isfinite(tau) & (frequency > 0)
-        ax.scatter(
-            frequency[valid],
-            tau[valid],
-            s=12,
-            alpha=0.35,
-            color=colors[name],
-            label=labels[name],
-        )
-
-    ax.set_yscale("log")
-    ax.set_xlabel("Frequency (THz)")
-    ax.set_ylabel("Relaxation time (ps)")
-    if len(channels) > 1:
-        ax.legend(frameon=False)
-    ax.grid(color="0.9", linewidth=0.9)
-
-
 def draw_scattering_rate(ax, transport):
     """Draw total, Normal, and/or Umklapp scattering rates in ps^-1."""
     frequency = transport["frequency"]
     temp_index = transport["tau_temperature_index"]
-    channels = tau_channels(transport["tau_mode"], transport["gamma"])
+    channels = scattering_channels(transport["tau_mode"], transport["gamma"])
     colors = {
         "total": "tab:orange",
         "normal": "tab:blue",
@@ -881,8 +835,8 @@ def draw_fourphonon_nu(ax, transport):
     ax.grid(color="0.9", linewidth=0.9)
 
 
-def tau_channels(tau_mode, gamma_data):
-    """Return relaxation-time channels requested by YAML."""
+def scattering_channels(tau_mode, gamma_data):
+    """Return scattering-rate channels requested by YAML."""
     if tau_mode == "all":
         return [name for name in ("total", "normal", "umklapp") if name in gamma_data]
     if tau_mode == "nu":
@@ -892,12 +846,12 @@ def tau_channels(tau_mode, gamma_data):
                 "gamma_N" if name == "normal" else "gamma_U" for name in missing
             )
             raise ValueError(
-                f"Relaxation-time mode 'nu' requires {datasets} in kappa HDF5."
+                f"Scattering-rate mode 'nu' requires {datasets} in kappa HDF5."
             )
         return ["normal", "umklapp"]
     if tau_mode not in gamma_data:
         raise ValueError(
-            f"Relaxation-time channel '{tau_mode}' is not available in kappa HDF5."
+            f"Scattering-rate channel '{tau_mode}' is not available in kappa HDF5."
         )
     return [tau_mode]
 

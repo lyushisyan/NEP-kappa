@@ -13,7 +13,7 @@ Inspect `src/nepkappa/plot.py` and the plotting section of
 | --- | --- |
 | `fc2.hdf5` and matching phonon metadata | Dispersion, DOS, volume heat capacity, group velocity |
 | Above plus compatible transport HDF5 | Add thermal conductivity and transport-derived properties |
-| Transport data with `gamma` | Add relaxation time / scattering rate |
+| Transport data with `gamma` | Add scattering rate |
 | Transport data with `mode_kappa` | Add cumulative conductivity |
 
 Metadata is searched in order: `phono3py_disp.yaml`, `phonopy.yaml`,
@@ -24,6 +24,7 @@ to regenerate force constants.
 
 Use `plot.layout: separate`, `combined`, or `both`; four harmonic panels form
 a 2-by-2 combined figure. An FC2-only request needs no potential or FC3.
+The `plot.tau` setting chooses the total, N, or U scattering-rate channel.
 Set `output.result-dir` to the existing result directory; built-in plots are
 written beneath its `plots/`. Distinguish input validation from authorized
 plot generation, which can replace existing plot files.

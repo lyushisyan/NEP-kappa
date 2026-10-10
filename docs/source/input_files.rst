@@ -165,11 +165,12 @@ For FourPhonon, use ``engine: fourphonon`` and set ``method-3ph`` and
 
 ``plot`` configures later plotting. ``layout`` is ``separate``, ``combined``,
 or ``both``; ``path`` selects the dispersion path; ``tau`` selects the
-scattering/lifetime channel; ``temperature`` and ``kappa`` choose the displayed
+scattering-rate channel; ``temperature`` and ``kappa`` choose the displayed
 transport data; ``dpi`` controls PNG resolution. With FC2 and matching cell
 metadata, ``nepkappa plot`` makes dispersion, DOS, heat-capacity, and
-group-velocity plots. With conductivity data it adds lifetime, scattering,
-conductivity, and, when available, cumulative conductivity. RTA output can show
+group-velocity plots. With conductivity data it adds conductivity; linewidth
+data also enables scattering rate, and mode conductivity enables cumulative
+conductivity. RTA output can show
 normal and Umklapp rates; Wigner output shows particle, coherence, and total
 conductivity. FourPhonon output adds separate 3ph/4ph rates and compares the
 available conductivity solutions. A bare FC2 array without cell metadata is

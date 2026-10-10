@@ -498,7 +498,7 @@ def initialise_parser() -> argparse.ArgumentParser:
         "--plot_tau",
         choices=["total", "normal", "umklapp", "nu", "all"],
         default="total",
-        help="[Plot] Relaxation-time channel (nu plots N and U together)",
+        help="[Plot] Scattering-rate channel (nu plots N and U together)",
     )
     parser.add_argument(
         "--plot_kappa",
