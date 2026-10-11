@@ -60,7 +60,7 @@ Source layout
 Maintaining examples and the skill
 ------------------------------------
 
-The public catalog intentionally contains nine 3C-SiC static
+The public catalog intentionally contains nine 3C-SiC phonon/transport
 workflows and one TD-BTE input. Explain their method differences in
 ``examples/README.md``. Use public input paths and placeholder executable
 paths. Site-specific Slurm settings belong in an external batch script or
@@ -68,9 +68,9 @@ optional ``parallel`` settings.
 
 When keys or templates change, update the input reference and
 ``.agents/skills/nepkappa-input/`` together. The example-catalog test validates
-the nine static inputs, the separate TD-BTE schema, and their public assets.
+the nine phonon/transport inputs, six-section TD-BTE input, and their public assets.
 Keep internal fixture inputs in ``tests/fixtures/`` aligned with the public
-six-section static or two-section dynamic shapes.
+six-section calculation or two-section TD-BTE reuse shapes.
 
 Baseline snapshots
 --------------------

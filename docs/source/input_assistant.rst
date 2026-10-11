@@ -6,9 +6,11 @@ YAML inputs with an AI assistant. It is stored in
 ``.agents/skills/nepkappa-input/`` and uses the parser, examples, and documentation
 from this checkout. Local validation requires terminal access and an installed
 NEP-kappa environment.
-For static calculations, it prefers the six-section input with QHA, SSCHA,
-and four-phonon switches inside ``force-constant``. Dynamic TD-BTE uses
-``tdbte`` and ``output``. Older stage-first and preset inputs are rejected.
+For phonon properties and thermal transport, it prefers the six-section
+input with QHA, SSCHA, and four-phonon switches inside ``force-constant``.
+Nonequilibrium phonon dynamics uses six sections with ``tdbte`` in place of
+``kappa`` when force constants must be generated. A compact ``tdbte``/``output``
+input reuses existing artifacts. Older stage-first and preset inputs are rejected.
 
 Using the skill
 -----------------
@@ -49,8 +51,9 @@ VASP setup:
    检查现有 input.yaml 的启动命令、MPI 环境与 Slurm 配置。
    如果需要改路径，请修改输入文件，不要改源码，也不要提交计算。
 
-Remote file checks require access to that server. For TD-BTE inputs, also supply
-the existing kernel NPZ and JSON metadata described in :doc:`tdbte`.
+Remote file checks require access to that server. For TD-BTE inputs, supply
+either matching ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5`` in one
+directory, or a completed reusable kernel described in :doc:`tdbte`.
 
 Availability in assistants
 --------------------------

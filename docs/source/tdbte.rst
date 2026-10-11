@@ -3,8 +3,10 @@ Time-dependent BTE
 
 The ``tdbte`` stage evolves spatially homogeneous phonon occupations at fixed
 frequencies using a nonlinear three-phonon energy-shell operator. It can build
-the operator from existing force constants and solve it in disk-backed chunks.
-No calculator, potential, or separately prepared collision matrix is needed.
+the operator from matching force constants and solve it in disk-backed chunks.
+The six-section ``run`` route first uses the configured calculator to generate
+FC2/FC3; the compact reuse route needs no calculator or potential. Neither
+route needs a separately prepared collision matrix.
 
 This is a population-dynamics model, not a laser-absorption calculation. It
 does not include electrons, coherent phonons, spatial drift, a heat bath,
@@ -19,7 +21,17 @@ directory. The YAML supplies the structure, primitive mapping and supercells;
 two HDF5 arrays without this metadata are insufficient. Use the same structure
 and force-constant convention for all three files.
 
-For a two-atom primitive cell such as 3C-SiC::
+A preceding three-phonon conductivity calculation is **not required**.
+The six-section TD-BTE input in ``examples/tdbte.yaml`` lets ``nepkappa run``
+prepare these artifacts and then evolve them in one ordered calculation.
+Alternatively, ``nepkappa fc2fc3`` can prepare the files and a compact
+two-section input can point to their directory for reuse. A ``kappa-m*.hdf5``
+conductivity result is neither read nor needed.
+The TD-BTE mesh is selected independently of any conductivity
+mesh. FC2 alone is insufficient because the present collision operator uses
+three-phonon interactions from FC3.
+
+For reuse with a two-atom primitive cell such as 3C-SiC::
 
    tdbte:
      force-constants: calculations/SiC/fc
@@ -37,13 +49,20 @@ From the launch directory::
    nepkappa tdbte input.yaml
    nepkappa report calculations/SiC/time-bte
 
-``nepkappa run input.yaml`` also selects the dynamic TD-BTE route
-when the file contains ``tdbte`` and ``output`` sections only.
+``nepkappa run input.yaml`` selects the TD-BTE route for both the six-section
+from-scratch input and the two-section reuse input. A direct
+``nepkappa tdbte`` command with the six-section input starts from FC2/FC3
+already saved in ``output.result-dir``; it never starts force calculations.
 ``info`` checks options without constructing a kernel
 or starting integration; file contents are checked at execution. Relative
 paths resolve from the launch directory, not from the YAML file.
-``examples/tdbte.yaml`` is the complete template. Its mesh is a starting value,
-not a convergence recommendation.
+``examples/tdbte.yaml`` is the six-section template. Its mesh is a starting
+value, not a convergence recommendation. The ``plot`` section accepts
+``layout: separate``, ``combined``, or ``both`` and a PNG ``dpi``. After a
+successful run, ``nepkappa plot input.yaml`` reads ``tdbte/branch-energy.csv``
+and writes branch-resolved and total-excess-energy curves under ``plots/``.
+Plotting does not run dynamics again; numerical conservation in these plots
+does not establish physical-rate validation.
 
 Input choices
 --------------

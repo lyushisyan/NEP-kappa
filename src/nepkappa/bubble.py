@@ -319,7 +319,7 @@ def run_existing_sscha_bubble(config):
     for temperature in temperature_points(config.scph_temps):
         label = temperature_directory_name(temperature)
         case = copy.copy(config)
-        if config.workflow_preset == "qha-sscha" or config.qha_sscha_enabled:
+        if config.qha_enabled and config.scph_enabled:
             case.result_dir = str(root / "qha-sscha" / label)
             # Coupled runs must use the FC3 and metadata at this temperature's
             # QHA volume, never a shared fixed-volume override.

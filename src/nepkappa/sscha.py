@@ -29,6 +29,7 @@ from phonopy.physical_units import get_physical_units
 import yaml
 
 from nepkappa.approximations import sscha_approximation
+from nepkappa.config import expand_transport_temperatures
 from nepkappa.provenance import canonical_data, data_sha256, file_identity
 from nepkappa.runtime import ase_to_phonopy, phonopy_to_ase, progress_iter
 
@@ -90,8 +91,14 @@ class PhonopySSCHAWorkflow:
         print(f"  - Iterations: {self.settings.iterations}")
 
         results = []
+        transport_temperatures = (
+            expand_transport_temperatures(self.cfg.temps)
+            if self.settings.run_transport else []
+        )
         for temperature in temperature_points(self.settings.temperatures):
-            results.append(self._run_temperature(float(temperature), initial_fc2))
+            results.append(self._run_temperature(
+                float(temperature), initial_fc2, transport_temperatures
+            ))
 
         index = {
             "backend": "phonopy-sscha",
@@ -101,6 +108,7 @@ class PhonopySSCHAWorkflow:
             "temperatures": [result["temperature"] for result in results],
             "directories": [result["directory"] for result in results],
             "transport": self.settings.run_transport,
+            "transport_temperatures_K": transport_temperatures,
             "bubble_postprocessing": self.settings.bubble,
             "bubble_summaries": [result["bubble"] for result in results if result["bubble"]],
         }
@@ -110,7 +118,7 @@ class PhonopySSCHAWorkflow:
         print(f"\n[Done] Phonopy SSCHA results written below {self.workdir}")
         return index
 
-    def _run_temperature(self, temperature, initial_fc2):
+    def _run_temperature(self, temperature, initial_fc2, transport_temperatures):
         label = temperature_directory_name(temperature)
         temperature_dir = self.workdir / label
         temperature_dir.mkdir(parents=True, exist_ok=True)
@@ -253,7 +261,10 @@ class PhonopySSCHAWorkflow:
             f"  - Averaged FC2 translational drift: {translational_drift:.3e} "
             "eV/angstrom^2"
         )
-        if self.settings.run_transport:
+        if self.settings.run_transport and any(
+            np.isclose(temperature, point, rtol=1.0e-10, atol=1.0e-8)
+            for point in transport_temperatures
+        ):
             self._run_transport(temperature, temperature_dir)
         bubble = None
         if self.settings.bubble:

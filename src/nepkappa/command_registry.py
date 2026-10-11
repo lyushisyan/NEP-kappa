@@ -13,18 +13,17 @@ class CommandSpec:
     help: str
 
 
-CALCULATION_COMMANDS = ("relax", "fc2", "fc2fc3", "qha", "kappa", "tdbte")
+CALCULATION_COMMANDS = ("relax", "fc2", "fc2fc3", "kappa", "tdbte")
 
 
 COMMAND_SPECS = (
     CommandSpec("info", "Check and show parsed input settings."),
     CommandSpec("run", "Run the workflow defined by an input file."),
     CommandSpec("relax", "Relax the input structure."),
-    CommandSpec("fc2", "Generate second-order force constants."),
+    CommandSpec("fc2", "Generate FC2, or perform the QHA volume scan when enabled."),
     CommandSpec("fc2fc3", "Generate second- and third-order force constants."),
-    CommandSpec("qha", "Run the configured QHA volume scan."),
     CommandSpec("kappa", "Compute conductivity using the input-selected route."),
-    CommandSpec("tdbte", "Run time-dependent BTE from a dynamic input."),
+    CommandSpec("tdbte", "Run nonequilibrium phonon dynamics from a TD-BTE input."),
     CommandSpec("plot", "Plot completed results."),
     CommandSpec("report", "Summarize completed results."),
 )
@@ -46,10 +45,8 @@ def resolve_calculation_command(name: str, config) -> str:
     if name not in CALCULATION_COMMANDS:
         raise ValueError(f"Unknown calculation command: {name}")
     steps = tuple(config.workflow_steps)
-    if name == "qha":
-        if "qha" not in steps:
-            raise ValueError("The input does not enable QHA; select a QHA input or use 'run'.")
-        return "qha"
+    if name == "fc2":
+        return "qha" if "qha" in steps else "fc2"
     if name == "kappa":
         transport_steps = tuple(
             step for step in steps

@@ -1,9 +1,15 @@
-# Reuse FC2/FC3; build the energy-shell kernel and evolve populations.
-# The source directory needs phono3py_disp.yaml, fc2.hdf5 and fc3.hdf5.
-# Paths are relative to the launch directory. The mesh is a starting value,
-# not a convergence recommendation; see docs/source/tdbte.rst.
+# Six-section TD-BTE input: generate matching FC2/FC3, then evolve phonons.
+# Run from the repository root. Supercells and q mesh are illustrative only.
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: false
+calculator:
+  name: nep
+  nep-model: potentials/3C-SiC/nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
 tdbte:
-  force-constants: calculations/3C-SiC/fc
   mesh: [5, 5, 5]
   temperature: 300
   branches: [3, 4, 5]  # Zero-based optical branches for a two-atom primitive cell.
@@ -11,5 +17,8 @@ tdbte:
   duration-ps: 20
   max-step-ps: 0.5
   samples: 201
+plot:
+  layout: both
+  dpi: 300
 output:
-  result-dir: calculations/3C-SiC/tdbte/results
+  result-dir: calculations/3C-SiC/tdbte-from-scratch

@@ -15,11 +15,11 @@ force-constant:
     temps: [0, 1000, 10]
   sscha:
     enabled: true
+    run-transport: true
     temps: [300, 900, 300]
     snapshots: 200
     iterations: 4
     transient: 1
-    run-transport: true
   four-phonon: false
 kappa:
   engine: phono3py

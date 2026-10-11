@@ -187,7 +187,7 @@ def run_command(command, config_path, *, debug=False) -> int:
 
 def parse_selected_command(config_path, command):
     """Resolve input-selected operations before command-specific validation."""
-    if command in {"qha", "kappa"}:
+    if command in {"fc2", "kappa"}:
         plan = parse_workflow_args(config_path, command="plot")
         try:
             selected = resolve_calculation_command(command, plan)

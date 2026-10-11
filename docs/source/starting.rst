@@ -36,7 +36,8 @@ Create your own input
 
 Edit the copied file's structure, calculator, numerical settings, and output
 directory for your material. Provide a structure and potential for the same
-material. The six-section static format is described in :doc:`input_files`.
+material. The six-section phonon/transport format is described in
+:doc:`input_files`.
 
 Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
 directory. To work elsewhere, use suitable relative paths or absolute paths.
@@ -45,8 +46,10 @@ Choose another workflow
 
 Select a template from :doc:`examples` and run it with the same ``run`` command.
 The QHA, SSCHA, and four-phonon switches are inside ``force-constant``.
-For time-dependent BTE, start from ``examples/tdbte.yaml``; it uses only
-``tdbte`` and ``output`` sections.
+For time-dependent BTE, start from the six-section ``examples/tdbte.yaml``.
+It replaces ``kappa`` with ``tdbte`` and generates matching FC2/FC3 before
+evolving the excitation. A two-section input is available when reusing
+existing force constants or a kernel.
 
 For analysis or restarts, use the direct calculation command:
 

@@ -167,10 +167,15 @@ coupled six-section input, enable the nested QHA and SSCHA settings:
        enabled: true
        run-transport: true
      four-phonon: false
+   kappa:
+     engine: phono3py
+     temps: [300, 900, 300]
+     method: rta
 
 Enabling ``four-phonon`` additionally generates FC4 and runs FourPhonon at
-each volume. SSCHA temperatures
-must lie within the available QHA temperature range. Nested force-job arrays
+the selected conductivity temperatures. SSCHA temperatures must lie within
+the available QHA range, and every conductivity temperature must be an SSCHA
+sampling point. Nested force-job arrays
 are unsupported for this coupled route; use an outer batch allocation.
 Use ``nepkappa report input.yaml`` to summarize completed stages.
 
@@ -234,9 +239,11 @@ and :doc:`troubleshooting` for file-selection problems.
 Time-dependent BTE
 --------------------------------
 
-Use ``examples/tdbte.yaml`` with matching FC2/FC3 and phono3py metadata. Set
-``tdbte.force-constants``, ``mesh`` and the excitation, then check with
-``nepkappa info input.yaml``. ``nepkappa tdbte input.yaml`` builds a kernel and
-solves it in disk-backed chunks;
+Use the six-section ``examples/tdbte.yaml`` to generate matching FC2/FC3 and
+phono3py metadata before time evolution. Set the structure, calculator,
+supercells, ``tdbte.mesh``, and excitation, then check with
+``nepkappa info input.yaml``. ``nepkappa run input.yaml`` prepares force
+constants, builds a kernel, and solves it in disk-backed chunks. For existing
+FC2/FC3, use the compact two-section reuse input and ``nepkappa tdbte``;
 physical relaxation-rate validation remains separate from numerical audits.
 See :doc:`tdbte` for excitation definitions, numerical audits, and outputs.

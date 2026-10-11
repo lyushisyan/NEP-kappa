@@ -36,7 +36,6 @@ class StructureConfig:
 
 @dataclass(frozen=True)
 class WorkflowPlanConfig:
-    preset: str
     steps: StringValues
 
 
@@ -89,6 +88,7 @@ class ForceConstantsConfig:
 
 @dataclass(frozen=True)
 class KappaConfig:
+    enabled: bool
     engine: Optional[str]
     qha_volumes: bool
     mesh: Int3
@@ -146,6 +146,7 @@ class PlotConfig:
 @dataclass(frozen=True)
 class QHAConfig:
     enabled: bool
+    run_transport: bool
     volume_ratios: FloatValues
     dim_fc2: Optional[Int3]
     mesh: Int3
@@ -245,7 +246,6 @@ class WorkflowSections:
                 samples=cfg.tdbte_samples,
             ),
             workflow=WorkflowPlanConfig(
-                preset=cfg.workflow_preset,
                 steps=_tuple(cfg.workflow_steps),
             ),
             structure=StructureConfig(
@@ -302,6 +302,7 @@ class WorkflowSections:
                 parallel=_mapping(cfg.force_parallel),
             ),
             kappa=KappaConfig(
+                enabled=cfg.kappa_enabled,
                 engine=cfg.kappa_engine,
                 qha_volumes=cfg.qha_volumes,
                 mesh=_tuple(cfg.mesh),
@@ -353,6 +354,7 @@ class WorkflowSections:
             ),
             qha=QHAConfig(
                 enabled=cfg.qha_enabled,
+                run_transport=cfg.qha_run_transport,
                 volume_ratios=_tuple(cfg.qha_volume_ratios),
                 dim_fc2=_tuple(cfg.qha_dim_fc2),
                 mesh=_tuple(cfg.qha_mesh),

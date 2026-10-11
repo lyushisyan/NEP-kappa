@@ -10,6 +10,7 @@ force-constant:
   dim-fc3: [3, 3, 3]
   qha:
     enabled: true
+    run-transport: true
     volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
     mesh: [31, 31, 31]
     temps: [0, 1000, 10]
@@ -21,7 +22,6 @@ kappa:
   temps: [300, 900, 300]
   method: rta
   isotope: true
-  qha-volumes: true
 plot:
   layout: both
   path: seekpath

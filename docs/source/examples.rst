@@ -1,8 +1,8 @@
 Choose an example
 ===================
 
-The public catalog contains nine six-section static 3C-SiC inputs and one
-separate time-dependent BTE input. Run from the repository root. The YAML
+The public catalog contains nine six-section phonon/transport 3C-SiC inputs and one
+six-section time-dependent BTE input. Run from the repository root. The YAML
 files are workflow demonstrations, not converged material results. See
 ``examples/README.md`` for prerequisites and resource guidance.
 
@@ -31,12 +31,13 @@ files are workflow demonstrations, not converged material results. See
    * - ``nep-qha-sscha-rta-3ph.yaml``
      - NEP, SSCHA FC2 at QHA volume and temperature, then 3ph RTA.
    * - ``tdbte.yaml``
-     - Population dynamics from existing matching FC2/FC3 and metadata.
+     - Generate NEP FC2/FC3 and matching metadata, then evolve phonons in time.
 
 Use ``nepkappa info examples/<name>.yaml`` to check an input without
 running it. Ordinary workflow inputs use ``nepkappa run``; plotting and
-reporting are separate commands. The TD-BTE route needs completed force
-constants and does not regenerate them.
+reporting are separate commands. The TD-BTE route needs completed matching
+FC2/FC3 and displacement metadata, but not a prior conductivity
+result. It does not regenerate force constants.
 
 Three-phonon-only RTA and LBTE use ``kappa.method``. FourPhonon inputs set
 ``kappa.method-3ph`` and ``kappa.method-4ph`` independently. Supported pairs

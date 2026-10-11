@@ -9,6 +9,7 @@ import numpy as np
 from ase.io import read, write
 import yaml
 
+from nepkappa.config import expand_transport_temperatures, validate_temps
 from nepkappa.qha_sscha import (
     load_qha_equilibrium_volumes,
     scale_atoms_to_primitive_volume,
@@ -18,13 +19,10 @@ from nepkappa.sscha import temperature_directory_name
 
 
 def _temperatures(values):
-    if len(values) == 1:
-        return np.asarray(values, dtype=float)
-    minimum, maximum, step = (float(value) for value in values)
-    if minimum < 0 or maximum < minimum or step <= 0:
-        raise ValueError("kappa.temps must have 0 <= minimum <= maximum and step > 0.")
-    count = int(np.floor((maximum - minimum) / step + 1.0e-10))
-    return np.asarray([minimum + index * step for index in range(count + 1)])
+    error = validate_temps(values)
+    if error:
+        raise ValueError(error)
+    return np.asarray(expand_transport_temperatures(values), dtype=float)
 
 
 class QHA3PhWorkflow:
@@ -38,7 +36,7 @@ class QHA3PhWorkflow:
 
     def run(self):
         if not self.cfg.qha_enabled or not self.cfg.qha_volumes:
-            raise ValueError("qha-kappa requires QHA and kappa.qha-volumes: true.")
+            raise ValueError("QHA-volume transport requires force-constant.qha.run-transport: true.")
         qha_temperatures, qha_volumes, multiplicity = load_qha_equilibrium_volumes(
             self.output_dir
         )
@@ -82,7 +80,6 @@ class QHA3PhWorkflow:
         case.result_dir = str(case_dir)
         case.poscar = str((case_dir / "POSCAR_qha_volume").resolve())
         case.do_relax = False
-        case.workflow_preset = "custom"
         case.workflow_steps = ["fc2fc3", "kappa"]
         case.temps = [temperature]
         runner = WorkflowStageRunner(case, self.execution)

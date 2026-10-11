@@ -76,16 +76,28 @@ output:
   result_dir: calculations/example-runs/3c-sic-nep-rta-3ph
 ```
 
-With all three switches off, the program selects the three-phonon preset. `plot` sets
-options; create figures with `nepkappa plot input.yaml`. See
+With all three switches off, `run` performs structure relaxation when enabled,
+then FC2/FC3 generation and three-phonon transport. `plot` sets options;
+create figures with `nepkappa plot input.yaml`. See
 [input options](docs/source/input_files.rst).
-Set QHA, SSCHA, or four-phonon inside `force-constant` to enable those static
+Set QHA, SSCHA, or four-phonon inside `force-constant` to enable those additional
 routes. Use `kappa.engine: fourphonon` when four-phonon transport is enabled.
 An optional top-level `parallel` section holds force-job and transport-job
-settings. To include QHA thermal expansion in three-phonon RTA, set
-`kappa.qha-volumes: true` so FC2/FC3 and conductivity are recalculated at
-each temperature's equilibrium volume. Dynamic TD-BTE uses a separate `tdbte`/`output` input such as
+settings. Set `force-constant.qha.run-transport: true` for QHA-only volume
+transport. When QHA and SSCHA are both enabled, set
+`force-constant.sscha.run-transport: true` to use the SSCHA FC2 at each QHA
+equilibrium volume. `kappa` contains only transport parameters. Nonequilibrium
+phonon dynamics uses the same six-section format with `tdbte` in place of
+`kappa`, as shown in
 [tdbte.yaml](examples/tdbte.yaml).
+
+The two routes share force-constant preparation. A completed
+conductivity calculation is not needed for TD-BTE: `nepkappa run` on the
+six-section input prepares matching `phono3py_disp.yaml`, `fc2.hdf5`, and
+`fc3.hdf5` before the time evolution. A compact two-section `tdbte`/`output`
+input can instead reuse existing artifacts without a force calculator.
+TD-BTE builds its own three-phonon collision kernel and evolves occupations;
+it does not read a `kappa-m*.hdf5` result.
 
 ## Choose a calculation
 
@@ -99,9 +111,10 @@ each temperature's equilibrium volume. Dynamic TD-BTE uses a separate `tdbte`/`o
 | 3C-SiC 3ph+4ph Wigner RTA | [nep-rta-wigner-3ph-4ph.yaml](examples/nep-rta-wigner-3ph-4ph.yaml) | FourPhonon Wigner_Park executable |
 | 3C-SiC 3ph LBTE + 4ph RTA | [nep-lbte-3ph-rta-4ph.yaml](examples/nep-lbte-3ph-rta-4ph.yaml) | FourPhonon iterative 3ph solver |
 | 3C-SiC 3ph LBTE + 4ph LBTE | [nep-lbte-3ph-lbte-4ph.yaml](examples/nep-lbte-3ph-lbte-4ph.yaml) | FourPhonon full iterative solver |
-| Time-dependent BTE | [tdbte.yaml](examples/tdbte.yaml) | Matching completed FC2/FC3 and metadata |
+| Time-dependent BTE | [tdbte.yaml](examples/tdbte.yaml) | NEP force calculations, then matching FC2/FC3 and dynamics |
 
-The catalog contains these nine static calculations and one time-dependent BTE input.
+The catalog contains nine phonon-property/thermal-transport calculations and one
+time-dependent BTE input.
 The 3C-SiC files are teaching inputs. SiC is polar; quantitative dispersion
 and transport work should assess non-analytic long-range corrections using
 validated Born effective charges and dielectric data. These inputs do not
@@ -130,17 +143,16 @@ recorded in new summaries and displayed by `nepkappa report`.
 | `nepkappa info input.yaml` | Check input settings and show the parsed workflow |
 | `nepkappa run input.yaml` | Run the selected workflow |
 | `nepkappa relax input.yaml` | Relax the structure |
-| `nepkappa fc2 input.yaml` | Generate FC2 |
+| `nepkappa fc2 input.yaml` | Generate FC2, or run the QHA volume scan when QHA is enabled |
 | `nepkappa fc2fc3 input.yaml` | Generate FC2 and FC3 |
-| `nepkappa qha input.yaml` | Run the QHA volume scan |
 | `nepkappa kappa input.yaml` | Compute conductivity using the input-selected route |
-| `nepkappa tdbte input.yaml` | Run time-dependent BTE from a dynamic input |
+| `nepkappa tdbte input.yaml` | Run nonequilibrium phonon dynamics from a TD-BTE input |
 | `nepkappa plot input.yaml` | Plot FC2 harmonic properties; add transport panels when available |
 | `nepkappa report input.yaml` | Write a result summary |
 
-`kappa` selects phono3py, FourPhonon, QHA-volume transport, or QHA-volume
-SSCHA transport from the input. `qha` runs the QHA scan; `run` executes the
-complete sequence, including FC4 when four-phonon transport is enabled.
+`fc2` runs only the QHA volume scan when QHA is enabled. `run` executes the
+complete sequence, including QHA+SSCHA and transport when their switches are
+enabled. `kappa` selects the configured transport backend and parameters.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
@@ -156,7 +168,7 @@ In a compatible assistant opened in this checkout, ask:
 
 It checks the installed schema, model species and paths, and distinguishes
 configuration validity from numerical convergence.
-Describe the result you want rather than memorizing presets. It can also
+Describe the result you want; the input switches determine the stages. It can also
 prepare FC2-only plotting inputs or check an existing input without recalculating
 forces. For TD-BTE it can prepare a force-constant source, q mesh and excitation;
 the calculation builds and checks the kernel. The skill does not certify
@@ -205,14 +217,17 @@ QHA 体积上的 SSCHA、三/四声子、Wigner 和含时 BTE 的入口见
 
 ## Time-dependent BTE
 
-The package provides `nepkappa tdbte examples/tdbte.yaml` (or `run` with the
-same dynamic input) for homogeneous fixed-frequency phonon occupation
-dynamics. Use [tdbte.yaml](examples/tdbte.yaml) and the
-[TD-BTE guide](docs/source/tdbte.rst). Supply a directory containing matching
+The package provides `nepkappa run examples/tdbte.yaml` to generate FC2/FC3
+and then evolve homogeneous fixed-frequency phonon populations. Use
+[tdbte.yaml](examples/tdbte.yaml) and the [TD-BTE guide](docs/source/tdbte.rst).
+For direct `nepkappa tdbte examples/tdbte.yaml`, generate the force constants
+first with `nepkappa fc2fc3 examples/tdbte.yaml`. The program needs matching
 `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, a `tdbte.mesh`, and the excitation.
 The stage builds a checksummed energy-shell kernel and evolves it in disk-backed
 chunks. Existing single-file kernels and completed chunk manifests can also be
 reused. Optional `pip install 'nepkappa[tdbte]'` adds compiled block reductions.
+`nepkappa plot examples/tdbte.yaml` draws the saved branch and total energy
+trajectories after the calculation.
 Numerical audit results are included by `nepkappa report`; passing them does not
 establish absolute-rate accuracy or mesh convergence.
 

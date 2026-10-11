@@ -51,13 +51,16 @@ Do not require a potential or FC3 for FC2-only plotting, or a calculator for
 TD-BTE using existing force constants or a kernel. Inspect available artifacts
 before promising plots.
 
-Use one minimal example. For static calculations, start from the six-section input
+Use one minimal example. For phonon properties and thermal transport, start from the six-section input
 in `examples/nep-rta-wigner-3ph.yaml`: structure, calculator, force-constant, kappa, plot,
 and output. `structure.relaxation` controls optimization. QHA, SSCHA, and
-four-phonon switches belong inside `force-constant` and select their full
-static workflows; read `docs/source/input_files.rst` for supported combinations.
-The four-phonon switch runs both FC4 and conductivity. For dynamic TD-BTE,
-use the separate `tdbte` and `output` shape in `examples/tdbte.yaml`.
+four-phonon switches belong inside `force-constant` and select additional
+stages in `run`; read `docs/source/input_files.rst` for supported combinations.
+The four-phonon switch runs both FC4 and conductivity. For TD-BTE from a
+structure, use the six-section shape in `examples/tdbte.yaml`: structure,
+calculator, force-constant, tdbte, plot, and output. `run` generates FC2/FC3
+and then evolves the excitation. For existing force constants or a kernel, use
+the compact `tdbte` and `output` reuse shape without a calculator.
 Omit unneeded parameter lines rather than inventing a new schema.
 Set `kappa.engine: phono3py` for three-phonon RTA/LBTE or
 `kappa.engine: fourphonon` with `force-constant.four-phonon: true`.
@@ -65,14 +68,15 @@ For FourPhonon, use separate `kappa.method-3ph` and `kappa.method-4ph`
 settings and check supported pairings in `docs/source/input_files.rst`.
 Place optional Slurm/MPI/OpenMP settings in top-level `parallel.force-constant`
 or `parallel.kappa` rather than lengthening the scientific sections. For QHA
-thermal expansion to affect 3ph RTA, use `kappa.qha-volumes: true`; this runs
+thermal expansion to affect 3ph RTA, use
+`force-constant.qha.run-transport: true`; this runs
 FC2/FC3 and transport anew at each target QHA volume.
 For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
 six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
 first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
 constant orders without invoking transport.
-All six static sections must be present; use `{}` for an unused section. The
-separate dynamic input has only `tdbte` and `output`. Older top-level
+All six from-scratch sections must be present; use `{}` for an unused section.
+The TD-BTE reuse input has only `tdbte` and `output`. Older top-level
 `workflow`, `relaxation`, `qha`, `scph`, and `fourphonon` sections and flat
 parameters are rejected. Small variants such as RTA versus LBTE should edit
 the transport method, not create duplicate sections. Put user calculations under
@@ -111,7 +115,7 @@ nepkappa info input.yaml --for run
 ```
 
 Replace `run` with the intended direct command (`relax`, `fc2`, `fc2fc3`,
-`qha`, `kappa`, `tdbte`, or `plot`) for a narrower check. `report` reads
+`kappa`, `tdbte`, or `plot`) for a narrower check. `report` reads
 existing results rather than validating an alternate YAML schema.
 
 Repair the reported cause and repeat failed checks without dropping requested

@@ -176,10 +176,18 @@ class WorkflowStageRunner:
         import copy
         from pathlib import Path
 
+        if "tdbte" in self.config.workflow_steps:
+            from nepkappa.tdbte_plot import plot_tdbte_results
+
+            return self.execution.run_stage(
+                "Plot TD-BTE results",
+                lambda: plot_tdbte_results(self.config),
+            )
+
         from nepkappa.plot import plot_results
 
         config = self.config
-        if config.workflow_preset == "qha-kappa":
+        if config.qha_enabled and config.qha_volumes:
             from nepkappa.sscha import temperature_directory_name
 
             config = copy.copy(config)
@@ -188,7 +196,7 @@ class WorkflowStageRunner:
                 / "qha-kappa"
                 / temperature_directory_name(config.plot_temperature)
             )
-        elif config.workflow_preset == "qha-sscha":
+        elif config.qha_enabled and config.scph_enabled:
             from nepkappa.sscha import temperature_directory_name
 
             config = copy.copy(config)
@@ -225,7 +233,7 @@ def execute_workflow_command(command, config) -> CommandExecution:
 
 
 def execute_workflow_plan(config) -> CommandExecution:
-    """Run a preset/custom stage plan behind the single ``nepkappa run`` entry."""
+    """Run the stages selected by input switches behind ``nepkappa run``."""
     execution = CommandExecution()
     steps = list(config.sections.workflow.steps)
     resume_after = os.environ.get("NEPKAPPA_RESUME_AFTER")

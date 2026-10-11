@@ -12,7 +12,7 @@ from phonopy.file_IO import write_FORCE_CONSTANTS
 import yaml
 
 from nepkappa.approximations import sscha_approximation
-from nepkappa.config import qha_sscha_transport_flags
+from nepkappa.config import expand_transport_temperatures, qha_sscha_transport_flags
 from nepkappa.runtime import ase_to_phonopy
 from nepkappa.sscha import (
     load_full_force_constants,
@@ -44,6 +44,10 @@ class QHASSCHAWorkflow:
                 "job, and set force-constant.parallel.backend: none."
             )
         self.three_phonon, self.four_phonon = qha_sscha_transport_flags(self.cfg)
+        self.transport_temperatures = (
+            expand_transport_temperatures(self.cfg.temps)
+            if self.three_phonon or self.four_phonon else []
+        )
 
         qha_temperatures, qha_volumes, multiplicity = load_qha_equilibrium_volumes(
             self.output_dir
@@ -79,6 +83,7 @@ class QHASSCHAWorkflow:
             "transport": {
                 "three_phonon": self.three_phonon,
                 "four_phonon": self.four_phonon,
+                "temperatures_K": self.transport_temperatures,
                 "force_constant_treatment": {
                     "fc2": "SSCHA auxiliary harmonic FC2 at T and QHA equilibrium volume",
                     "fc3": "finite-displacement at QHA equilibrium volume",
@@ -111,13 +116,23 @@ class QHASSCHAWorkflow:
         case_config.result_dir = str(case_dir)
         case_config.poscar = str((case_dir / "POSCAR_qha_volume").resolve())
         case_config.do_relax = False
-        case_config.workflow_preset = "custom"
+        transport_temperatures = getattr(self, "transport_temperatures", None)
+        if transport_temperatures is None:
+            transport_temperatures = (
+                [temperature] if self.three_phonon or self.four_phonon else []
+            )
+        transport_here = any(
+            np.isclose(temperature, point, rtol=1.0e-10, atol=1.0e-8)
+            for point in transport_temperatures
+        )
+        three_phonon_here = self.three_phonon and transport_here
+        four_phonon_here = self.four_phonon and transport_here
         needs_fc3 = (
-            self.three_phonon or self.four_phonon
+            three_phonon_here or four_phonon_here
             or getattr(self.cfg, "scph_bubble", False)
         )
         case_config.workflow_steps = ["fc2fc3" if needs_fc3 else "fc2"]
-        if self.four_phonon:
+        if four_phonon_here:
             case_config.workflow_steps.append("fc4")
             case_config.fc_format = "both"
         case_config.workflow_steps.append("scph")
@@ -128,7 +143,7 @@ class QHASSCHAWorkflow:
         case_config.scph_random_seed = int(self.cfg.scph_random_seed) + int(
             round(temperature)
         )
-        case_config.scph_run_transport = self.three_phonon
+        case_config.scph_run_transport = three_phonon_here
         case_config.temps = [temperature]
 
         runner = WorkflowStageRunner(case_config, self.execution)
@@ -154,11 +169,11 @@ class QHASSCHAWorkflow:
                 "qha-sscha cannot continue from deferred force calculations. "
                 "Use serial force generation inside an outer Slurm allocation."
             )
-        if self.four_phonon:
+        if four_phonon_here:
             runner.run("fc4")
         runner.run("scph")
         four_phonon_result = None
-        if self.four_phonon:
+        if four_phonon_here:
             four_phonon_result = self._run_four_phonon_transport(
                 runner, case_config, atoms, temperature, case_dir
             )
@@ -168,8 +183,8 @@ class QHASSCHAWorkflow:
             "unit_cell_volume_A3": float(atoms.get_volume()),
             "isotropic_scale": scale,
             "directory": str(case_dir),
-            "three_phonon_transport": self.three_phonon,
-            "four_phonon_transport": self.four_phonon,
+            "three_phonon_transport": three_phonon_here,
+            "four_phonon_transport": four_phonon_here,
             "four_phonon_result": four_phonon_result,
         }
 

@@ -9,7 +9,7 @@ parser and input documentation for exact accepted fields and version changes.
 | Request | Starting point in `examples/` | Intended command |
 | --- | --- | --- |
 | VASP harmonic FC2 and phonon plots | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `relax`, `fc2`, `plot` |
-| VASP QHA only | Adapt a six-section input with `force-constant.qha` settings | `qha` |
+| VASP QHA only | Adapt a six-section input with `force-constant.qha` settings | `fc2` |
 | VASP 3ph RTA | `vasp-rta-3ph.yaml`; configure executable and POTCAR | `run` |
 | NEP 3ph RTA + Wigner | `nep-rta-wigner-3ph.yaml` | `run` |
 | NEP 3ph LBTE + Wigner | `nep-lbte-wigner-3ph.yaml` | `run` |
@@ -20,9 +20,9 @@ parser and input documentation for exact accepted fields and version changes.
 | 3ph LBTE + 4ph RTA | `nep-lbte-3ph-rta-4ph.yaml` | `run` |
 | 3ph LBTE + 4ph LBTE | `nep-lbte-3ph-lbte-4ph.yaml` | `run` |
 | Existing FC2 / transport plots | Minimal plotting sections; see `references/analysis.md` | `plot` |
-| Time-dependent BTE | `tdbte.yaml`; existing FC2/FC3 + metadata, or a kernel | `tdbte` or `run` |
+| Time-dependent BTE | `tdbte.yaml` generates FC2/FC3; a two-section input reuses existing artifacts | `run` or `tdbte` |
 
-The public catalog is limited to these nine static inputs and TD-BTE. Other
+The public catalog is limited to these nine phonon/transport inputs and TD-BTE. Other
 supported calculations can use a copied six-section input with changed settings;
 do not refer to removed example filenames. Site-specific Slurm resources belong
 in an external batch script or optional top-level `parallel` settings.
@@ -34,17 +34,19 @@ request to reuse existing results into one that regenerates force constants.
 
 ## Cross-section checks
 
-- New static inputs use six top-level sections: `structure`, `calculator`,
+- New phonon/transport inputs use six top-level sections: `structure`, `calculator`,
   `force-constant`, `kappa`, `plot`, and `output`. Put QHA, SSCHA, and four-phonon
   switches and their options inside `force-constant`; 4PH means FC4 generation
   plus conductivity. All six sections must appear; an unused section may be `{}`.
-  TD-BTE uses only `tdbte` and `output`. Old top-level `workflow`, `qha`,
-  `scph`, `fourphonon`, `relaxation`, and flat options are rejected. QHA alone does
-  not automatically feed corrected FC2 into transport; use
-  `kappa.qha-volumes: true` for a new FC2/FC3/RTA calculation at each
-  temperature's QHA equilibrium volume. Set `kappa.engine` explicitly in new
-  examples. Put optional parallel settings in top-level `parallel` mappings.
-- For FourPhonon static inputs, set both `kappa.method-3ph` and
+  From-structure TD-BTE also uses six sections, replacing `kappa` with `tdbte`.
+  Only artifact reuse uses the compact `tdbte` and `output` input. Old top-level
+  `workflow`, `qha`, `scph`, `fourphonon`, `relaxation`, and flat options are
+  rejected. QHA alone does not automatically feed thermal expansion into
+  transport; use `force-constant.qha.run-transport: true` for a new FC2/FC3/RTA
+  calculation at each temperature's QHA equilibrium volume. Set `kappa.engine`
+  explicitly in new transport examples. Put optional parallel settings in
+  top-level `parallel` mappings.
+- For FourPhonon transport inputs, set both `kappa.method-3ph` and
   `kappa.method-4ph`. Supported pairs are `rta/rta`, `lbte/rta`, and
   `lbte/lbte`; `rta/lbte` is unavailable. Wigner_Park requires `rta/rta`
   and a Wigner_Park executable. Do not also set `kappa.method` or a
@@ -88,7 +90,7 @@ request to reuse existing results into one that regenerates force constants.
   SSCHA implementation; QHA itself supports VASP.
 - `force-constant.sscha` selects Phonopy stochastic SSCHA, not the separate
   ALAMODE perturbative SCPH method. State the actual approximation in reports.
-- In the static form, `force-constant.sscha.run-transport` and
+- In the phonon/transport form, `force-constant.sscha.run-transport` and
   `force-constant.four-phonon.enabled` choose the three- and four-phonon routes
   within QHA+SSCHA. The latter needs Fourthorder and FourPhonon. `kappa`
   uses the input-selected route for combined 3ph+4ph transport.

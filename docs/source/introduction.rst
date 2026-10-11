@@ -37,27 +37,31 @@ calculates input-FC3 diagonal on-shell frequency shifts in separate output files
 FC2 and transport remain unchanged. See :doc:`input_files` for approximation
 details.
 
-The command ``scph`` names the Phonopy stochastic SSCHA route implemented here;
-it is not an ALAMODE perturbative SCPH calculation. Transport may use the
+The Phonopy stochastic SSCHA route implemented here is not an ALAMODE
+perturbative SCPH calculation. Transport may use the
 renormalized FC2 with the configured FC3 (and FC4 for coupled four-phonon
 transport). These approximations have their own convergence requirements.
 
 Execution and analysis
 ------------------------
 
-``run`` executes a preset or custom stage list. Direct calculation commands reuse
-existing results. Slurm submission is available for force arrays, LBTE, and
+``run`` derives one ordered sequence of stages from the input switches.
+Direct calculation commands can execute a selected stage using existing
+results. Slurm submission is available for force arrays, LBTE, and
 FourPhonon.
 Cached force jobs are reused only when their recorded inputs match.
 
 ``plot`` reads existing results, while ``report`` collects results and recorded
 calculation settings.
 
-Time-dependent dynamics
------------------------
+Nonequilibrium phonon dynamics
+------------------------------
 
 The ``tdbte`` stage evolves homogeneous three-phonon populations at fixed
-frequencies. It builds energy-shell chunks from matching FC2/FC3 and a q mesh,
-or reuses an existing kernel. It records energy, equilibrium-control and entropy
+frequencies. It builds energy-shell chunks from matching FC2/FC3,
+``phono3py_disp.yaml``, and a q mesh, or reuses an existing kernel.
+It is a separate continuation from force-constant preparation: a completed
+thermal-conductivity calculation is not required and its
+conductivity HDF5 is not used. It records energy, equilibrium-control and entropy
 diagnostics, but these do not independently validate physical rates. It does
 not model laser absorption. See :doc:`tdbte` for inputs and implementation limits.

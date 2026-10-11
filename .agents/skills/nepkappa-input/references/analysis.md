@@ -15,6 +15,7 @@ Inspect `src/nepkappa/plot.py` and the plotting section of
 | Above plus compatible transport HDF5 | Add thermal conductivity and transport-derived properties |
 | Transport data with `gamma` | Add scattering rate |
 | Transport data with `mode_kappa` | Add cumulative conductivity |
+| Completed TD-BTE `branch-energy.csv` | Branch and total excess energy versus time |
 
 Metadata is searched in order: `phono3py_disp.yaml`, `phonopy.yaml`,
 `phonopy_disp.yaml`. Bare FC2 is insufficient. Confirm that cell, species,
@@ -45,7 +46,7 @@ establish q-mesh convergence.
 
 The publication Figure1–6 scripts are separate research tools: do not promise that
 `nepkappa plot` reproduces their custom panels, Wigner bubbles, pair-frequency
-maps, or TD-BTE snapshots. Check the plotting API before promising arbitrary
+maps, or arbitrary TD-BTE snapshots. Check the plotting API before promising arbitrary
 panel-selection keys; `layout` controls arrangement, not a figure whitelist.
 
 ## Time-dependent BTE: scope and prerequisites
@@ -55,7 +56,13 @@ before preparing this route. It evolves spatially homogeneous populations at
 fixed frequencies using a three-phonon energy-shell operator. It is not a
 laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
 
-- Choose exactly one route. For automatic construction, set
+- Choose exactly one route. The six-section TD-BTE input in
+  `examples/tdbte.yaml` generates matching FC2/FC3 from the supplied structure
+  before building the kernel. Do not add QHA, SSCHA, or FC4 switches: the
+  current TD-BTE solver uses FC2/FC3 only. In this shape, omit
+  `tdbte.force-constants` and `tdbte.kernel`; the program reads the new files
+  from `output.result-dir`.
+  For artifact reuse, use a two-section `tdbte`/`output` input and set
   `tdbte.force-constants` to a directory containing matching
   `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, and set `tdbte.mesh` to three
   integers >= 2. The source is reused; no calculator or new force jobs are needed.
@@ -77,8 +84,10 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
 - `temperature` defines the initial Bose state. `excitation: 0.01` increases
   selected occupations by 1%, not by 1 K, 1% total energy, or a laser fluence.
   Explain which branches at which q points are excited (currently every q).
-- Use `nepkappa info input.yaml` for validation and `nepkappa tdbte input.yaml`
-  or `nepkappa run input.yaml` for the dynamic TD-BTE input.
+- Use `nepkappa info input.yaml` for validation and `nepkappa run input.yaml`
+  for the six-section TD-BTE input. `nepkappa tdbte input.yaml` uses existing
+  force constants and does not generate them. After a completed calculation,
+  `nepkappa plot input.yaml` draws the saved branch and total energy curves.
   Validation checks options, not source existence or physical normalization.
   Do not run the ODE just to validate an input.
 - Use a fresh output directory: an existing `result-dir/tdbte/` is refused.
