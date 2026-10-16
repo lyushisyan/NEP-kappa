@@ -33,9 +33,11 @@ If the local ``tests/`` and ``benchmarks/`` directories are available, also run:
    python -m pip install -e '.[dev]'
    python -m pytest -q
 
-Tests use temporary result directories, calculator/scheduler mocks,
-small numerical checks, and frozen data. They do not need the local
-research archive, VASP, SSH, or a Slurm allocation. This suite does not replace
+Most tests use temporary result directories, calculator/scheduler mocks,
+small numerical checks, and frozen data. Some TD-BTE research checks also
+import scripts from ``calculations/3C-SiC/tdbte-pilot/``; the full local suite
+requires those scripts in addition to ``tests/`` and ``benchmarks/``.
+These checks do not launch VASP, SSH, or Slurm jobs. They do not replace
 production convergence studies or running every external solver.
 
 Source layout

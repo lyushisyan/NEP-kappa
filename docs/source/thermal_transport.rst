@@ -256,8 +256,14 @@ Disappearance from ``squeue`` alone does not establish success.
 Plot and interpret
 ~~~~~~~~~~~~~~~~~~~~~~
 
+The FourPhonon stage links its text force constants into the backend working
+directory. Standard plotting also needs the matching harmonic HDF5 and cell
+metadata in ``output.result-dir``. After the calculation, copy these two files
+from the same input set before plotting:
+
 .. code-block:: bash
 
+   cp inputs/fc2.hdf5 inputs/phono3py_disp.yaml results/wigner-4ph/
    nepkappa info wigner-4ph.yaml --for plot
    nepkappa plot wigner-4ph.yaml
    ls results/wigner-4ph/plots

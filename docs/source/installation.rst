@@ -4,7 +4,8 @@ Installation and environment setup
 System requirements
 -----------------------
 
-NEP-kappa requires Python 3.9 or later. Python 3.11 is used in this example.
+NEP-kappa requires Python 3.10 or later, matching the minimum required by its
+Phonopy and phono3py dependencies. Python 3.11 is used in this example.
 Linux is suitable for local and cluster calculations; external executables and
 MPI must match the target machine. See :doc:`requirements` for dependencies.
 

@@ -4,7 +4,7 @@ Requirements
 The core dependencies below are installed by ``pip`` from ``pyproject.toml``.
 See :doc:`installation` for environment setup.
 
-- python>=3.9
+- python>=3.10
 - numpy
 - scipy
 - ase
@@ -38,7 +38,8 @@ Additional requirements
 - Thirdorder FC3 requires ``thirdorder_vasp.py`` or a configured executable
 - Fourthorder FC4 requires ``Fourthorder_vasp.py`` or a configured executable
 - four-phonon transport requires FourPhonon; its Wigner route needs Wigner_Park
-- optional TD-BTE acceleration uses Numba: ``python -m pip install -e '.[tdbte]'``
+- TD-BTE uses Numba acceleration automatically; Numba is installed through
+  HiPhive's dependencies, so no additional installation step is needed
 - documentation builds use Sphinx and the Read the Docs theme:
   ``python -m pip install -e '.[docs]'``
 

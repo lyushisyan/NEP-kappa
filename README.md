@@ -14,7 +14,7 @@ Current version: **2.0.1**. See the [release notes](CHANGELOG.md).
 
 ## Start here
 
-The package requires Python 3.9 or newer; Python 3.11 is a practical starting
+The package requires Python 3.10 or newer; Python 3.11 is a practical starting
 environment. From a terminal:
 
 ```bash
@@ -248,7 +248,8 @@ first with `nepkappa fc2fc3 examples/tdbte.yaml`. The program needs matching
 `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, a `tdbte.mesh`, and the excitation.
 The stage builds a checksummed energy-shell kernel and evolves it in disk-backed
 chunks. Existing single-file kernels and completed chunk manifests can also be
-reused. Optional `pip install 'nepkappa[tdbte]'` adds compiled block reductions.
+reused. Numba is installed through HiPhive's dependencies and is used automatically
+for compiled block reductions; no additional installation step is needed.
 `nepkappa plot examples/tdbte.yaml` generates six panels: energy-colored
 dispersions at 0, 10 and 20 ps, branch excess energies, acoustic branch
 temperatures and optical branch temperatures. The temperatures are

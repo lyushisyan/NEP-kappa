@@ -141,14 +141,12 @@ tetrahedron collision operator and is not an RTA exponential decay.
 Events are written in blocks of at most 20,000 to
 ``result-dir/tdbte-kernel/``. During each derivative evaluation, only one block
 is memory-mapped, reduced and closed. No full event collection or dense
-mode-by-mode collision matrix is loaded into memory. Optional acceleration::
-
-   pip install 'nepkappa[tdbte]'
-
-When Numba is installed, block reductions are compiled and compared against
-the NumPy reference before integration. Otherwise the same solver uses NumPy.
-The audit records the backend. This optional dependency does not change the
-input format or physical model.
+mode-by-mode collision matrix is loaded into memory. Numba is installed through
+HiPhive's dependencies and is used automatically, without an additional
+installation step. Compiled block reductions are compared against the NumPy
+reference before integration. If Numba is unavailable, the solver uses NumPy.
+The audit records the backend; acceleration does not change the input format
+or physical model.
 
 Chunking does not remove the cost of dense q meshes. Native vertex work scales
 approximately as Nq² times the cube of the branch count; construction still
