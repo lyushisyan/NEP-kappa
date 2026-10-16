@@ -48,6 +48,8 @@ class QHAWorkflow:
             raise ValueError("The `qha` command requires a `qha:` YAML section.")
         print("\n[QHA] Isotropic quasi-harmonic approximation")
         base = read(self.cfg.poscar)
+        # Invalidate a previous phonon series before replacing the QHA fit.
+        (self.output_dir / "qha-phonons.yaml").unlink(missing_ok=True)
         points = []
         for index, ratio in enumerate(
             progress_iter(
@@ -60,7 +62,39 @@ class QHAWorkflow:
         ):
             points.append(self._run_volume_point(base, index, float(ratio)))
         self._fit_qha(points)
+        if getattr(self.cfg, "qha_equilibrium_phonons", False):
+            self._calculate_equilibrium_phonons(base, points)
         print(f"\n[Done] QHA results written to {self.output_dir}")
+
+    def _calculate_equilibrium_phonons(self, base, points):
+        """Calculate actual FC2 at each fitted volume, without FC interpolation."""
+        from nepkappa.sscha import temperature_directory_name
+
+        equilibrium = np.loadtxt(self.output_dir / "volume-temperature.dat", ndmin=2)
+        if equilibrium.shape[1] != 2 or not np.isfinite(equilibrium).all():
+            raise ValueError("Invalid QHA equilibrium temperature/volume data.")
+        volumes = [point.volume for point in points]
+        if np.any(equilibrium[:, 1] < min(volumes)) or np.any(equilibrium[:, 1] > max(volumes)):
+            raise ValueError("QHA equilibrium volume lies outside the scanned volumes; widen volume-ratios.")
+        multiplicity = points[0].normalization_multiplicity
+        cases = []
+        for temperature, volume in equilibrium:
+            name = temperature_directory_name(temperature)
+            directory = self.output_dir / "qha-phonons" / name
+            directory.mkdir(parents=True, exist_ok=True)
+            atoms = scale_atoms_to_volume_ratio(base, volume * multiplicity / base.get_volume())
+            print(f"\n[QHA phonons] {temperature:g} K: V={volume:.8f} A^3/primitive cell")
+            if self.cfg.qha_relax_internal:
+                atoms = self._relax_internal(atoms, directory)
+            write(directory / "POSCAR", atoms, format="vasp", direct=True, vasp5=True)
+            self._calculate_fc2(atoms, directory, f"equilibrium-{name}")
+            cases.append({"temperature_K": float(temperature),
+                          "primitive_volume_A3": float(volume),
+                          "directory": str(directory.relative_to(self.output_dir))})
+        summary = {"status": "complete", "method": "FC2 recalculated at QHA equilibrium volumes",
+                   "mesh": list(self.cfg.qha_mesh), "cases": cases}
+        (self.output_dir / "qha-phonons.yaml").write_text(
+            yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
     def _run_volume_point(self, base, index, ratio):
         label = f"{index:03d}-ratio-{ratio:.6f}"
@@ -205,7 +239,7 @@ class QHAWorkflow:
                 last_error = exc
         raise RuntimeError(f"Could not read a final VASP energy from {run_dir}") from last_error
 
-    def _calculate_fc2_thermal(self, atoms, point_dir, label):
+    def _calculate_fc2(self, atoms, point_dir, label):
         dim = self.cfg.qha_dim_fc2 or self.cfg.dim_fc2
         phonon = Phonopy(
             ase_to_phonopy(atoms),
@@ -243,6 +277,10 @@ class QHAWorkflow:
             point_dir / "phonopy_params.yaml",
             settings={"force_constants": True},
         )
+        return phonon
+
+    def _calculate_fc2_thermal(self, atoms, point_dir, label):
+        phonon = self._calculate_fc2(atoms, point_dir, label)
         phonon.run_mesh(self.cfg.qha_mesh)
         minimum = float(np.min(phonon.get_mesh_dict()["frequencies"]))
         if minimum < float(self.cfg.qha_imaginary_frequency_tolerance):

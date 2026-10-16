@@ -35,6 +35,8 @@ from phono3py.file_IO import write_fc2_to_hdf5, write_fc3_to_hdf5
 from phono3py.phonon3.fc3 import compact_fc3_to_full_fc3
 
 from nepkappa import __version__
+from nepkappa.coordinates import canonicalize_atoms
+from nepkappa.output import print_detail
 from nepkappa.calculators import calculator_backend_from_config
 from nepkappa.provenance import (
     canonical_data,
@@ -93,14 +95,14 @@ class NEPPhononWorkflow:
         finally:
             elapsed = time.time() - start
             self.stage_timings.append((label, elapsed))
-            print(f"  - {label} elapsed time: {format_duration(elapsed)}")
+            print_detail(f"  - {label} elapsed time: {format_duration(elapsed)}")
 
     def _print_timing_summary(self):
         if not self.stage_timings:
             return
-        print("\n[Timing Summary]")
+        print_detail("\n[Timing Summary]")
         for label, elapsed in self.stage_timings:
-            print(f"  - {label:<24}: {format_duration(elapsed)}")
+            print_detail(f"  - {label:<24}: {format_duration(elapsed)}")
 
     def _run_command(self, cmd, cwd=None):
         """Run a subprocess while forwarding output to terminal and run.log."""
@@ -114,7 +116,7 @@ class NEPPhononWorkflow:
         )
         if process.stdout is not None:
             for line in process.stdout:
-                print(line, end="")
+                print(line, end="", flush=True)
         return process.wait()
 
     def _run_command_with_input(self, cmd, input_text, cwd=None):
@@ -224,6 +226,12 @@ class NEPPhononWorkflow:
 
     def _write_shengbte_fc3(self, fc3_full, supercell, primitive):
         """Write FC3 in ShengBTE text format."""
+        # HiPhive requires fractional coordinates away from the upper boundary.
+        # Wrap copies only: atom order and FC indices must remain unchanged.
+        supercell = supercell.copy()
+        primitive = primitive.copy()
+        supercell.wrap(eps=1e-6)
+        primitive.wrap(eps=1e-6)
         fcs = ForceConstants.from_arrays(supercell, fc3_array=fc3_full)
         fcs.write_to_shengBTE(str(self.shengbte_fc3_path), primitive)
         print(f"  - Generated: {self.shengbte_fc3_path}")
@@ -289,6 +297,7 @@ class NEPPhononWorkflow:
 
     def _make_phono3py(self):
         """Create a Phono3py object with the workflow's structure settings."""
+        self.prim = canonicalize_atoms(self.prim)
         return Phono3py(
             ase_to_phonopy(self.prim),
             supercell_matrix=self.cfg.dim_fc3,
@@ -538,7 +547,7 @@ class NEPPhononWorkflow:
         # Round-trip through that persisted structure before staging the array
         # jobs so both processes hash byte-identical displaced POSCAR files.
         if self.relaxed_poscar_path.is_file():
-            self.prim = read(str(self.relaxed_poscar_path))
+            self.prim = canonicalize_atoms(read(str(self.relaxed_poscar_path)))
         jobs = []
         if cfg.use_hiphive:
             np.random.seed(42)
@@ -588,7 +597,8 @@ class NEPPhononWorkflow:
     def load_force_constant_structure(self):
         """Load the structure used by the force-constant stage."""
         if self.prim is not None:
-            print(f"  - Using in-memory structure from the relax stage")
+            self.prim = canonicalize_atoms(self.prim)
+            print_detail(f"  - Using in-memory structure from the relax stage")
             return
 
         if self.cfg.do_relax:
@@ -597,11 +607,11 @@ class NEPPhononWorkflow:
                     f"Relaxed structure not found: {self.relaxed_poscar_path}. "
                     "Run `nepkappa relax` first, or use `nepkappa run` for the full workflow."
                 )
-            print(f"  - Reading relaxed structure from {self.relaxed_poscar_path}")
-            self.prim = read(str(self.relaxed_poscar_path))
+            print_detail(f"  - Reading relaxed structure from {self.relaxed_poscar_path}")
+            self.prim = canonicalize_atoms(read(str(self.relaxed_poscar_path)))
         else:
-            print(f"  - Reading input structure from {self.cfg.poscar}")
-            self.prim = read(self.cfg.poscar)
+            print_detail(f"  - Reading input structure from {self.cfg.poscar}")
+            self.prim = canonicalize_atoms(read(self.cfg.poscar))
 
     def run_hiphive_fitting(self, include_fc3=True):
         """Fit force constants through the extracted HiPhive stage."""

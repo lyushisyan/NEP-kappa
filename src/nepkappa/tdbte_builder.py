@@ -120,7 +120,7 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
     mesh = validate_mesh(mesh)
     if not isinstance(chunk_events, int) or chunk_events < 1:
         raise ValueError('chunk_events must be a positive integer')
-    source, directory = Path(source).resolve(), Path(directory)
+    source, directory = Path(source).expanduser().resolve(), Path(directory)
     if (source / 'BORN').exists():
         raise ValueError('NAC/BORN inputs are not yet supported by the TD-BTE builder')
     hashes = source_hashes(source)

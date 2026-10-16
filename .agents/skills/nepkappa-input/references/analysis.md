@@ -46,7 +46,8 @@ establish q-mesh convergence.
 
 The publication Figure1–6 scripts are separate research tools: do not promise that
 `nepkappa plot` reproduces their custom panels, Wigner bubbles, pair-frequency
-maps, or arbitrary TD-BTE snapshots. Check the plotting API before promising arbitrary
+maps, or channel-resolved TD-BTE maps. The packaged TD-BTE plot supports three
+energy-colored snapshots selected with `plot.tdbte-times`. Check the plotting API before promising arbitrary
 panel-selection keys; `layout` controls arrangement, not a figure whitelist.
 
 ## Time-dependent BTE: scope and prerequisites
@@ -65,7 +66,11 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
   For artifact reuse, use a two-section `tdbte`/`output` input and set
   `tdbte.force-constants` to a directory containing matching
   `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, and set `tdbte.mesh` to three
-  integers >= 2. The source is reused; no calculator or new force jobs are needed.
+  integers >= 2. If neither source nor kernel is specified, direct `tdbte`
+  reads from `output.result-dir`, just as direct `kappa` does by default.
+  Both commands accept `force-constants` in their respective sections to
+  separate input and output directories. The source is reused; no calculator
+  or new force jobs are needed.
   For reuse, set `tdbte.kernel` to a numeric NPZ with its JSON sidecar, or a
   completed packaged `tdbte-kernel/manifest.json`. Omit `mesh` on this route.
   Do not add the removed `experimental` key or substitute an LBTE matrix.
@@ -84,16 +89,22 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
 - `temperature` defines the initial Bose state. `excitation: 0.01` increases
   selected occupations by 1%, not by 1 K, 1% total energy, or a laser fluence.
   Explain which branches at which q points are excited (currently every q).
-- Use `nepkappa info input.yaml` for validation and `nepkappa run input.yaml`
-  for the six-section TD-BTE input. `nepkappa tdbte input.yaml` uses existing
+- Use `nepkappa info input.yaml --for tdbte` for reuse-input validation;
+  use `info --for run` and `nepkappa run input.yaml` for the six-section input.
+  Compact reuse inputs must use `nepkappa tdbte`, never `run`. `nepkappa tdbte input.yaml` uses existing
   force constants and does not generate them. After a completed calculation,
-  `nepkappa plot input.yaml` draws the saved branch and total energy curves.
+  `nepkappa plot input.yaml` draws three energy-colored dispersion snapshots,
+  branch excess energies, and acoustic/optical energy-equivalent temperatures.
   Validation checks options, not source existence or physical normalization.
   Do not run the ODE just to validate an input.
 - Use a fresh output directory: an existing `result-dir/tdbte/` is refused.
   A completed automatic cache is reused only with matching input hashes, mesh
   and backend/builder versions; partial builds are not resumed automatically.
-  `report` includes the audit; standard `plot` does not render the trajectory.
+  `report` includes the audit. `plot` reads saved branch-energy CSV data; a
+  plot/output-only input detects `tdbte/branch-energy.csv`, while `tdbte: {}`
+  explicitly selects TD-BTE plots. Plot settings include `layout`, `dpi`, `path`, and `tdbte-times`.
+  Six-panel plots require saved trajectories, a passed numerical audit, and
+  matching kernel and phonon metadata; CSV-only legacy results retain energy plots.
 - Separate energy conservation, equilibrium-control, and entropy checks from
   physical validation of collision prefactors and absolute relaxation rates.
   Passing numerical checks does not establish a physically validated result.

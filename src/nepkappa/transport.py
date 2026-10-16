@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 import shlex
 import shutil
 import sys
+import time
 from types import SimpleNamespace
 
 import phono3py as phono3py_module
+
+from nepkappa.output import activity_status, print_detail
+from nepkappa.provenance import file_sha256
+
+
+FORCE_CONSTANT_FILES = ("phono3py_disp.yaml", "fc2.hdf5", "fc3.hdf5")
 
 
 class Phono3pyTransportWorkflow:
@@ -26,6 +34,8 @@ class Phono3pyTransportWorkflow:
         self.config = config
         self.settings = _kappa_settings(config)
         self.output_dir = Path(output_dir).resolve()
+        source = self.settings.force_constants
+        self.source_dir = Path(source).expanduser().resolve() if source else self.output_dir
         self.disp_path = self.output_dir / "phono3py_disp.yaml"
         self.fc2_path = self.output_dir / "fc2.hdf5"
         self.fc3_path = self.output_dir / "fc3.hdf5"
@@ -39,6 +49,7 @@ class Phono3pyTransportWorkflow:
         """Compute conductivity from existing FC2/FC3 and displacement metadata."""
         print("\n[Step 3] Compute Kappa with Phono3py CLI")
         self._validate_inputs()
+        self._prepare_inputs()
 
         if self.settings.command:
             return self._run_custom_command()
@@ -63,24 +74,55 @@ class Phono3pyTransportWorkflow:
         return self._run_serial()
 
     def _validate_inputs(self):
+        required = [self.source_dir / name for name in FORCE_CONSTANT_FILES]
         missing = [
-            path
-            for path in (self.fc2_path, self.fc3_path, self.disp_path)
-            if not path.exists()
+            path for path in required if not path.is_file()
         ]
         if missing:
             paths = ", ".join(str(path) for path in missing)
             raise FileNotFoundError(
                 f"Missing required phono3py file(s): {paths}. "
                 "Run `nepkappa fc2fc3` first or place fc2.hdf5, fc3.hdf5, "
-                f"and {self.disp_path.name} in {self.output_dir}."
+                f"and {self.disp_path.name} in {self.source_dir}, or set "
+                "kappa.force-constants to their directory."
             )
+
+    def _prepare_inputs(self):
+        """Keep a local copy for the CLI and later plotting; never overwrite inputs."""
+        if self.source_dir == self.output_dir:
+            return
+        names = list(FORCE_CONSTANT_FILES)
+        if (self.source_dir / "BORN").is_file():
+            names.append("BORN")
+        elif (self.output_dir / "BORN").exists() or (self.output_dir / "BORN").is_symlink():
+            raise FileExistsError(
+                "The result directory contains BORN but the force-constant source does not. "
+                "Choose a new output.result-dir to avoid mixing NAC data."
+            )
+        # Check all destinations before copying any files, including dangling links.
+        for name in names:
+            source, destination = self.source_dir / name, self.output_dir / name
+            if destination.exists() or destination.is_symlink():
+                if (
+                    not destination.is_file()
+                    or destination.is_symlink()
+                    or destination.samefile(source)
+                    or file_sha256(source) != file_sha256(destination)
+                ):
+                    raise FileExistsError(
+                        f"Conflicting input {destination}; choose a new output.result-dir."
+                    )
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            destination = self.output_dir / name
+            if not destination.exists():
+                shutil.copy2(self.source_dir / name, destination)
+        print_detail(f"  - Force-constant source: {self.source_dir}")
 
     def _run_custom_command(self):
         command = shlex.split(self.settings.command)
         print("  - Method: custom phono3py command")
         self._run_checked(command, label="Custom phono3py command")
-        print("\n[Done] Custom phono3py command finished successfully.")
 
     def _run_serial(self):
         if self.settings.method == "lbte":
@@ -113,16 +155,25 @@ class Phono3pyTransportWorkflow:
         command.extend(temperature_flags(self.settings.temperatures))
 
         self._run_checked(command, label="Phono3py")
-        print("\n[Done] Phono3py finished successfully.")
-        print(f"Check {self.output_dir / self.expected_kappa_name()} for results.")
+        print(f"  - Result: {self.output_dir / self.expected_kappa_name()}")
 
     def _run_checked(self, command, *, label):
-        print(f"  - Output directory: {self.output_dir}")
-        print(f"  - Running command: {shlex.join(command)}")
-        return_code = self.run_command(command, cwd=self.output_dir)
+        print_detail(f"  - Output directory: {self.output_dir}")
+        print_detail(f"  - Running command: {shlex.join(command)}")
+        detail_stream = getattr(sys.stdout, "detail_stream", sys.stdout)
+        compact = detail_stream is not sys.stdout
+        started = time.monotonic()
+        with activity_status(
+            label, enabled=compact and getattr(self.config, "progress", True)
+        ), contextlib.redirect_stdout(detail_stream):
+            return_code = self.run_command(command, cwd=self.output_dir)
         if return_code != 0:
-            print(f"\n[Error] {label} failed with return code {return_code}")
-            raise RuntimeError(f"{label} failed with return code {return_code}")
+            log_stream = getattr(sys.stdout, "log_stream", None)
+            log_path = getattr(log_stream, "name", self.output_dir / "run.log")
+            raise RuntimeError(
+                f"{label} failed with return code {return_code}. See {log_path} for details."
+            )
+        print(f"[Done] {label} finished in {time.monotonic() - started:.2f}s")
 
     def expected_kappa_name(self):
         return expected_kappa_name(self.settings.mesh)
@@ -141,6 +192,7 @@ def _kappa_settings(config):
         boundary_mfp=config.bfmp,
         wigner=config.wigner,
         parallel=dict(getattr(config, "lbte_parallel", {}) or {}),
+        force_constants=getattr(config, "kappa_force_constants", None),
     )
 
 

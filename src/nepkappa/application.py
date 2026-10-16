@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 import os
 import time
 
+from nepkappa.output import print_detail
+
 
 @dataclass
 class CommandExecution:
@@ -25,7 +27,7 @@ class CommandExecution:
         finally:
             elapsed = time.time() - start
             self.stage_timings.append((label, elapsed))
-            print(f"  - {label} elapsed time: {_format_duration(elapsed)}")
+            print_detail(f"  - {label} elapsed time: {_format_duration(elapsed)}")
 
 
 class WorkflowStageRunner:
@@ -176,7 +178,10 @@ class WorkflowStageRunner:
         import copy
         from pathlib import Path
 
-        if "tdbte" in self.config.workflow_steps:
+        trajectory = Path(self.config.result_dir) / "tdbte" / "branch-energy.csv"
+        if "tdbte" in self.config.workflow_steps or (
+            self.config.workflow_steps == ["plot"] and trajectory.is_file()
+        ):
             from nepkappa.tdbte_plot import plot_tdbte_results
 
             return self.execution.run_stage(
@@ -187,27 +192,36 @@ class WorkflowStageRunner:
         from nepkappa.plot import plot_results
 
         config = self.config
-        if config.qha_enabled and config.qha_volumes:
-            from nepkappa.sscha import temperature_directory_name
+        if config.scph_enabled and not (config.scph_run_transport or config.fp_enabled):
+            from nepkappa.sscha_plot import plot_sscha_results
 
-            config = copy.copy(config)
-            config.result_dir = str(
-                Path(config.result_dir)
-                / "qha-kappa"
-                / temperature_directory_name(config.plot_temperature)
+            return self.execution.run_stage(
+                "Plot SSCHA results", lambda: plot_sscha_results(config)
             )
-        elif config.qha_enabled and config.scph_enabled:
+        if not config.scph_enabled and not config.qha_volumes and (
+            config.qha_enabled or (Path(config.result_dir) / "qha-summary.yaml").is_file()
+        ):
+            from nepkappa.qha_plot import plot_qha_results
+
+            return self.execution.run_stage(
+                "Plot QHA results", lambda: plot_qha_results(config)
+            )
+        if config.scph_enabled or (config.qha_enabled and config.qha_volumes):
             from nepkappa.sscha import temperature_directory_name
 
             config = copy.copy(config)
             temperature_dir = temperature_directory_name(config.plot_temperature)
-            config.result_dir = str(
-                Path(config.result_dir)
-                / "qha-sscha"
-                / temperature_dir
-                / config.scph_workdir
-                / temperature_dir
-            )
+            result_dir = Path(config.result_dir)
+            if config.scph_enabled:
+                if config.qha_enabled:
+                    result_dir /= Path("qha-sscha") / temperature_dir
+                config._plot_harmonic_reference = str(
+                    Path(getattr(config, "scph_initial_fc2", None) or result_dir / "fc2.hdf5")
+                )
+                result_dir /= Path(config.scph_workdir) / temperature_dir
+            else:
+                result_dir /= Path("qha-kappa") / temperature_dir
+            config.result_dir = str(result_dir)
         return self.execution.run_stage(
             "Plot results", lambda: plot_results(config)
         )
@@ -276,9 +290,9 @@ def _print_deferred(step):
 def _print_timing_summary(stage_timings):
     if not stage_timings:
         return
-    print("\n[Timing Summary]")
+    print_detail("\n[Timing Summary]")
     for label, elapsed in stage_timings:
-        print(f"  - {label:<24}: {_format_duration(elapsed)}")
+        print_detail(f"  - {label:<24}: {_format_duration(elapsed)}")
 
 
 def _format_duration(seconds):

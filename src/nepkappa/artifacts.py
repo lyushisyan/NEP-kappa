@@ -8,6 +8,8 @@ from pathlib import Path
 from ase.io import read, write
 import numpy as np
 
+from nepkappa.output import print_detail
+
 
 class ForceArtifactStore:
     """Persist displacement structures, forces, and their input identities."""
@@ -155,7 +157,7 @@ class ForceArtifactStore:
                 forces = self.validate_forces(
                     np.load(force_path, allow_pickle=False), len(atoms), force_path
                 )
-                print(f"    Reusing {label.upper()} #{index}: {force_path}")
+                print_detail(f"    Reusing {label.upper()} #{index}: {force_path}")
                 return forces
         except (OSError, ValueError, RuntimeError) as exc:
             print(f"    Ignoring invalid force cache {force_path}: {exc}")
@@ -176,5 +178,5 @@ class ForceArtifactStore:
         except (OSError, ValueError, RuntimeError) as exc:
             print(f"    Ignoring invalid force cache {force_path}: {exc}")
             return None
-        print(f"    Reusing {label.upper()} #{index}: {force_path}")
+        print_detail(f"    Reusing {label.upper()} #{index}: {force_path}")
         return forces

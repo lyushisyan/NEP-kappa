@@ -5,7 +5,7 @@ structure:
   relaxation: false
 calculator:
   name: nep
-  nep-model: potentials/3C-SiC/nep_3C-SiC.txt
+  model: potentials/3C-SiC/nep_3C-SiC.txt
 force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]
@@ -19,6 +19,8 @@ tdbte:
   samples: 201
 plot:
   layout: both
+  path: seekpath
+  tdbte-times: [0, 10, 20]
   dpi: 300
 output:
   result-dir: calculations/3C-SiC/tdbte-from-scratch

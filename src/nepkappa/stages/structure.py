@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ase.io import read, write
+from nepkappa.coordinates import canonicalize_atoms
 
 from nepkappa.stages.base import HostStage
 
@@ -24,7 +25,7 @@ class StructureRelaxationStage(HostStage):
         workflow = self.host
         print("\n[Step 1] Relax Structure")
         print(f"  - Reading from {workflow.cfg.poscar}")
-        primitive = read(workflow.cfg.poscar)
+        primitive = canonicalize_atoms(read(workflow.cfg.poscar))
 
         if not workflow.cfg.do_relax:
             write(
@@ -50,6 +51,8 @@ class StructureRelaxationStage(HostStage):
             print(f"  - Relaxing structure using {calculator.upper()} ASE calculator")
             primitive.calc = workflow._make_external_backend().calculator()
             primitive = self._relax_ase(primitive)
+        primitive = canonicalize_atoms(primitive)
+        write(str(workflow.relaxed_poscar_path), primitive, format="vasp", direct=True)
         workflow.prim = primitive
         return primitive
 

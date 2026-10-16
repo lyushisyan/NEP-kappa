@@ -9,6 +9,8 @@ import h5py
 import numpy as np
 import yaml
 
+from nepkappa.transport_data import read_conductivity_components
+
 
 ARTIFACT_NAMES = {
     "fc2.hdf5",
@@ -40,7 +42,11 @@ def resolve_result_directory(source):
         raise FileNotFoundError(f"Result directory or YAML input not found: {source}")
     if source.suffix.lower() not in {".yaml", ".yml"}:
         raise ValueError("Report input must be a result directory or a YAML file.")
-    data = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    from nepkappa.config import load_yaml_strict
+
+    data = load_yaml_strict(source.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict) or not isinstance(data.get("output", {}), dict):
+        raise ValueError("Report YAML must contain an output mapping.")
     output = data.get("output", {})
     result = output.get("result-dir", output.get("result_dir"))
     if not result:
@@ -157,24 +163,29 @@ def _read_transport(root, warnings):
                 if "temperature" not in handle or "kappa" not in handle:
                     continue
                 temperatures = np.atleast_1d(np.asarray(handle["temperature"], dtype=float))
-                kappa = np.asarray(handle["kappa"], dtype=float)
-            if kappa.ndim == 1:
-                kappa = kappa.reshape(1, -1)
-            for temperature, tensor in zip(temperatures, kappa):
-                if tensor.size < 3:
-                    continue
-                diagonal = np.asarray(tensor[:3], dtype=float)
-                records.append(
-                    {
-                        "file": str(path.relative_to(root)),
-                        "method": "3ph-phono3py",
-                        "temperature_K": float(temperature),
-                        "kxx_W_mK": float(diagonal[0]),
-                        "kyy_W_mK": float(diagonal[1]),
-                        "kzz_W_mK": float(diagonal[2]),
-                        "kavg_W_mK": float(np.mean(diagonal)),
-                    }
-                )
+                components = read_conductivity_components(handle)
+            methods = (
+                {"kappa": "3ph-phono3py-wigner-total",
+                 "kappa_intra": "3ph-phono3py-particle",
+                 "kappa_inter": "3ph-phono3py-wigner-coherence"}
+                if "kappa_intra" in components else {"kappa": "3ph-phono3py"}
+            )
+            for key, method in methods.items():
+                for temperature, tensor in zip(temperatures, np.atleast_2d(components[key])):
+                    if tensor.size < 3:
+                        continue
+                    diagonal = np.asarray(tensor[:3], dtype=float)
+                    records.append(
+                        {
+                            "file": str(path.relative_to(root)),
+                            "method": method,
+                            "temperature_K": float(temperature),
+                            "kxx_W_mK": float(diagonal[0]),
+                            "kyy_W_mK": float(diagonal[1]),
+                            "kzz_W_mK": float(diagonal[2]),
+                            "kavg_W_mK": float(np.mean(diagonal)),
+                        }
+                    )
         except Exception as exc:
             warnings.append(f"Could not summarize {path.relative_to(root)}: {exc}")
     records.extend(_read_fourphonon_transport(root, warnings))

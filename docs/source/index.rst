@@ -1,32 +1,35 @@
-NEP-kappa
-===========
+NEP-kappa documentation
+===========================
 
-NEP-kappa calculates phonons and lattice thermal transport using DFT or
-machine-learning potentials.
+NEP-kappa connects atomic-force calculations, force constants, phonon properties,
+and lattice thermal transport in a YAML-driven workflow. These pages follow the
+seven chapters of the user manual, from installation to nonequilibrium relaxation.
 
-Start with :doc:`installation` and :doc:`starting`. Calculation templates are
-listed in :doc:`examples`; parameters and units are defined in :doc:`input_files`.
-
-These pages describe the current 2.0.1 checkout, including updates not present
-in the earlier release tags. Check each workflow's prerequisites and limits.
+Begin with :doc:`installation` and the :doc:`3C-SiC quick start <starting>`.
+Use :doc:`input_files` to look up parameters, or continue directly to the chapter
+for your calculation. Numerical examples illustrate the workflow; converge the
+settings for your material before quantitative analysis.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Getting started
+   :numbered: 2
+   :caption: User manual
 
+   introduction
    installation
    starting
-   examples
-   introduction
-   requirements
+   input_files
+   harmonic_temperature
+   thermal_transport
+   tdbte
 
 .. toctree::
    :maxdepth: 1
-   :caption: Calculation guide
+   :caption: Additional resources
 
+   examples
    tutorial
-   input_files
-   tdbte
+   requirements
    input_assistant
    troubleshooting
    reference
@@ -37,4 +40,3 @@ in the earlier release tags. Check each workflow's prerequisites and limits.
 
    development
    architecture
-   release_baseline

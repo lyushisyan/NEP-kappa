@@ -1,67 +1,103 @@
+Software overview
+=====================
+
 Capabilities
-==============
+----------------
 
-Each calculation uses a YAML input to select the force calculator,
-force-constant method, and transport solver.
+NEP-kappa organizes crystal structures, atomic forces, force constants and result
+analysis into one workflow. It supports NEP, VASP, MACE and other ASE calculators.
+Phono3py finite displacements or HiPhive fitting generate FC2/FC3; Thirdorder
+and Fourthorder provide the force constants used by FourPhonon.
 
-Calculators and force constants
----------------------------------
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-- NEP through Calorine CPUNEP.
-- VASP with configured executable and POTCAR.
-- MACE, external ASE factories, and registered calculator plugins.
-- FC2/FC3 through phono3py finite displacements or HiPhive fitting.
-- Thirdorder FC3 and Fourthorder FC4 for ShengBTE/FourPhonon workflows.
+   * - Calculation
+     - Method and outputs
+   * - Harmonic phonons
+     - Dispersion, density of states, volumetric heat capacity and group velocity.
+   * - Temperature-dependent phonons
+     - QHA thermal expansion, fixed-volume Phonopy SSCHA, and SSCHA at QHA equilibrium volumes.
+   * - Three-phonon transport
+     - phono3py RTA, LBTE and SMM19 Wigner particle/coherence contributions.
+   * - Three- and four-phonon transport
+     - FourPhonon RTA or iterative LBTE; Wigner transport with the Wigner_Park executable.
+   * - Nonequilibrium relaxation
+     - Time-dependent BTE for spatially homogeneous phonon populations at fixed frequencies.
 
-NEP, VASP, and suitable ASE calculators support relaxation. An ASE calculator
-used for cell relaxation must provide stress as well as energy and forces.
+Workflow
+------------
 
-Thermal transport
+A typical transport calculation follows this sequence::
+
+   Structure → relaxation → FC2/FC3 → thermal transport → plots and report
+
+Harmonic calculations stop after FC2. Four-phonon calculations additionally
+require FC4. QHA and SSCHA introduce volume and temperature-dependent stages.
+TD-BTE uses FC2/FC3 to evolve phonon occupations without requiring a preceding
+conductivity calculation. Each route is developed in its own manual chapter.
+
+The full ``run`` command orders the required stages from the input settings.
+Individual commands can reuse completed stages. Force caches are reused when
+their recorded inputs match. Long workstation calculations can run in tmux;
+cluster calculations can use Slurm.
+
+Input files
+---------------
+
+A complete phonon/transport input has six sections: ``structure``, ``calculator``,
+``force-constant``, ``kappa``, ``plot`` and ``output``. TD-BTE replaces ``kappa``
+with ``tdbte``. Optional execution resources belong in ``parallel``.
+A direct stage command accepts a reduced input containing only its required
+settings. See :doc:`input_files` for keys, units and examples.
+
+Common commands
 -------------------
 
-- phono3py three-phonon RTA and iterative LBTE.
-- phono3py SMM19 Wigner transport.
-- FourPhonon three-plus-four-phonon transport with selectable solver.
-- Optional isotope scattering and configured boundary scattering.
-- Film/wire geometry normalization during plotting; raw HDF5 is unchanged.
+.. list-table::
+   :header-rows: 1
+   :widths: 38 62
 
-Temperature-dependent phonons
--------------------------------
+   * - Command
+     - Purpose
+   * - ``nepkappa info input.yaml``
+     - Check the full input; add ``--for <command>`` for a single stage.
+   * - ``nepkappa run input.yaml``
+     - Execute the input-selected calculation sequence.
+   * - ``nepkappa relax input.yaml``
+     - Optimize the structure.
+   * - ``nepkappa fc2 input.yaml``
+     - Generate harmonic force constants or perform an enabled QHA scan.
+   * - ``nepkappa fc2fc3 input.yaml``
+     - Generate second- and third-order force constants.
+   * - ``nepkappa kappa input.yaml``
+     - Calculate thermal conductivity from prepared inputs.
+   * - ``nepkappa tdbte input.yaml``
+     - Evolve nonequilibrium occupations using existing force constants or a kernel.
+   * - ``nepkappa plot input.yaml``
+     - Plot saved results.
+   * - ``nepkappa report input.yaml``
+     - Write Markdown and YAML summaries.
 
-QHA uses isotropic volume scans to obtain thermal expansion and thermodynamic
-properties. Fixed-volume Phonopy SSCHA generates temperature-renormalized FC2.
-The ``qha-sscha`` route runs SSCHA at the QHA equilibrium volume for each
-temperature, without reoptimizing that volume. The resulting FC2 is an auxiliary
-harmonic matrix, not a free-energy Hessian. Optional bubble postprocessing
-calculates input-FC3 diagonal on-shell frequency shifts in separate output files;
-FC2 and transport remain unchanged. See :doc:`input_files` for approximation
-details.
+Calculation commands show compact progress by default. Add ``-v`` for detailed
+screen output; detailed diagnostics are saved in the result directory's
+``run.log`` in either mode.
 
-The Phonopy stochastic SSCHA route implemented here is not an ALAMODE
-perturbative SCPH calculation. Transport may use the
-renormalized FC2 with the configured FC3 (and FC4 for coupled four-phonon
-transport). These approximations have their own convergence requirements.
+Related publication
+-----------------------
 
-Execution and analysis
-------------------------
+F. Yin, S. Liu, Y. Dong, A. A. Barinov, K. Xu and V. I. Khvesyuk,
+*Accelerated phonon transport calculations for nanostructures: Combining
+neuroevolution potentials and compressed sensing*, Journal of Applied Physics
+**139**, 135103 (2026), `doi:10.1063/5.0324012 <https://doi.org/10.1063/5.0324012>`_.
+See :doc:`reference` for model-specific references.
 
-``run`` derives one ordered sequence of stages from the input switches.
-Direct calculation commands can execute a selected stage using existing
-results. Slurm submission is available for force arrays, LBTE, and
-FourPhonon.
-Cached force jobs are reused only when their recorded inputs match.
+Related links
+-----------------
 
-``plot`` reads existing results, while ``report`` collects results and recorded
-calculation settings.
-
-Nonequilibrium phonon dynamics
-------------------------------
-
-The ``tdbte`` stage evolves homogeneous three-phonon populations at fixed
-frequencies. It builds energy-shell chunks from matching FC2/FC3,
-``phono3py_disp.yaml``, and a q mesh, or reuses an existing kernel.
-It is a separate continuation from force-constant preparation: a completed
-thermal-conductivity calculation is not required and its
-conductivity HDF5 is not used. It records energy, equilibrium-control and entropy
-diagnostics, but these do not independently validate physical rates. It does
-not model laser absorption. See :doc:`tdbte` for inputs and implementation limits.
+* `NEP-kappa source code <https://github.com/lyushisyan/NEP-kappa>`_
+* `NEP-kappa online documentation <https://nep-kappa.readthedocs.io/en/latest/>`_
+* `Phonopy documentation <https://phonopy.github.io/phonopy/>`_
+* `phono3py documentation <https://phonopy.github.io/phono3py/>`_
+* `FourPhonon source code <https://github.com/FourPhonon/FourPhonon>`_

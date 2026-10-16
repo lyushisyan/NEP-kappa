@@ -1,0 +1,18 @@
+kappa:
+  force-constants: ../results
+  engine: phono3py
+  method: lbte
+  mesh: [15, 15, 15]
+  temps: [100, 1000, 100]
+  isotope: true
+  wigner: false
+plot:
+  layout: both
+  path: seekpath
+  tau: total
+  scattering-rate-min: 1.0e-08
+  temperature: 300
+  kappa: x
+  dpi: 300
+output:
+  result-dir: results/lbte

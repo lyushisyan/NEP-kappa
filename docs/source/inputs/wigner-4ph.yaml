@@ -1,0 +1,33 @@
+structure:
+  poscar: inputs/POSCAR_relaxed
+  relaxation: false
+force-constant:
+  dim-fc2: [3, 3, 3]
+  four-phonon:
+    enabled: true
+    command: /path/to/FourPhonon-Wigner_Park/ShengBTE
+    fc2: inputs/FORCE_CONSTANTS_2ND
+    fc3: inputs/FORCE_CONSTANTS_3RD
+    fc4: inputs/FORCE_CONSTANTS_4TH
+kappa:
+  engine: fourphonon
+  method-3ph: rta
+  method-4ph: rta
+  mesh: [8, 8, 8]
+  temps: [300, 900, 300]
+  isotope: true
+  wigner: true
+plot:
+  layout: both
+  path: seekpath
+  tau: total
+  scattering-rate-min: 1.0e-08
+  temperature: 300
+  kappa: x
+  dpi: 300
+output:
+  result-dir: results/wigner-4ph
+parallel:
+  kappa:
+    mpi-processes: 4
+    omp-threads: 1

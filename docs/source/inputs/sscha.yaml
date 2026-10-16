@@ -1,0 +1,26 @@
+structure:
+  poscar: results/harmonic/POSCAR_relaxed
+  relaxation: false
+calculator:
+  name: nep
+  model: nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  sscha:
+    enabled: true
+    run-transport: false
+    temps: [300, 900, 300]
+    snapshots: 200
+    iterations: 4
+    transient: 1
+    sscha-mesh: [20, 20, 20]
+    random-seed: 7
+kappa:
+  mesh: [31, 31, 31]
+  temps: [100, 1000, 50]
+plot:
+  layout: both
+  path: seekpath
+  dpi: 300
+output:
+  result-dir: results/sscha

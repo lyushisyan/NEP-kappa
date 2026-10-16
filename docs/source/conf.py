@@ -36,8 +36,8 @@ html_static_path = ["_static"]
 html_logo = "_static/NEP-kappa-logo-1200x750.png"
 
 html_theme_options = {
-    "navigation_depth": 4,
-    "collapse_navigation": False,
+    "navigation_depth": 3,
+    "collapse_navigation": True,
     "sticky_navigation": True,
     "titles_only": False,
     "logo_only": True,

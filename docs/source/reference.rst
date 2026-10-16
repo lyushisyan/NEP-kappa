@@ -8,7 +8,8 @@ Workflow reference
 
 [1] F. Yin, et al.,
 *Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
-Journal of Applied Physics **139**, 135103 (2026).
+Journal of Applied Physics **139**, 135103 (2026),
+`doi:10.1063/5.0324012 <https://doi.org/10.1063/5.0324012>`_.
 
 NEP model for silicon nanowires
 ---------------------------------

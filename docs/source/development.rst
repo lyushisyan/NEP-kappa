@@ -70,7 +70,24 @@ When keys or templates change, update the input reference and
 ``.agents/skills/nepkappa-input/`` together. The example-catalog test validates
 the nine phonon/transport inputs, six-section TD-BTE input, and their public assets.
 Keep internal fixture inputs in ``tests/fixtures/`` aligned with the public
-six-section calculation or two-section TD-BTE reuse shapes.
+six-section ``run`` inputs and reduced direct-command inputs. Test both
+acceptance of stage inputs and rejection of incomplete ``run`` inputs.
+
+Documentation structure
+-----------------------
+
+The numbered user guide follows the seven chapters of the manual:
+``introduction``, ``installation``, ``starting``, ``input_files``,
+``harmonic_temperature``, ``thermal_transport`` and ``tdbte``. Keep this order
+in ``index.rst``. Supplementary recipes, troubleshooting and developer notes
+remain outside the numbered chapters.
+
+Downloadable chapter inputs live in ``docs/source/inputs/`` and are displayed
+with ``literalinclude`` so that the shown and downloaded YAML stay identical.
+They complement the repository's ten public workflow templates. Check a changed
+input with ``nepkappa info <file> --for <stage>`` for both its calculation stage
+and ``plot``; these checks do not start a calculation. Use portable executable
+placeholders and matching MPI/Slurm resource counts in cluster instructions.
 
 Baseline snapshots
 --------------------
@@ -78,4 +95,9 @@ Baseline snapshots
 The local ``benchmarks/data/`` includes compact data and original BAs source summaries
 needed to check their hashes without private calculation directories.
 These checks verify hashes and recorded values without rerunning DFT.
-See :doc:`release_baseline` for their scope.
+The archived baseline scope and local check commands are documented below.
+
+.. toctree::
+   :maxdepth: 1
+
+   release_baseline

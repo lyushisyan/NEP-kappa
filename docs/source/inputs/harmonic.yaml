@@ -1,0 +1,17 @@
+structure:
+  poscar: POSCAR
+  relaxation: true
+calculator:
+  name: nep
+  model: nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+kappa:
+  mesh: [31, 31, 31]
+  temps: [100, 1000, 50]
+plot:
+  layout: both
+  path: seekpath
+  dpi: 300
+output:
+  result-dir: results/harmonic

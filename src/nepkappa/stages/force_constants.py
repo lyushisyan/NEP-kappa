@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import shlex
 import shutil
+import contextlib
+import sys
 
 import numpy as np
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -18,6 +20,9 @@ from hiphive.structure_generation import generate_mc_rattled_structures
 from hiphive.utilities import prepare_structures
 from phonopy import Phonopy
 from trainstation import Optimizer
+
+from nepkappa.output import activity_status, print_detail
+from nepkappa.coordinates import canonicalize_atoms
 
 from nepkappa.runtime import (
     ase_to_phonopy,
@@ -133,7 +138,7 @@ class FiniteDisplacementStage(HostStage):
 
     def execute(self):
         workflow = self.host
-        print("\n[Step 2 - FiniteDisp] Phono3py Finite Displacement Method")
+        print_detail("\n[Step 2 - FiniteDisp] Phono3py Finite Displacement Method")
         cfg = workflow.cfg
         ph3 = workflow._make_phono3py()
 
@@ -141,7 +146,7 @@ class FiniteDisplacementStage(HostStage):
         ph3.save(str(workflow.disp_path))
         fc2_supercells = ph3.phonon_supercells_with_displacements
         print(f"  - Generated {len(fc2_supercells)} FC2 supercells")
-        print("  - Computing forces for FC2...")
+        print_detail("  - Computing forces for FC2...")
         forces_fc2 = []
         for index, supercell in enumerate(
             progress_iter(
@@ -160,16 +165,16 @@ class FiniteDisplacementStage(HostStage):
             )
         ph3.phonon_forces = np.array(forces_fc2)
 
-        print("  - Producing force constants with phono3py finite differences")
+        print_detail("  - Producing force constants with phono3py finite differences")
         print("  - Producing FC2...")
         compact = getattr(cfg, "compact_fc", True)
-        print(f"  - Force-constant layout: {'compact' if compact else 'full'}")
+        print_detail(f"  - Force-constant layout: {'compact' if compact else 'full'}")
         run_activity_task(
             "Producing FC2",
             lambda: ph3.produce_fc2(is_compact_fc=compact),
             enabled=workflow.show_progress,
         )
-        print("  - Symmetrizing FC2...")
+        print_detail("  - Symmetrizing FC2...")
         ph3.symmetrize_fc2()
         workflow._write_fc2_exports(
             ph3.fc2,
@@ -188,7 +193,7 @@ class FiniteDisplacementStage(HostStage):
         ph3.save(str(workflow.disp_path))
         fc3_supercells = ph3.supercells_with_displacements
         print(f"  - Generated {len(fc3_supercells)} FC3 supercells")
-        print("  - Computing forces for FC3...")
+        print_detail("  - Computing forces for FC3...")
         forces_fc3 = []
         for index, supercell in enumerate(
             progress_iter(
@@ -219,13 +224,15 @@ class FiniteDisplacementStage(HostStage):
             lambda: ph3.produce_fc3(is_compact_fc=compact),
             enabled=workflow.show_progress,
         )
-        print("  - Symmetrizing FC3...")
+        print_detail("  - Symmetrizing FC3...")
         ph3.symmetrize_fc3()
         export_kwargs = {}
         if workflow._fc_format() in {"shengbte", "both"}:
             export_kwargs = {
                 "supercell_atoms": phonopy_to_ase(ph3.supercell),
-                "primitive_atoms": phonopy_to_ase(ph3.primitive),
+                # ShengBTE translations and site indices must use the same
+                # input cell as CONTROL and Fourthorder, not an auto basis.
+                "primitive_atoms": workflow.prim,
                 "phono3py_primitive": ph3.primitive,
             }
         workflow._write_fc3_exports(
@@ -242,9 +249,28 @@ class ThirdOrderStage(HostStage):
 
     name = "thirdorder-fc3"
 
+    def _run_thirdorder(self, command, *, mode, input_text=None):
+        workflow = self.host
+        print(f"  - Thirdorder {mode}")
+        print_detail(f"  - Running command: {shlex.join(command)}")
+        detail_stream = getattr(sys.stdout, "detail_stream", sys.stdout)
+        compact = detail_stream is not sys.stdout
+        with activity_status(
+            f"Thirdorder {mode}", enabled=compact and workflow.show_progress
+        ), contextlib.redirect_stdout(detail_stream):
+            if input_text is None:
+                return_code = workflow._run_command(command, cwd=workflow.fc3_root)
+            else:
+                return_code = workflow._run_command_with_input(
+                    command, input_text, cwd=workflow.fc3_root
+                )
+            detail_stream.flush()
+        return return_code
+
     def execute(self):
         workflow = self.host
         print("\n[Step 2 - FC3] ShengBTE thirdorder finite displacements")
+        workflow.prim = canonicalize_atoms(workflow.prim)
         workflow.fc3_root.mkdir(parents=True, exist_ok=True)
         write(
             str(workflow.fc3_root / "POSCAR"),
@@ -253,7 +279,7 @@ class ThirdOrderStage(HostStage):
             direct=True,
             vasp5=True,
         )
-        print(f"  - thirdorder working directory: {workflow.fc3_root}")
+        print_detail(f"  - thirdorder working directory: {workflow.fc3_root}")
         print(f"  - FC3 supercell dimension: {workflow.cfg.dim_fc3}")
         print(
             "  - FC3 cutoff: "
@@ -262,11 +288,11 @@ class ThirdOrderStage(HostStage):
 
         sow_command = workflow._thirdorder_args("sow")
         workflow._clear_displacement_patterns(workflow.fc3_root, "3RD.POSCAR.*")
-        print(f"  - Running command: {shlex.join(sow_command)}")
-        return_code = workflow._run_command(sow_command, cwd=workflow.fc3_root)
+        return_code = self._run_thirdorder(sow_command, mode="sow")
         if return_code != 0:
             raise RuntimeError(
-                f"thirdorder sow failed with return code {return_code}"
+                f"thirdorder sow failed with return code {return_code}; "
+                f"see {workflow.output_dir / 'run.log'}."
             )
 
         patterns = workflow._thirdorder_pattern_paths()
@@ -285,13 +311,13 @@ class ThirdOrderStage(HostStage):
 
         reap_command = workflow._thirdorder_args("reap")
         reap_input = "\n".join(str(path) for path in paths) + "\n"
-        print(f"  - Running command: {shlex.join(reap_command)}")
-        return_code = workflow._run_command_with_input(
-            reap_command, reap_input, cwd=workflow.fc3_root
+        return_code = self._run_thirdorder(
+            reap_command, mode="reap", input_text=reap_input
         )
         if return_code != 0:
             raise RuntimeError(
-                f"thirdorder reap failed with return code {return_code}"
+                f"thirdorder reap failed with return code {return_code}; "
+                f"see {workflow.output_dir / 'run.log'}."
             )
 
         generated = workflow.fc3_root / "FORCE_CONSTANTS_3RD"
@@ -307,9 +333,28 @@ class FourthOrderStage(HostStage):
 
     name = "fourthorder-fc4"
 
+    def _run_fourthorder(self, command, *, mode, input_text=None):
+        workflow = self.host
+        print(f"  - Fourthorder {mode}")
+        print_detail(f"  - Running command: {shlex.join(command)}")
+        detail_stream = getattr(sys.stdout, "detail_stream", sys.stdout)
+        compact = detail_stream is not sys.stdout
+        with activity_status(
+            f"Fourthorder {mode}", enabled=compact and workflow.show_progress
+        ), contextlib.redirect_stdout(detail_stream):
+            if input_text is None:
+                return_code = workflow._run_command(command, cwd=workflow.fc4_root)
+            else:
+                return_code = workflow._run_command_with_input(
+                    command, input_text, cwd=workflow.fc4_root
+                )
+            detail_stream.flush()
+        return return_code
+
     def execute(self):
         workflow = self.host
         print("\n[Step 2 - FC4] FourPhonon Fourthorder finite displacements")
+        workflow.prim = canonicalize_atoms(workflow.prim)
         workflow.fc4_root.mkdir(parents=True, exist_ok=True)
         write(
             str(workflow.fc4_root / "POSCAR"),
@@ -318,7 +363,7 @@ class FourthOrderStage(HostStage):
             direct=True,
             vasp5=True,
         )
-        print(f"  - Fourthorder working directory: {workflow.fc4_root}")
+        print_detail(f"  - Fourthorder working directory: {workflow.fc4_root}")
         print(f"  - FC4 supercell dimension: {workflow.cfg.dim_fc4}")
         print(
             "  - FC4 cutoff: "
@@ -327,11 +372,11 @@ class FourthOrderStage(HostStage):
 
         sow_command = workflow._fourthorder_args("sow")
         workflow._clear_displacement_patterns(workflow.fc4_root, "4TH.POSCAR.*")
-        print(f"  - Running command: {shlex.join(sow_command)}")
-        return_code = workflow._run_command(sow_command, cwd=workflow.fc4_root)
+        return_code = self._run_fourthorder(sow_command, mode="sow")
         if return_code != 0:
             raise RuntimeError(
-                f"Fourthorder sow failed with return code {return_code}"
+                f"Fourthorder sow failed with return code {return_code}; "
+                f"see {workflow.output_dir / 'run.log'}."
             )
 
         patterns = workflow._fc4_pattern_paths()
@@ -350,13 +395,11 @@ class FourthOrderStage(HostStage):
 
         reap_command = workflow._fourthorder_args("reap")
         reap_input = "\n".join(str(path) for path in paths) + "\n"
-        print(f"  - Running command: {shlex.join(reap_command)}")
-        return_code = workflow._run_command_with_input(
-            reap_command, reap_input, cwd=workflow.fc4_root
-        )
+        return_code = self._run_fourthorder(reap_command, mode="reap", input_text=reap_input)
         if return_code != 0:
             raise RuntimeError(
-                f"Fourthorder reap failed with return code {return_code}"
+                f"Fourthorder reap failed with return code {return_code}; "
+                f"see {workflow.output_dir / 'run.log'}."
             )
 
         generated = workflow.fc4_root / "FORCE_CONSTANTS_4TH"
@@ -392,7 +435,7 @@ def _calculate_order_forces(workflow, patterns, *, backend, label):
             and vasprun_path.stat().st_size > 0
             and workflow._job_matches_inputs(job_dir, digest)
         ):
-            print(f"    Skipping completed {label} #{index}: {vasprun_path}")
+            print_detail(f"    Skipping completed {label} #{index}: {vasprun_path}")
         else:
             atoms = read(str(pattern), format="vasp")
             if backend == "thirdorder" and calculator == "vasp":

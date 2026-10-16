@@ -56,7 +56,7 @@ structure:
   relaxation: true
 calculator:
   name: nep
-  nep_model: potentials/3C-SiC/nep_3C-SiC.txt
+  model: potentials/3C-SiC/nep_3C-SiC.txt
 force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]
@@ -95,7 +95,16 @@ The two routes share force-constant preparation. A completed
 conductivity calculation is not needed for TD-BTE: `nepkappa run` on the
 six-section input prepares matching `phono3py_disp.yaml`, `fc2.hdf5`, and
 `fc3.hdf5` before the time evolution. A compact two-section `tdbte`/`output`
-input can instead reuse existing artifacts without a force calculator.
+input can instead reuse existing artifacts with `nepkappa tdbte`, without a
+force calculator. `run` requires all six sections; compact inputs use direct
+commands and are checked with `nepkappa info input.yaml --for <command>`.
+Likewise, ordinary `kappa` needs only `kappa`/`output`, force generation needs
+`structure`/`calculator`/`force-constant`/`output`, plotting can use
+`plot`/`output`, and reporting needs only `output.result-dir`.
+Both direct three-phonon `kappa` and `tdbte` accept `force-constants` inside
+their respective sections to select an existing FC2/FC3 directory, while
+`output.result-dir` selects the new results directory. If no source (or TD-BTE
+kernel) is specified, they read force constants from `output.result-dir`.
 TD-BTE builds its own three-phonon collision kernel and evolves occupations;
 it does not read a `kappa-m*.hdf5` result.
 
@@ -156,6 +165,20 @@ enabled. `kappa` selects the configured transport backend and parameters.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
+
+Screen output keeps key progress, results, warnings, and total runtime. Input
+settings, individual force-cache paths, and detailed timings remain in
+`<result-dir>/run.log`. Use `nepkappa fc2 input.yaml --verbose` (or
+`nepkappa --verbose fc2 input.yaml`) to also show these details on screen.
+`nepkappa info input.yaml` continues to show the full input configuration.
+Phonopy's `PrimitiveMatrixAutoDefaultWarning` and `GammaAcousticWarning` are
+saved only in `run.log`, including with `--verbose`. This only changes their
+display; primitive-cell selection and thermal-property calculations are unchanged.
+Phono3py transport output is streamed to `run.log`. An interactive terminal
+shows a single elapsed-time status line, followed by a short completion message
+and result path. Redirected output stays quiet during the calculation. Set
+`output.progress: false` to disable the dynamic status, or use `--verbose` to
+print the full subprocess output instead.
 
 ## Input assistant
 
@@ -226,8 +249,10 @@ first with `nepkappa fc2fc3 examples/tdbte.yaml`. The program needs matching
 The stage builds a checksummed energy-shell kernel and evolves it in disk-backed
 chunks. Existing single-file kernels and completed chunk manifests can also be
 reused. Optional `pip install 'nepkappa[tdbte]'` adds compiled block reductions.
-`nepkappa plot examples/tdbte.yaml` draws the saved branch and total energy
-trajectories after the calculation.
+`nepkappa plot examples/tdbte.yaml` generates six panels: energy-colored
+dispersions at 0, 10 and 20 ps, branch excess energies, acoustic branch
+temperatures and optical branch temperatures. The temperatures are
+energy-equivalent Bose temperatures.
 Numerical audit results are included by `nepkappa report`; passing them does not
 establish absolute-rate accuracy or mesh convergence.
 

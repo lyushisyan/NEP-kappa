@@ -6,7 +6,7 @@ structure:
   relaxation: true
 calculator:
   name: nep
-  nep-model: potentials/3C-SiC/nep_3C-SiC.txt
+  model: potentials/3C-SiC/nep_3C-SiC.txt
 force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]

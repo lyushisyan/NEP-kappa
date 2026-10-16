@@ -27,9 +27,10 @@ For 3C-SiC:
 
 .. code-block:: text
 
-   使用 nepkappa-input，帮我给 3C-SiC 写一个 NEP 三声子热导率输入文件。
-   结构在 calculations/3C-SiC/POSCAR，势文件在 potentials/3C-SiC/nep_3C-SiC.txt。
-   温度范围是 300–1000 K，间隔 100 K。先检查文件，缺少的信息请问我。
+   Use $nepkappa-input to prepare a three-phonon NEP input for 3C-SiC.
+   Use calculations/3C-SiC/POSCAR and potentials/3C-SiC/nep_3C-SiC.txt.
+   Calculate 300–1000 K in 100 K steps. Check the files and validate the input.
+   Do not start the calculation.
 
 Replace the SiC paths with your own files. Specify whether the request is to
 prepare an input, generate plots, or run a calculation.
@@ -38,18 +39,18 @@ Plotting from existing results:
 
 .. code-block:: text
 
-   使用 $nepkappa-input，检查 calculations/3C-SiC/results 里现有的数据。
-   我只想画色散、DOS、体积热容和群速度，单图和组合图都要。
-   如果只有 FC2，请不要要求 FC3 或重新计算力常数。
-   先生成并验证绘图输入，告诉我缺什么；暂时不要绘图。
+   Use $nepkappa-input to inspect calculations/3C-SiC/results.
+   Prepare an input for dispersion, DOS, volumetric heat capacity and group
+   velocity, with separate and combined figures. Reuse the existing FC2
+   and metadata. Validate the input without generating plots yet.
 
 VASP setup:
 
 .. code-block:: text
 
-   使用 $nepkappa-input，帮我检查目标服务器上的 VASP 和 POTCAR 在哪里，
-   检查现有 input.yaml 的启动命令、MPI 环境与 Slurm 配置。
-   如果需要改路径，请修改输入文件，不要改源码，也不要提交计算。
+   Use $nepkappa-input to check VASP and POTCAR locations on my server,
+   then inspect the launch command, MPI environment and Slurm settings
+   in input.yaml. Correct input paths if needed. Do not submit a calculation.
 
 Remote file checks require access to that server. For TD-BTE inputs, supply
 either matching ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5`` in one

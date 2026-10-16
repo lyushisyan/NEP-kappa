@@ -1,11 +1,12 @@
-Calculation guide
-==================
+Advanced usage
+==============
 
-The commands below assume a configured YAML input. See :doc:`starting` for
-the 3C-SiC examples and :doc:`input_files` for parameter definitions.
+The main workflows are in :doc:`harmonic_temperature`,
+:doc:`thermal_transport` and :doc:`tdbte`. This page collects stage reuse,
+calculator choices and execution variants. See :doc:`input_files` for parameters.
 
 Run stages or reuse force constants
--------------------------------------
+---------------------------------------
 
 A normal three-phonon workflow is equivalent to:
 
@@ -31,33 +32,15 @@ For a new mesh or temperature range, keep the matching ``fc2.hdf5``,
 ``fc3.hdf5``, and ``phono3py_disp.yaml`` together and rerun only ``kappa``.
 Inspect that stage with ``nepkappa info input.yaml --for kappa``.
 Choose ``force-constant.format: both`` when both phono3py HDF5 and ShengBTE
-text outputs are needed; ``shengbte`` alone is not sufficient for ``kappa``.
+text outputs are needed; ``shengbte`` alone is not sufficient for phono3py transport.
 
 Cached displacement forces are reused only when their fingerprints match the
 structure, calculator settings, model/POTCAR, software, and workflow inputs.
 Inspect ``job-input.json`` and ``job-input.sha256`` to audit reuse. Reusing
 forces is distinct from restarting an interrupted external solver.
 
-Change the transport approximation
-------------------------------------
-
-In a copy of ``examples/nep-rta-wigner-3ph.yaml``, edit the existing ``kappa``
-section. Set ``wigner: false`` if only the diagonal LBTE result is needed:
-
-.. code-block:: yaml
-
-   kappa:
-     method: lbte
-     mesh: [21, 21, 21]
-     temps: [300]
-
-Use ``method: rta`` for RTA. The two retained three-phonon Wigner examples
-show both methods. ``temps`` is either ``[T]`` or
-``[minimum, maximum, step]``; three entries are not an arbitrary temperature list.
-Do not append a second section with the same YAML key.
-
 Cutoffs and force-constant fitting
-------------------------------------
+--------------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -87,10 +70,10 @@ tensor elements at that radius. Check cutoff and supercell convergence together.
 For HiPhive fitting options, see :doc:`input_files`.
 
 Use another calculator
-------------------------
+--------------------------
 
 Start from ``examples/vasp-rta-3ph.yaml`` for VASP and configure the executable, MPI command,
-and POTCAR source. ``potcar_path`` can be a combined file or a library directory;
+and POTCAR source. ``potcar-path`` can be a combined file or a library directory;
 entries are assembled in POSCAR species order. Check stage-specific INCAR
 settings and converge the electronic parameters before generating forces.
 
@@ -100,87 +83,12 @@ when the selected environment supports it. External ASE calculators can be
 configured with ``factory`` and ``kwargs``; see :doc:`input_files`.
 
 For films, set a physical effective thickness in your input. For wires,
-set ``dimensionality: 1`` and the physical ``effective_area``. Meshes and
+set ``dimensionality: 1`` and the physical ``effective-area``. Meshes and
 supercells must respect non-periodic directions. Geometry normalization affects
 plotted transport values, not the original phono3py HDF5.
 
-Three- and four-phonon conductivity
--------------------------------------
-
-``examples/nep-rta-3ph-4ph.yaml`` computes combined three-plus-four-phonon
-conductivity. To obtain a separate pure-three-phonon reference, prepare a
-second six-section input with ``kappa.engine: phono3py`` and run
-``nepkappa kappa`` against matching FC2/FC3 and the same q mesh. The
-four-phonon input selects the combined route through ``kappa.engine:
-fourphonon``; one ``nepkappa kappa`` invocation runs only its selected route.
-
-Thirdorder/Fourthorder and FourPhonon executables are additional prerequisites.
-For existing ShengBTE-format IFCs, use ``nepkappa kappa input.yaml``
-with a FourPhonon input. FC4 is generated as part of ``nepkappa run`` when
-four-phonon transport is enabled.
-The three retained 3ph+4ph templates demonstrate RTA/RTA, LBTE/RTA, and
-LBTE/LBTE choices.
-Auto-generated CONTROL files disable non-analytic corrections; a calculation
-requiring dielectric and Born-charge data needs a matching custom CONTROL.
-
-QHA and QHA-volume SSCHA
------------------------------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 30 50
-
-   * - Route
-     - Template
-     - Physical change
-   * - QHA-volume 3ph RTA
-     - ``nep-qha-rta-3ph.yaml``
-     - New FC2/FC3 and conductivity at each equilibrium volume.
-   * - SSCHA at QHA volumes
-     - ``nep-qha-sscha-rta-3ph.yaml``
-     - SSCHA FC2 at each temperature's QHA equilibrium volume.
-
-Run a configured template with ``nepkappa run examples/<name>.yaml``.
-The coupled route regenerates force constants at each QHA volume, which stays
-fixed during SSCHA. Exported FC2 is the auxiliary harmonic matrix.
-``force-constant.sscha.bubble: true`` writes separate input-FC3 diagonal on-shell shifts.
-Neither operation updates the conductivity with bubble corrections.
-See :doc:`input_files` for the method's limits.
-
-QHA needs at least five increasing volume ratios, an equilibrium-volume range
-that brackets the fit, and dynamically sensible phonons. It writes
-``qha-summary.yaml``, energy-volume and temperature-property tables, and plots.
-SSCHA requires converged supercells, snapshot counts, iterations, transient
-iterations, and sampling mesh. Temperature-specific results are stored in the
-configured ``phonopy-sscha`` work directory.
-
-Custom fixed-volume SSCHA inputs can still use ``nepkappa run``, but this catalog
-does not include a standalone SSCHA example. In the
-coupled six-section input, enable the nested QHA and SSCHA settings:
-
-.. code-block:: yaml
-
-   force-constant:
-     qha:
-       enabled: true
-     sscha:
-       enabled: true
-       run-transport: true
-     four-phonon: false
-   kappa:
-     engine: phono3py
-     temps: [300, 900, 300]
-     method: rta
-
-Enabling ``four-phonon`` additionally generates FC4 and runs FourPhonon at
-the selected conductivity temperatures. SSCHA temperatures must lie within
-the available QHA range, and every conductivity temperature must be an SSCHA
-sampling point. Nested force-job arrays
-are unsupported for this coupled route; use an outer batch allocation.
-Use ``nepkappa report input.yaml`` to summarize completed stages.
-
 Slurm execution
------------------
+-------------------
 
 The ten public inputs keep site-specific scheduler resources out of their
 scientific settings. Use an external batch script for a whole workflow, or
@@ -197,7 +105,7 @@ set ``submit: true`` to submit and inspect the jobs with the site's Slurm tools.
 Force-array collection jobs continue the remaining workflow when supported.
 
 Plot existing results
------------------------------------------------------
+-------------------------
 
 For FC2-only work, place ``fc2.hdf5`` with its matching ``phono3py_disp.yaml``,
 ``phonopy.yaml``, or ``phonopy_disp.yaml`` in the result directory. A minimal
@@ -236,14 +144,21 @@ Adding a ``plot`` section alone does not generate figures; run the explicit
 scripts. See :doc:`input_files` for built-in panels
 and :doc:`troubleshooting` for file-selection problems.
 
-Time-dependent BTE
---------------------------------
+.. _change-the-transport-approximation:
+.. _three-and-four-phonon-conductivity:
+.. _qha-and-qha-volume-sscha:
+.. _time-dependent-bte:
 
-Use the six-section ``examples/tdbte.yaml`` to generate matching FC2/FC3 and
-phono3py metadata before time evolution. Set the structure, calculator,
-supercells, ``tdbte.mesh``, and excitation, then check with
-``nepkappa info input.yaml``. ``nepkappa run input.yaml`` prepares force
-constants, builds a kernel, and solves it in disk-backed chunks. For existing
-FC2/FC3, use the compact two-section reuse input and ``nepkappa tdbte``;
-physical relaxation-rate validation remains separate from numerical audits.
-See :doc:`tdbte` for excitation definitions, numerical audits, and outputs.
+Method-specific workflows
+-------------------------
+
+The numbered chapters contain the complete inputs and analysis instructions:
+
+* :doc:`harmonic_temperature`: harmonic phonons, QHA, SSCHA and QHA+SSCHA.
+* :doc:`thermal_transport`: LBTE, same-backend 3ph/4ph comparison, tmux and Wigner Slurm submission.
+* :doc:`tdbte`: optical excitation, numerical audits and six-panel relaxation plots.
+
+For conductivity at QHA volumes or with SSCHA FC2, use the transport templates
+in :doc:`examples`. Set the corresponding ``run-transport`` switch and ensure
+conductivity temperatures are covered by the QHA/SSCHA grids, as specified in
+:doc:`input_files`.

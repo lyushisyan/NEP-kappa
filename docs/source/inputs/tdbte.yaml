@@ -1,0 +1,16 @@
+tdbte:
+  force-constants: ../results
+  mesh: [6, 6, 6]
+  temperature: 300
+  branches: [3, 4, 5]
+  excitation: 0.01
+  duration-ps: 20
+  max-step-ps: 0.5
+  samples: 201
+plot:
+  layout: both
+  path: seekpath
+  tdbte-times: [0, 10, 20]
+  dpi: 300
+output:
+  result-dir: results/optical-m666

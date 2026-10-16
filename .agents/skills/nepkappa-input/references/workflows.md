@@ -34,12 +34,16 @@ request to reuse existing results into one that regenerates force constants.
 
 ## Cross-section checks
 
-- New phonon/transport inputs use six top-level sections: `structure`, `calculator`,
+- Full `run` inputs for phonon/transport use six top-level sections: `structure`, `calculator`,
   `force-constant`, `kappa`, `plot`, and `output`. Put QHA, SSCHA, and four-phonon
   switches and their options inside `force-constant`; 4PH means FC4 generation
   plus conductivity. All six sections must appear; an unused section may be `{}`.
   From-structure TD-BTE also uses six sections, replacing `kappa` with `tdbte`.
-  Only artifact reuse uses the compact `tdbte` and `output` input. Old top-level
+  Direct commands allow reduced inputs: ordinary `kappa` uses `kappa`/`output`,
+  `fc2`/`fc2fc3` omit `kappa`/`plot`, `relax` uses `structure`/`calculator`/`output`,
+  plotting uses `plot`/`output`, and reporting uses `output.result-dir`.
+  TD-BTE artifact reuse uses `tdbte`/`output` with the `tdbte` command.
+  `run` never accepts reduced inputs; check them with `info --for <command>`. Old top-level
   `workflow`, `qha`, `scph`, `fourphonon`, `relaxation`, and flat options are
   rejected. QHA alone does not automatically feed thermal expansion into
   transport; use `force-constant.qha.run-transport: true` for a new FC2/FC3/RTA
@@ -56,8 +60,12 @@ request to reuse existing results into one that regenerates force constants.
   if an installed parser only checks length. Read the relevant section before
   applying temperature conventions to QHA, SCPH, or FourPhonon.
 - Phono3py `kappa` needs `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5` in
-  the result directory. FC2/FC3 export must be `phono3py` or `both` for that
-  route. A FourPhonon input makes the same `nepkappa kappa` command use
+  `kappa.force-constants` (default: `output.result-dir`). The output directory
+  receives copies of these inputs and optional `BORN` when it differs from
+  the source, allowing subsequent plotting without changing the source.
+  Conflicting existing destination inputs are refused. Use this option only
+  for direct ordinary phono3py `kappa`, not `run` or coupled QHA/SSCHA/FourPhonon.
+  FC2/FC3 export must be `phono3py` or `both` for that route. A FourPhonon input makes the same `nepkappa kappa` command use
   ShengBTE-format force constants; FC4 generation alone does not calculate
   four-phonon thermal conductivity.
 - With relaxation enabled, direct `fc2`/`fc2fc3` expects

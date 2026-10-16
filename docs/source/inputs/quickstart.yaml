@@ -1,0 +1,25 @@
+structure:
+  poscar: POSCAR
+  relaxation: true
+calculator:
+  name: nep
+  model: nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+kappa:
+  engine: phono3py
+  mesh: [31, 31, 31]
+  temps: [100, 1000, 50]
+  method: rta
+  isotope: true
+  wigner: true
+plot:
+  layout: both
+  path: seekpath
+  tau: total
+  temperature: 300
+  kappa: x
+  dpi: 300
+output:
+  result-dir: results

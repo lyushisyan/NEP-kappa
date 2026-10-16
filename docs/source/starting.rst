@@ -1,66 +1,88 @@
-Quick start
-=============
+Quick start: three-phonon RTA and Wigner transport
+======================================================
 
-Check the bundled 3C-SiC calculation
-------------------------------------
+This example uses the bundled 3C-SiC NEP model to relax the structure, generate
+FC2/FC3, and calculate three-phonon RTA and SMM19 Wigner thermal transport.
 
-After :doc:`installation`, run these commands from the repository root:
+Prepare the example
+-----------------------
+
+From the installed repository root, copy the structure and potential into a
+working directory:
 
 .. code-block:: bash
 
-   nepkappa info examples/nep-rta-wigner-3ph.yaml
+   conda activate nepkappa
+   mkdir -p ~/work/3C-SiC
+   cp examples/structures/3C-SiC/POSCAR_primitive ~/work/3C-SiC/POSCAR
+   cp potentials/3C-SiC/nep_3C-SiC.txt ~/work/3C-SiC/
+   cd ~/work/3C-SiC
 
-To run this example in an appropriate compute allocation, execute
-``nepkappa run examples/nep-rta-wigner-3ph.yaml``. It relaxes 3C-SiC,
-generates FC2/FC3, and computes three-phonon RTA and SMM19 Wigner transport.
-Plots and a report are generated separately. Results appear in
-``calculations/example-runs/3c-sic-nep-rta-wigner-3ph/``:
+Paths in YAML are relative to this launch directory. Later chapters use
+``phonons/``, ``transport/`` and ``tdbte/`` subdirectories to keep results separate.
 
-- ``run.log``: progress and errors.
-- ``fc2.hdf5``, ``fc3.hdf5``, ``phono3py_disp.yaml``: force constants and metadata.
-- ``kappa-m*.hdf5``: conductivity and mode data.
-- ``plots/``: figures.
-- ``report.md`` and ``report.yaml``: result summaries.
+Prepare the input
+---------------------
 
-The template demonstrates the workflow. Converge supercell size, q mesh, and
-force-constant settings before using a result quantitatively.
+Save :download:`quickstart.yaml <inputs/quickstart.yaml>` as ``input.yaml`` in
+this directory:
 
-Create your own input
+.. literalinclude:: inputs/quickstart.yaml
+   :language: yaml
+
+The example uses 3×3×3 force-constant supercells, a 31×31×31 phonon mesh and
+100–1000 K in 50 K steps. ``wigner: true`` enables the particle and coherence
+contributions; ``isotope: true`` includes isotope scattering.
+
+Run the calculation
 -----------------------
 
 .. code-block:: bash
 
-   cp examples/nep-rta-wigner-3ph.yaml input.yaml
-   nepkappa info input.yaml
+   nepkappa info input.yaml --for run
    nepkappa run input.yaml
 
-Edit the copied file's structure, calculator, numerical settings, and output
-directory for your material. Provide a structure and potential for the same
-material. The six-section phonon/transport format is described in
-:doc:`input_files`.
+The screen shows relaxation, force-constant generation and transport progress,
+followed by completion and result paths. To show detailed external-program
+output, use ``nepkappa run input.yaml -v`` instead. Both modes save detailed
+output in ``results/run.log``.
 
-Ordinary YAML paths resolve from the **launch directory**, not the YAML file's
-directory. To work elsewhere, use suitable relative paths or absolute paths.
-Choose another workflow
--------------------------
+For a long workstation run, use the :ref:`tmux workflow <transport-tmux>`.
+On a cluster, use an allocation or a :ref:`Slurm batch script <transport-slurm>`;
+replace its final command with ``nepkappa run input.yaml`` and configure
+resources for this phono3py calculation.
 
-Select a template from :doc:`examples` and run it with the same ``run`` command.
-The QHA, SSCHA, and four-phonon switches are inside ``force-constant``.
-For time-dependent BTE, start from the six-section ``examples/tdbte.yaml``.
-It replaces ``kappa`` with ``tdbte`` and generates matching FC2/FC3 before
-evolving the excitation. A two-section input is available when reusing
-existing force constants or a kernel.
-
-For analysis or restarts, use the direct calculation command:
+Inspect results
+-------------------
 
 .. code-block:: bash
 
-   nepkappa info input.yaml --for kappa
-   nepkappa kappa input.yaml
+   tail -n 20 results/run.log
+   ls -lh results/fc2.hdf5 results/fc3.hdf5 results/phono3py_disp.yaml
+   ls -lh results/kappa-m313131.hdf5
 
-This selects the transport route from the input and reuses its matching
-prerequisites. See :doc:`tutorial` for QHA/SSCHA and Slurm.
+``POSCAR_relaxed`` contains the optimized structure. The HDF5 force constants
+and matching ``phono3py_disp.yaml`` can be reused in later chapters.
+``kappa-m313131.hdf5`` stores conductivity and mode data for the specified mesh;
+its filename changes when the mesh changes.
 
-``info`` checks supported settings; it does not test model accuracy or
-external executables. Use the site's scheduler tools to inspect submitted jobs.
-For a traceback, put ``--debug`` before the command.
+Plot and summarize
+----------------------
+
+.. code-block:: bash
+
+   nepkappa info input.yaml --for plot
+   nepkappa plot input.yaml
+   nepkappa report input.yaml
+   ls results/plots
+
+With ``layout: both`` and ``tau: total``, this example produces six separate
+plots and ``combined.png``. The combined figure contains dispersion, DOS,
+volumetric constant-volume heat capacity, group velocity, scattering rate and
+thermal conductivity. The conductivity panel distinguishes particle, coherence
+and total Wigner contributions. ``plot.temperature`` selects the scattering-rate
+data; the conductivity panel retains all calculated temperatures.
+
+The report is saved as ``results/report.md`` and ``results/report.yaml``.
+Plotting and reporting read saved results without recalculating forces or
+transport. Further examples are listed in :doc:`examples`.

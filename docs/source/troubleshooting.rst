@@ -15,6 +15,24 @@ Replace ``kappa`` with the intended stage. Inspect ``run.log`` and the Slurm
 job's stdout/stderr. ``nepkappa --debug <command> input.yaml`` executes the
 command and prints a traceback on failure. ``info`` does not execute calculations.
 
+Screen output and logs
+----------------------
+
+Calculation commands use compact output by default. Add ``-v`` or ``--verbose``
+to show detailed settings and external-program output. ``info`` always displays
+the full parsed configuration. Detailed diagnostics are saved in ``run.log``;
+FourPhonon also writes ``fourphonon.log`` in each transport working directory.
+
+Interactive transport runs show an updating elapsed-time line. Redirected output
+has no dynamic updates; ``output.progress: false`` disables the status line.
+Logs are flushed as external-program lines arrive, so ``tail -f`` can follow
+them. A quiet interval can reflect a computational stage that produces no output.
+
+The Phonopy warnings ``PrimitiveMatrixAutoDefaultWarning`` and
+``GammaAcousticWarning`` are logged without appearing on screen, including in
+verbose mode. Other warnings retain their full diagnostics in the log while
+the compact screen output omits Python source locations.
+
 Missing files or unexpected defaults
 --------------------------------------
 
@@ -44,9 +62,9 @@ VASP path errors
 ------------------
 
 The repository-provided VASP examples contain placeholder paths. Edit
-``calculator.vasp_command``, ``calculator.vasp_path``, and
-``calculator.potcar_path`` before running on your machine.
-``vasp_command`` takes precedence: changing only ``vasp_path`` cannot override
+``calculator.vasp-command``, ``calculator.vasp-path``, and
+``calculator.potcar-path`` before running on your machine.
+``vasp-command`` takes precedence: changing only ``vasp-path`` cannot override
 it. Check ``command -v vasp_std`` on the execution host after loading its
 environment. No PATH match may mean a missing module, not an absent installation.
 Put module setup in a batch script/preamble, not in the command string. Never
@@ -97,10 +115,10 @@ continues after disconnecting.
 Slurm LBTE submission
 -----------------------
 
-If ``sbatch`` is unavailable, set ``kappa.parallel.submit: false`` to generate
-the scripts without submitting them. The configured ``output.result_dir`` must
+If ``sbatch`` is unavailable, set ``parallel.kappa.submit: false`` to generate
+the scripts without submitting them. The configured ``output.result-dir`` must
 be on a filesystem shared by the login and compute nodes. Job IDs and generated
-script paths are recorded in ``output.result_dir/lbte-slurm/submission.yaml``;
+script paths are recorded in ``<result-dir>/lbte-slurm/submission.yaml``;
 Slurm stdout and stderr files are written under ``lbte-slurm/logs``.
 
 To inspect active Slurm jobs, run:

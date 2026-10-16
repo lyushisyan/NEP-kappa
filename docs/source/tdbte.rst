@@ -1,71 +1,110 @@
-Time-dependent BTE
-==================
+Time-dependent phonon BTE and nonequilibrium relaxation
+===========================================================
 
-The ``tdbte`` stage evolves spatially homogeneous phonon occupations at fixed
-frequencies using a nonlinear three-phonon energy-shell operator. It can build
-the operator from matching force constants and solve it in disk-backed chunks.
-The six-section ``run`` route first uses the configured calculator to generate
-FC2/FC3; the compact reuse route needs no calculator or potential. Neither
-route needs a separately prepared collision matrix.
+TD-BTE evolves spatially homogeneous phonon occupations at fixed frequencies
+using three-phonon scattering. This chapter selectively excites the optical
+branches of 3C-SiC and follows energy transfer to the acoustic branches.
+The model has no spatial transport, external heat bath or continuing excitation.
 
-This is a population-dynamics model, not a laser-absorption calculation. It
-does not include electrons, coherent phonons, spatial drift, a heat bath,
-four-phonon collisions, or frequency changes during evolution. Numerical audits
-do not by themselves validate absolute physical relaxation rates.
+Workflow and preparation
+----------------------------
 
-From force constants to dynamics
---------------------------------
+Reuse matching ``fc2.hdf5``, ``fc3.hdf5`` and ``phono3py_disp.yaml`` from the
+quick-start calculation. The metadata supplies the structure, supercells and
+primitive mapping. A conductivity result is not needed.
 
-Put the matching ``phono3py_disp.yaml``, ``fc2.hdf5``, and ``fc3.hdf5`` in one
-directory. The YAML supplies the structure, primitive mapping and supercells;
-two HDF5 arrays without this metadata are insufficient. Use the same structure
-and force-constant convention for all three files.
+.. code-block:: bash
 
-A preceding three-phonon conductivity calculation is **not required**.
-The six-section TD-BTE input in ``examples/tdbte.yaml`` lets ``nepkappa run``
-prepare these artifacts and then evolve them in one ordered calculation.
-Alternatively, ``nepkappa fc2fc3`` can prepare the files and a compact
-two-section input can point to their directory for reuse. A ``kappa-m*.hdf5``
-conductivity result is neither read nor needed.
-The TD-BTE mesh is selected independently of any conductivity
-mesh. FC2 alone is insufficient because the present collision operator uses
-three-phonon interactions from FC3.
+   mkdir -p ~/work/3C-SiC/tdbte
+   cd ~/work/3C-SiC/tdbte
+   ls -lh ../results/fc2.hdf5 ../results/fc3.hdf5 ../results/phono3py_disp.yaml
 
-For reuse with a two-atom primitive cell such as 3C-SiC::
+The calculation constructs a three-phonon collision kernel on the full q mesh,
+then integrates the occupations. It stores kernel data in disk-backed chunks.
+For a calculation starting from atomic forces instead, the six-section
+``examples/tdbte.yaml`` uses ``nepkappa run`` to prepare FC2/FC3 first.
 
-   tdbte:
-     force-constants: calculations/SiC/fc
-     mesh: [5, 5, 5]
-     temperature: 300
-     branches: [3, 4, 5]
-     excitation: 0.01
-     duration-ps: 10
-   output:
-     result-dir: calculations/SiC/time-bte
+Optical excitation and energy relaxation
+--------------------------------------------
 
-From the launch directory::
+Input and execution
+~~~~~~~~~~~~~~~~~~~~~~~
 
-   nepkappa info input.yaml
-   nepkappa tdbte input.yaml
-   nepkappa report calculations/SiC/time-bte
+Save :download:`tdbte.yaml <inputs/tdbte.yaml>` in the working directory:
 
-``nepkappa run input.yaml`` selects the TD-BTE route for both the six-section
-from-scratch input and the two-section reuse input. A direct
-``nepkappa tdbte`` command with the six-section input starts from FC2/FC3
-already saved in ``output.result-dir``; it never starts force calculations.
-``info`` checks options without constructing a kernel
-or starting integration; file contents are checked at execution. Relative
-paths resolve from the launch directory, not from the YAML file.
-``examples/tdbte.yaml`` is the six-section template. Its mesh is a starting
-value, not a convergence recommendation. The ``plot`` section accepts
-``layout: separate``, ``combined``, or ``both`` and a PNG ``dpi``. After a
-successful run, ``nepkappa plot input.yaml`` reads ``tdbte/branch-energy.csv``
-and writes branch-resolved and total-excess-energy curves under ``plots/``.
-Plotting does not run dynamics again; numerical conservation in these plots
-does not establish physical-rate validation.
+.. literalinclude:: inputs/tdbte.yaml
+   :language: yaml
+
+The 6×6×6 grid has 216 q points. In two-atom 3C-SiC, branches 0–2 are acoustic
+and branches 3–5 are optical. Branch indices are zero-based and frequency-ordered
+at each q point. ``excitation: 0.01`` increases the selected initial Bose
+occupations by 1% relative to 300 K. ``samples: 201`` sets the saved output
+times over 20 ps; the adaptive integrator uses ``max-step-ps`` as its step limit.
+
+.. code-block:: bash
+
+   nepkappa info tdbte.yaml --for tdbte
+   nepkappa tdbte tdbte.yaml
+
+Use a :ref:`tmux session <transport-tmux>` named ``tdbte`` for a long remote
+workstation run. Progress first reports kernel construction and then integration
+time. After completion:
+
+.. code-block:: bash
+
+   tail -n 20 results/optical-m666/run.log
+   ls -lh results/optical-m666/tdbte
+
+The output directory contains ``trajectories.npz``, ``branch-energy.csv`` and
+``audit.json``. Inspect the audit alongside the completion message. Numerical
+conservation and equilibrium checks are distinct from validation of absolute
+physical relaxation rates; the latter remains incomplete for this implementation.
+
+Plot and interpret
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   nepkappa info tdbte.yaml --for plot
+   nepkappa plot tdbte.yaml
+   ls results/optical-m666/plots
+
+The combined figure has six panels:
+
+* Top row: dispersion at 0, 10 and 20 ps, colored by excess energy per mode
+  relative to the initial 300 K equilibrium distribution. All three share one
+  color scale; frequencies remain fixed.
+* Bottom left: excess energy of all six branches, in eV per primitive cell.
+* Bottom middle: energy-equivalent temperatures of the three acoustic branches.
+* Bottom right: energy-equivalent temperatures of the three optical branches.
+
+The mode color is ``h*f*(n(t)-n_Bose(T0))`` in eV. Periodic trilinear
+interpolation maps the q-mesh energies onto the band path; it does not calculate
+dynamics at additional q points. Branch energies include the uniform 1/Nq
+weight. Branch temperatures are obtained by matching each branch's thermal
+energy to a Bose distribution at its own frequencies; they are not fits to
+mode occupations and do not imply equilibrium within each branch.
+
+In the manual example, optical excess energy decreases as acoustic branches
+gain energy. The branch temperatures remain unequal at 20 ps, so this time
+window does not establish complete equilibration. With no heat bath, relaxation
+does not require the system to return to the initial 300 K state.
+
+``layout: both`` writes ``tdbte_dispersion_1.png`` through
+``tdbte_dispersion_3.png``, ``tdbte_branch_energy.png``,
+``tdbte_acoustic_temperature.png``, ``tdbte_optical_temperature.png`` and
+``tdbte_combined.png``. It also writes ``tdbte_branch_temperature.csv`` and
+``tdbte_plot_metadata.json``. Snapshot times must be increasing and inside the
+saved interval; the nearest saved times are used. By default, the start,
+midpoint and end are selected.
+
+Keep the original FC2 and metadata at their recorded source, or matching copies
+in the result directory. The six-panel plot checks input hashes, frequencies,
+the numerical audit and kernel metadata. Legacy CSV-only results support
+energy plots but not the three dispersion snapshots.
 
 Input choices
---------------
+-----------------
 
 * ``force-constants`` is the source directory, not a request to compute forces.
 * ``mesh`` is the **q grid for the collision integral**, independent of
@@ -83,10 +122,8 @@ Input choices
   Check time-step convergence separately from q-grid convergence. ``samples``
   controls saved times, not the internal integration step.
 
-There is no ``experimental`` switch. Do not include it in new inputs.
-
 Kernel construction and memory
-------------------------------
+----------------------------------
 
 The builder evaluates phono3py native shortest-vector three-phonon interaction
 strengths one parent q point at a time. It integrates linearly interpolated
@@ -131,7 +168,7 @@ omitted. NAC-bearing inputs and generalized/shifted grids are currently
 unsupported; Born-charge data must not be discarded just to bypass the check.
 
 Reuse and failure handling
---------------------------
+------------------------------
 
 A completed build publishes ``tdbte-kernel/manifest.json`` with the mesh,
 branch IDs, source hashes, backend version, normalization, boundary assumptions
@@ -172,7 +209,7 @@ shell consistency; it cannot verify the provenance or normalization claims of
 an arbitrary external kernel.
 
 Outputs and interpretation
---------------------------
+------------------------------
 
 ``result-dir/tdbte/`` contains:
 
@@ -192,6 +229,5 @@ checks and mesh/surface-quadrature convergence remain scientifically necessary.
 
 Frequency/q-window excitation, prescribed-energy injection, time-dependent
 pumps, checkpoint restart and dedicated Slurm submission are not implemented.
-An outer batch job can run the same CLI. ``nepkappa plot`` does not yet draw
-TD-BTE trajectories; the manuscript's Figure6 panels and channel-resolved
-postprocessing remain separate from the packaged plotting workflow.
+An outer batch job can run the same CLI; see the
+:ref:`Slurm submission example <transport-slurm>`.

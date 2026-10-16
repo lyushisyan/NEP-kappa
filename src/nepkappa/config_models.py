@@ -99,6 +99,7 @@ class KappaConfig:
     boundary_mfp: float
     wigner: bool
     parallel: Mapping[str, Any]
+    force_constants: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,7 @@ class FourPhononConfig:
     omp_threads: int
     omp_stacksize: str
     parallel: Mapping[str, Any]
+    compare_3ph: bool = False
 
 
 @dataclass(frozen=True)
@@ -141,12 +143,15 @@ class PlotConfig:
     kappa: str
     temperature: float
     dpi: int
+    scattering_rate_min: float
+    tdbte_times: Optional[Tuple[float, ...]] = None
 
 
 @dataclass(frozen=True)
 class QHAConfig:
     enabled: bool
     run_transport: bool
+    equilibrium_phonons: bool
     volume_ratios: FloatValues
     dim_fc2: Optional[Int3]
     mesh: Int3
@@ -309,6 +314,7 @@ class WorkflowSections:
                 temperatures=_tuple(cfg.temps),
                 method=cfg.method,
                 command=cfg.kappa_command,
+                force_constants=cfg.kappa_force_constants,
                 isotope=cfg.isotope,
                 boundary_mfp=cfg.bfmp,
                 wigner=cfg.wigner,
@@ -319,6 +325,7 @@ class WorkflowSections:
                 command=cfg.fp_command,
                 workdir=cfg.fp_workdir,
                 control=cfg.fp_control,
+                compare_3ph=cfg.fp_compare_3ph,
                 fc2=cfg.fp_fc2,
                 fc3=cfg.fp_fc3,
                 fc4=cfg.fp_fc4,
@@ -351,10 +358,13 @@ class WorkflowSections:
                 kappa=cfg.plot_kappa,
                 temperature=cfg.plot_temperature,
                 dpi=cfg.plot_dpi,
+                scattering_rate_min=cfg.plot_scattering_rate_min,
+                tdbte_times=_tuple(getattr(cfg, "plot_tdbte_times", None)),
             ),
             qha=QHAConfig(
                 enabled=cfg.qha_enabled,
                 run_transport=cfg.qha_run_transport,
+                equilibrium_phonons=cfg.qha_equilibrium_phonons,
                 volume_ratios=_tuple(cfg.qha_volume_ratios),
                 dim_fc2=_tuple(cfg.qha_dim_fc2),
                 mesh=_tuple(cfg.qha_mesh),

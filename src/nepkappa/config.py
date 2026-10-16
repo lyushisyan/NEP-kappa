@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from nepkappa.config_models import WorkflowConfig
+from nepkappa.command_sampling import phono3py_sampling
 
 try:
     import yaml
@@ -356,6 +357,10 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--method", choices=["lbte", "rta"], default="lbte")
     parser.add_argument(
+        "--kappa_force_constants", default=None,
+        help="Existing FC2/FC3 directory; defaults to output.result-dir",
+    )
+    parser.add_argument(
         "--kappa_engine", choices=["phono3py", "fourphonon"], default=None,
         help="Transport engine selected by kappa.engine",
     )
@@ -412,6 +417,7 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fp_command", default="ShengBTE_cpu")
     parser.add_argument("--fp_workdir", default="fourphonon")
     parser.add_argument("--fp_control", default=None)
+    parser.add_argument("--fp_compare_3ph", type=str2bool, nargs="?", const=True, default=False)
     parser.add_argument("--fp_fc2", default=None)
     parser.add_argument("--fp_fc3", default=None)
     parser.add_argument("--fp_fc4", default=None)
@@ -486,9 +492,9 @@ def initialise_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--plot_tau",
-        choices=["total", "normal", "umklapp", "nu", "all"],
+        choices=["total", "phph", "isotope", "normal", "umklapp", "nu", "all"],
         default="total",
-        help="[Plot] Scattering-rate channel (nu plots N and U together)",
+        help="[Plot] Scattering rates: total compares phph, isotope and their sum; phph is N+U; nu separates N/U",
     )
     parser.add_argument(
         "--plot_kappa",
@@ -503,6 +509,10 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="[Plot] Temperature used for relaxation-time plots",
     )
     parser.add_argument("--plot_dpi", type=int, default=300, help="[Plot] Figure DPI")
+    parser.add_argument("--plot_tdbte_times", type=float, nargs=3, default=None,
+                        help="[Plot] Three TD-BTE snapshot times in ps; default: start, midpoint, end")
+    parser.add_argument("--plot_scattering_rate_min", type=float, default=0.0,
+                        help="[Plot] Omit scattering rates below this value in ps^-1 (display only)")
     parser.add_argument(
         "--qha_enabled",
         type=str2bool,
@@ -514,6 +524,10 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--qha_run_transport", type=str2bool, nargs="?", const=True,
         default=False, help="Use QHA equilibrium volumes for transport",
+    )
+    parser.add_argument(
+        "--qha_equilibrium_phonons", type=str2bool, nargs="?", const=True,
+        default=False, help="Recompute FC2 at QHA equilibrium volumes for phonon plots",
     )
     parser.add_argument(
         "--qha_volume_ratios",
@@ -656,17 +670,17 @@ def initialise_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_input_file(filename):
+def parse_input_file(filename, command=None):
     """Convert a YAML input file to workflow CLI tokens."""
     path = Path(filename)
     if not path.exists():
         return []
     if path.suffix.lower() not in (".yaml", ".yml"):
         raise ValueError("NEP-kappa input files must be YAML files ending in .yaml or .yml.")
-    return parse_yaml_input_file(filename)
+    return parse_yaml_input_file(filename, command=command)
 
 
-def parse_yaml_input_file(filename):
+def parse_yaml_input_file(filename, command=None):
     """Convert structured YAML input into workflow CLI tokens."""
     if yaml is None:
         raise RuntimeError(
@@ -676,8 +690,8 @@ def parse_yaml_input_file(filename):
         data = load_yaml_strict(handle) or {}
     if not isinstance(data, dict):
         raise ValueError("YAML input must be a mapping of sections and options.")
-    validate_input_shape(data)
-    data = expand_input_modes(data)
+    validate_input_shape(data, command=command)
+    data = expand_input_modes(data, command=command)
 
     flat = {}
     sections = yaml_input_sections()
@@ -694,6 +708,16 @@ def parse_yaml_input_file(filename):
             continue
         if not isinstance(section_data, dict):
             raise ValueError(f"YAML section '{raw_section}' must be a mapping.")
+        if section == "calculator":
+            calculator_options = {
+                normalize_yaml_key(key): value for key, value in section_data.items()
+            }
+            calculator_name = str(calculator_options.get("name", "nep")).strip().lower()
+            if {"model", "nep_model"} <= calculator_options.keys():
+                raise ValueError(
+                    "Use only calculator.model; do not also set its legacy alias "
+                    "calculator.nep-model."
+                )
         valid_keys = sections[section]
         seen_keys = set()
         for key, value in section_data.items():
@@ -706,6 +730,11 @@ def parse_yaml_input_file(filename):
             seen_keys.add(normalized_key)
             if normalized_key not in valid_keys:
                 raise_unknown_yaml_key(str(key), f"section '{section}'", valid_keys)
+            if section in {"kappa", "tdbte"} and normalized_key == "force_constants":
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(f"{section}.force-constants must be a nonempty directory path.")
+                flat[f"{section}_force_constants"] = value
+                continue
             if section == "structure" and normalized_key == "relaxation":
                 if isinstance(value, dict):
                     options = {
@@ -756,7 +785,12 @@ def parse_yaml_input_file(filename):
                         )
                     flat["calculator_model_files"] = value
                 elif normalized_key == "model":
-                    flat["mace_model"] = value
+                    if calculator_name not in {"nep", "mace"}:
+                        raise ValueError(
+                            "calculator.model requires calculator.name: nep or mace. "
+                            "For ASE or plugin calculators, pass model options in calculator.kwargs."
+                        )
+                    flat[f"{calculator_name}_model"] = value
                 elif normalized_key == "foundation":
                     flat["mace_foundation"] = value
                 elif normalized_key == "device":
@@ -833,65 +867,95 @@ def parse_yaml_input_file(filename):
     return args
 
 
-def validate_input_shape(data):
-    """Accept six-section calculations or two-section TD-BTE artifact reuse."""
-    thermal = {
-        "structure", "calculator", "force_constant", "kappa", "plot", "output"
-    }
-    dynamic = {
-        "structure", "calculator", "force_constant", "tdbte", "plot", "output"
-    }
-    reuse = {"tdbte", "output"}
-    optional = {"parallel"}
+# Only a full run requires the six-section teaching format. Direct commands
+# share the same option names but require only their actual input sections.
+THERMAL_SECTIONS = {
+    "structure", "calculator", "force_constant", "kappa", "plot", "output"
+}
+DYNAMIC_SECTIONS = (THERMAL_SECTIONS - {"kappa"}) | {"tdbte"}
+STAGE_REQUIRED_SECTIONS = {
+    "relax": {"structure", "calculator"},
+    "fc2": {"structure", "calculator", "force_constant"},
+    "fc2fc3": {"structure", "calculator", "force_constant"},
+    "fc4": {"structure", "calculator", "force_constant"},
+    "qha": {"structure", "calculator", "force_constant"},
+    "scph": {"structure", "calculator", "force_constant"},
+    "qha-kappa": {"structure", "calculator", "force_constant", "kappa"},
+    "qha-sscha": {"structure", "calculator", "force_constant", "kappa"},
+    "kappa": {"kappa"},
+    "kappa4": {"kappa", "force_constant"},
+    "tdbte": {"tdbte"},
+    "plot": set(),
+    "report": {"output"},
+    "bubble": {"force_constant"},
+}
+
+
+def validate_input_shape(data, command=None):
+    """Check public sections before deriving a full or single-stage plan."""
     names = {normalize_yaml_key(name): name for name in data}
     if len(names) != len(data):
         raise ValueError("Duplicate top-level section after '-'/'_' normalization.")
-    if "tdbte" in names:
-        allowed = reuse if names.keys() <= reuse else dynamic | optional
-        unexpected = names.keys() - allowed
-        if unexpected:
-            raise ValueError(
-                "TD-BTE input cannot contain these sections: "
-                + ", ".join(sorted(unexpected)) + "."
-            )
-        required = reuse if allowed == reuse else dynamic
-        missing = required - names.keys()
-        if missing:
-            raise ValueError(
-                "TD-BTE input requires: "
-                + ", ".join(name.replace("_", "-") for name in sorted(missing))
-                + "."
-            )
-    else:
-        unexpected = names.keys() - thermal - optional
-        if unexpected:
-            raise_unknown_yaml_key(
-                str(names[sorted(unexpected)[0]]),
-                "top level",
-                {
-                    "structure", "calculator", "force-constant", "kappa",
-                    "plot", "output", "parallel",
-                },
-            )
-        missing = thermal - names.keys()
-        if missing:
-            raise ValueError(
-                "Static input requires six sections; missing: "
-                + ", ".join(name.replace("_", "-") for name in sorted(missing))
-                + "."
-            )
+    allowed = THERMAL_SECTIONS | DYNAMIC_SECTIONS | {"parallel"}
+    unexpected = names.keys() - allowed
+    if unexpected:
+        raise_unknown_yaml_key(
+            str(names[sorted(unexpected)[0]]), "top level",
+            {name.replace("_", "-") for name in allowed},
+        )
+    if {"kappa", "tdbte"} <= names.keys():
+        raise ValueError("An input cannot contain both kappa and tdbte sections.")
     for original in names.values():
         if not isinstance(data[original], dict):
             raise ValueError(f"YAML section '{original}' must be a mapping.")
+    if command in {None, "run", "info"}:
+        required = DYNAMIC_SECTIONS if "tdbte" in names else THERMAL_SECTIONS
+        label = "nepkappa run requires six sections"
+    else:
+        required = STAGE_REQUIRED_SECTIONS[command]
+        label = f"nepkappa {command} requires input sections"
+    missing = required - names.keys()
+    if missing:
+        raise ValueError(
+            label + "; missing: "
+            + ", ".join(name.replace("_", "-") for name in sorted(missing)) + "."
+        )
+    if not names:
+        raise ValueError("Input must contain at least one configuration section.")
 
 
-def expand_input_modes(data):
+def expand_input_modes(data, command=None):
     """Derive ordered stages for thermal, full TD-BTE, or artifact reuse inputs."""
+    data = dict(data)
+    # Defaults are internal: users need not write unrelated empty sections.
+    keys = {normalize_yaml_key(key): key for key in data}
+    explicit_kappa = "kappa" in keys
+    if "tdbte" not in keys:
+        for name in THERMAL_SECTIONS - keys.keys():
+            data[name.replace("_", "-")] = {}
     data = _expand_static_parallel(data)
     keys = {normalize_yaml_key(key): key for key in data}
     if "tdbte" in keys and "workflow" not in keys:
-        if "force_constant" not in keys:
-            return {"workflow": {"steps": ["tdbte"]}, **data}
+        plot = data.get(keys.get("plot"), {})
+        unsupported_plot = {normalize_yaml_key(key) for key in plot} - {
+            "layout", "dpi", "tdbte_times", "path", "path_points", "path_segments"
+        }
+        if unsupported_plot:
+            raise ValueError(
+                "TD-BTE plot supports layout, dpi, tdbte-times and band-path settings; remove plot."
+                + sorted(unsupported_plot)[0].replace("_", "-") + "."
+            )
+        if command not in {None, "run", "info"}:
+            tdbte_key = keys["tdbte"]
+            tdbte = dict(data[tdbte_key])
+            if not {"kernel", "force_constants"} & {normalize_yaml_key(key) for key in tdbte}:
+                output = data.get(keys.get("output"), {})
+                tdbte["force-constants"] = next(
+                    (value for key, value in output.items()
+                     if normalize_yaml_key(key) == "result_dir"), "result"
+                )
+            # A direct command never prepares new force constants.
+            return {**data, tdbte_key: tdbte, "workflow": {"steps": ["tdbte"]}}
         fc = data[keys["force_constant"]]
         forbidden = {"qha", "sscha", "four_phonon"} & {
             normalize_yaml_key(key) for key in fc
@@ -919,15 +983,6 @@ def expand_input_modes(data):
             raise ValueError(
                 "Six-section TD-BTE generates FC2/FC3; omit tdbte.force-constants "
                 "and tdbte.kernel. Use the two-section input to reuse artifacts."
-            )
-        plot = data[keys["plot"]]
-        unsupported_plot = {
-            normalize_yaml_key(key) for key in plot
-        } - {"layout", "dpi"}
-        if unsupported_plot:
-            raise ValueError(
-                "TD-BTE plot supports only layout and dpi; remove plot."
-                + sorted(unsupported_plot)[0].replace("_", "-") + "."
             )
         output = data[keys["output"]]
         result_dir = next(
@@ -996,7 +1051,11 @@ def expand_input_modes(data):
         return {
             **data,
             keys["kappa"]: {**kappa, "enabled": True},
-            "workflow": {"steps": ["relax", "fc2fc3", "kappa"]},
+            "workflow": {"steps": (
+                [command] if command in STAGE_REQUIRED_SECTIONS
+                and not (command == "plot" and explicit_kappa)
+                else ["relax", "fc2fc3", "kappa"]
+            )},
         }
     incompatible = {"workflow", "qha", "scph", "qha_sscha", "fourphonon"}
     mixed = sorted(incompatible & keys.keys())
@@ -1052,7 +1111,10 @@ def expand_input_modes(data):
     if qha_on:
         qha_options["run_transport"] = qha_transport
     kappa_enabled = four_on or qha_transport or sscha_transport or not (qha_on or sscha_on)
-    if kappa_enabled and (qha_on or sscha_on) and "temps" not in kappa_values:
+    transport_requested = command in {
+        None, "run", "info", "kappa", "kappa4", "qha-kappa", "qha-sscha", "scph"
+    }
+    if transport_requested and kappa_enabled and (qha_on or sscha_on) and "temps" not in kappa_values:
         raise ValueError(
             "QHA/SSCHA transport requires explicit kappa.temps; "
             "choose temperatures within the QHA range and, when SSCHA is enabled, "
@@ -1187,7 +1249,9 @@ def expand_input_modes(data):
     elif qha_on:
         steps = ["qha", "qha-kappa"] if kappa_enabled else ["qha"]
     elif sscha_on:
-        steps = (["relax"] if relax_requested else []) + ["fc2fc3", "scph"]
+        needs_fc3 = sscha_transport or str2bool(sscha_options.get("bubble", False))
+        force_step = "fc2fc3" if needs_fc3 else "fc2"
+        steps = (["relax"] if relax_requested else []) + [force_step, "scph"]
     elif four_on:
         steps = ["relax", "fc2fc3", "fc4", "kappa4"]
     else:
@@ -1374,6 +1438,7 @@ def yaml_input_sections():
         },
         "kappa": {
             "enabled",  # Internal field derived from force-constant switches.
+            "force_constants",
             "engine",
             "qha_volumes",  # Internal QHA route flag.
             "mesh",
@@ -1392,6 +1457,7 @@ def yaml_input_sections():
             "command",
             "workdir",
             "control",
+            "compare_3ph",
             "fc2",
             "fc3",
             "fc4",
@@ -1424,8 +1490,11 @@ def yaml_input_sections():
             "kappa",
             "temperature",
             "dpi",
+            "scattering_rate_min",
+            "tdbte_times",
         },
         "qha": {
+            "equilibrium_phonons",
             "enabled",
             "run_transport",
             "volume_ratios",
@@ -1530,6 +1599,7 @@ def yaml_arg_order():
         "kappa_enabled",
         "qha_volumes",
         "kappa_command",
+        "kappa_force_constants",
         "isotope",
         "bfmp",
         "wigner",
@@ -1538,6 +1608,7 @@ def yaml_arg_order():
         "fp_command",
         "fp_workdir",
         "fp_control",
+        "fp_compare_3ph",
         "fp_fc2",
         "fp_fc3",
         "fp_fc4",
@@ -1570,8 +1641,11 @@ def yaml_arg_order():
         "plot_kappa",
         "plot_temperature",
         "plot_dpi",
+        "plot_tdbte_times",
+        "plot_scattering_rate_min",
         "qha_enabled",
         "qha_run_transport",
+        "qha_equilibrium_phonons",
         "qha_volume_ratios",
         "qha_dim_fc2",
         "qha_mesh",
@@ -1667,14 +1741,45 @@ def resolve_workflow_plan(args, parser=None):
     return steps
 
 
-def parse_workflow_args(config_path, command=None):
+def parse_workflow_args(config_path, command=None, *, input_command=None):
     """Parse workflow configuration from a YAML file."""
     parser = initialise_parser()
     if not Path(config_path).exists():
         parser.error(f"input file not found: {config_path}")
-    tokens = parse_input_file(config_path)
+    tokens = parse_input_file(config_path, command=input_command or command)
     args = parser.parse_args(tokens, namespace=WorkflowConfig())
     args.config_path = str(Path(config_path).resolve())
+    sampling = phono3py_sampling(args.kappa_command) if args.kappa_command else {}
+    for field, values in sampling.items():
+        if field == "temps":
+            error = validate_temps(values)
+            if error:
+                raise ValueError(error.replace("kappa.temps", "kappa.command temperatures"))
+        if f"--{field}" in tokens:
+            configured = getattr(args, field)
+            if field == "temps":
+                error = validate_temps(configured)
+                if error:
+                    raise ValueError(error)
+                configured = expand_transport_temperatures(configured)
+                compared = expand_transport_temperatures(values)
+            else:
+                compared = values
+            if len(configured) != len(compared) or any(
+                not math.isclose(a, b, rel_tol=1e-10, abs_tol=1e-10)
+                for a, b in zip(configured, compared)
+            ):
+                raise ValueError(f"kappa.{field} conflicts with kappa.command; "
+                                 f"remove kappa.{field} or make the values agree.")
+        setattr(args, field, values)
+    if command == "plot" and "--mesh" not in tokens and "mesh" not in sampling:
+        # Let existing transport files select their mesh; the calculation
+        # default must not masquerade as an explicit plotting constraint.
+        args.mesh = None
+    if command == "report":
+        from nepkappa.report import resolve_result_directory
+
+        args.result_dir = str(resolve_result_directory(config_path))
     cutoff = args.cutoff_fc3
     if cutoff is None and args.fc3_backend == "thirdorder":
         cutoff = -3.0
@@ -1682,6 +1787,13 @@ def parse_workflow_args(config_path, command=None):
     resolve_force_constant_dimensions(args)
     resolve_workflow_plan(args, parser=parser)
     targets = set(args.workflow_steps) if command == "run" else {command}
+    if args.kappa_force_constants is not None and (
+        command in {None, "run", "qha-kappa", "qha-sscha", "scph", "kappa4"}
+    ):
+        parser.error(
+            "kappa.force-constants is for direct phono3py kappa reuse. "
+            "Omit it when generating force constants with run or coupled transport."
+        )
     if args.kappa_engine == "fourphonon" and "kappa" in targets:
         parser.error("kappa.engine: fourphonon cannot run the phono3py kappa stage.")
     if args.kappa_engine == "phono3py" and "kappa4" in targets:
@@ -1708,6 +1820,13 @@ def parse_workflow_args(config_path, command=None):
         temps_error = validate_temps(args.temps)
         if temps_error:
             parser.error(temps_error)
+    if not math.isfinite(args.plot_scattering_rate_min) or args.plot_scattering_rate_min < 0:
+        parser.error("plot.scattering-rate-min must be finite and nonnegative (ps^-1).")
+    if args.plot_tdbte_times is not None and (
+        any(not math.isfinite(t) or t < 0 for t in args.plot_tdbte_times)
+        or any(b <= a for a, b in zip(args.plot_tdbte_times, args.plot_tdbte_times[1:]))
+    ):
+        parser.error("plot.tdbte-times requires three finite, nonnegative, increasing times in ps.")
     geometry_error = validate_effective_geometry(args)
     if geometry_error:
         parser.error(geometry_error)
@@ -1868,11 +1987,13 @@ def iter_display_args(args, command=None):
     }
     kappa_fields = {
         "mesh", "temps", "method", "kappa_engine", "kappa_command", "isotope", "bfmp",
-        "wigner", "lbte_parallel",
+        "wigner", "lbte_parallel", "kappa_force_constants",
     }
     command_fields = None
     tdbte_fields = {name for name in vars(args) if name.startswith("tdbte_")}
-    if command == "tdbte":
+    if command == "report":
+        command_fields = {"result_dir"}
+    elif command == "tdbte":
         command_fields = {"result_dir"} | tdbte_fields
     elif command == "run":
         command_fields = (
@@ -1915,7 +2036,14 @@ def iter_display_args(args, command=None):
         command_fields = common | kappa_fields
     elif command == "plot":
         if "tdbte" in args.workflow_steps:
-            command_fields = {"result_dir", "plot_layout", "plot_dpi"}
+            command_fields = {"result_dir", "plot_layout", "plot_dpi", "plot_tdbte_times",
+                              "plot_path", "plot_path_points", "plot_path_segments"}
+        elif args.scph_enabled and not (args.scph_run_transport or args.fp_enabled):
+            command_fields = common | {"mesh", "temps", "scph_temps", "plot_layout", "plot_dpi",
+                                       "plot_path", "plot_path_points", "plot_path_segments"}
+        elif args.qha_enabled and not args.scph_enabled and not args.qha_volumes:
+            command_fields = {"result_dir", "plot_layout", "plot_dpi", "plot_path",
+                              "plot_path_points", "plot_path_segments", "qha_mesh", "qha_temps"}
         else:
             command_fields = common | {"mesh", "temps"} | {
                 name for name in vars(args) if name.startswith("plot_")
@@ -1927,14 +2055,39 @@ def iter_display_args(args, command=None):
                 common | calculator_fields | fc2_fields | fc3_fields | hiphive_only
                 | {"plot_layout", "plot_dpi"}
             )
+    if command in {"run", "qha-sscha"}:
+        targets = set(args.workflow_steps) if command == "run" else {command}
+        coupled_transport = (
+            "qha-sscha" in targets and any(qha_sscha_transport_flags(args))
+        )
+        transport_active = bool(
+            targets & {"kappa", "kappa4", "qha-kappa"}
+            or ("scph" in targets and args.scph_run_transport)
+            or coupled_transport
+        )
+        fc3_active = bool(
+            "fc2fc3" in targets or "qha-kappa" in targets
+            or ("qha-sscha" in targets and (coupled_transport or args.scph_bubble))
+        )
+        if not transport_active:
+            command_fields -= kappa_fields
+        if not fc3_active:
+            command_fields -= fc3_fields
     for arg, value in vars(args).items():
         if value is None:
+            continue
+        if args.kappa_command and arg in {"method", "isotope", "bfmp", "wigner", "lbte_parallel"}:
+            # The custom command owns these settings; parser defaults are inactive.
             continue
         if command_fields is not None and arg not in command_fields:
             continue
         if arg == "lbte_parallel" and not value:
             continue
         if arg == "force_parallel" and not value:
+            continue
+        if arg.startswith("scph_bubble") and not args.scph_bubble and command != "bubble":
+            continue
+        if arg == "scph_save_datasets" and not value:
             continue
         if arg in {"calculator_kwargs", "calculator_model_files"} and not value:
             continue
@@ -2225,6 +2378,12 @@ def validate_fourphonon(args):
     """Validate FourPhonon 3ph+4ph transport settings."""
     if not getattr(args, "fp_enabled", False):
         return None
+    if getattr(args, "fp_compare_3ph", False):
+        if args.fp_control or args.fp_wigner or args.fp_only_harmonic:
+            return (
+                "force-constant.four-phonon.compare-3ph requires generated CONTROL "
+                "and ordinary transport (no custom control, Wigner or only-harmonic)."
+            )
     args.fp_mesh = list(args.fp_mesh or args.mesh)
     args.fp_temps = list(args.fp_temps or args.temps)
     args.fp_scell = list(args.fp_scell or args.dim_fc2)
@@ -2438,7 +2597,7 @@ def validate_calculator(args):
     if not args.calculator:
         return "calculator.name must not be empty."
     if args.calculator == "nep" and not args.nep_model:
-        return "--nep_model is required when --calculator nep"
+        return "calculator.model is required when calculator.name is 'nep' (legacy alias: calculator.nep-model)."
     if not isinstance(args.calculator_kwargs, dict):
         return "calculator.kwargs must be a mapping."
     if not isinstance(args.calculator_model_files, list) or not all(
@@ -2473,7 +2632,7 @@ def validate_calculator(args):
         )
     ):
         return (
-            "calculator.model, foundation, device, and dtype are native MACE "
+            "calculator.foundation, device, and dtype are native MACE "
             "options and require calculator.name: mace."
         )
     if args.calculator_factory and not any(

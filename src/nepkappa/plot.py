@@ -28,6 +28,9 @@ from phono3py.interface.phono3py_yaml import Phono3pyYaml
 from phonopy import Phonopy
 from phonopy.file_IO import read_force_constants_hdf5
 
+from nepkappa.output import print_detail
+from nepkappa.transport_data import read_conductivity_components
+
 
 EV_TO_J = 1.602176634e-19
 ANGSTROM3_TO_M3 = 1.0e-30
@@ -49,6 +52,8 @@ def plot_results(config):
 
     disp_path = find_phonon_metadata(result_dir)
     fc2_path = result_dir / "fc2.hdf5"
+    if not fc2_path.is_file() and (result_dir / "force_constants.hdf5").is_file():
+        fc2_path = result_dir / "force_constants.hdf5"
     fourphonon_dir = result_dir / getattr(config, "fp_workdir", "fourphonon")
     has_fourphonon = (fourphonon_dir / "fourphonon-summary.yaml").is_file()
     # A FourPhonon run can share its directory with an older phono3py result
@@ -70,19 +75,23 @@ def plot_results(config):
     dpi = int(getattr(config, "plot_dpi", 300))
 
     print("\n[Step 4] Plot Results")
-    print(f"  - Reading {disp_path}")
-    print(f"  - Reading {fc2_path}")
+    print_detail(f"  - Reading {disp_path}")
+    print_detail(f"  - Reading {fc2_path}")
     if kappa_path.exists():
-        print(f"  - Reading {kappa_path}")
+        print_detail(f"  - Reading {kappa_path}")
     elif has_fourphonon:
-        print(f"  - Reading FourPhonon results from {fourphonon_dir}")
+        print_detail(f"  - Reading FourPhonon results from {fourphonon_dir}")
     else:
         print("  - No kappa file: plotting harmonic properties from FC2 only")
-    print(f"  - Plot layout: {layout}")
-    print(f"  - Band path: {getattr(config, 'plot_path', 'seekpath')}")
+    print_detail(f"  - Plot layout: {layout}")
+    print_detail(f"  - Band path: {getattr(config, 'plot_path', 'seekpath')}")
     phono3py_yaml = load_phono3py_yaml(disp_path)
     phonon = make_phonopy(phono3py_yaml, fc2_path)
     plot_data = build_plot_data(phonon, phono3py_yaml.unitcell, kappa_path, config)
+    reference = build_harmonic_reference(phonon, config)
+    if reference is not None:
+        plot_data["harmonic_reference"] = reference
+        plot_data["sscha_temperature"] = config.plot_temperature
     if has_fourphonon:
         attach_fourphonon_results(plot_data["transport"], fourphonon_dir, config)
     figures = available_figures([plot_data["transport"]], include_fourphonon=True)
@@ -99,9 +108,10 @@ def plot_results(config):
         if layout in ("combined", "both"):
             saved.append(write_combined_figure(figures, plot_data, plot_dir, dpi))
 
-    print("  - Generated plots:")
+    print(f"  - Generated {len(saved)} plots: {plot_dir}")
+    print_detail("  - Generated plots:")
     for path in saved:
-        print(f"    {path}")
+        print_detail(f"    {path}")
 
 
 def journal_style():
@@ -148,7 +158,10 @@ def find_kappa_file(result_dir, mesh=None):
 
 def find_phonon_metadata(result_dir):
     """FC2 still requires its matching cell/supercell metadata."""
-    for name in ("phono3py_disp.yaml", "phonopy.yaml", "phonopy_disp.yaml"):
+    for name in (
+        "phonopy_sscha.yaml", "phono3py_disp.yaml", "phonopy.yaml",
+        "phonopy_disp.yaml", "phonopy_params.yaml",
+    ):
         path = Path(result_dir) / name
         if path.is_file():
             return path
@@ -171,6 +184,7 @@ def make_phonopy(ph3yml, fc2_path):
         ph3yml.unitcell,
         supercell_matrix=matrix,
         primitive_matrix=ph3yml.primitive_matrix,
+        lang="C",
     )
     phonon.force_constants = read_force_constants_hdf5(str(fc2_path))
     if getattr(ph3yml, "nac_params", None) is not None:
@@ -192,6 +206,35 @@ def build_plot_data(phonon, unitcell, kappa_path, config):
         "transport": transport,
     }
     return data
+
+
+def build_harmonic_reference(phonon, config):
+    """Read the initial harmonic FC2 for SSCHA comparison, without computing forces."""
+    source = getattr(config, "_plot_harmonic_reference", None)
+    if source is None:
+        return None
+    fc2_path = Path(source).expanduser().resolve()
+    metadata = find_phonon_metadata(fc2_path.parent)
+    if not fc2_path.is_file() or not metadata.is_file():
+        print("  - Harmonic reference unavailable: initial FC2 and matching metadata required")
+        return None
+    data = load_phono3py_yaml(metadata)
+    reference = make_phonopy(data, fc2_path)
+    current, original = phonon.primitive, reference.primitive
+    compatible = (
+        np.array_equal(current.numbers, original.numbers)
+        and np.allclose(current.cell, original.cell, rtol=1e-6, atol=1e-6)
+    )
+    if compatible:
+        delta = current.scaled_positions - original.scaled_positions
+        compatible = np.allclose(delta - np.rint(delta), 0, atol=1e-5)
+    if not compatible:
+        warnings.warn("Skipping harmonic comparison: primitive cells or atomic mappings differ", RuntimeWarning)
+        return None
+    print(f"  - Harmonic reference: {fc2_path}")
+    # Always recompute reference properties from FC2 on the requested plotting
+    # grid. A transport file in the reference directory must not set its Cv grid.
+    return build_plot_data(reference, data.unitcell, None, config)
 
 
 def seekpath_structure(unitcell):
@@ -301,7 +344,7 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
         temperature = handle["temperature"][:]
         transport = {
             "temperature": temperature,
-            "kappa": handle["kappa"][:],
+            **read_conductivity_components(handle),
             "heat_capacity": handle["heat_capacity"][:],
             "group_velocity": handle["group_velocity"][:],
             "frequency": handle["frequency"][:],
@@ -310,19 +353,18 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
             "gamma": {},
         }
         if "gamma" in handle:
-            transport["gamma"]["total"] = handle["gamma"][:]
+            transport["gamma"]["phph"] = handle["gamma"][:]
+        isotope_gamma = handle["gamma_isotope"][:] if "gamma_isotope" in handle else None
         if "gamma_N" in handle:
             transport["gamma"]["normal"] = handle["gamma_N"][:]
         if "gamma_U" in handle:
             transport["gamma"]["umklapp"] = handle["gamma_U"][:]
         if "mode_kappa" in handle:
             transport["mode_kappa"] = handle["mode_kappa"][:]
-        wigner_keys = {"kappa_intra", "kappa_inter"} & set(handle.keys())
-        if wigner_keys:
-            if wigner_keys != {"kappa_intra", "kappa_inter"}:
-                raise ValueError(f"Incomplete Wigner components in {kappa_path}")
-            transport["kappa_intra"] = handle["kappa_intra"][:]
-            transport["kappa_inter"] = handle["kappa_inter"][:]
+        # Ordinary LBTE files also store the RTA solution from the same run.
+        # Wigner components have separate semantics and retain their own plots.
+        if "kappa_RTA" in handle and "kappa_intra" not in transport:
+            transport["kappa_RTA"] = np.asarray(handle["kappa_RTA"], dtype=float)
 
     if temperature.ndim != 1 or not len(temperature) or not np.isfinite(temperature).all():
         raise ValueError(f"Invalid temperature array in {kappa_path}")
@@ -340,19 +382,27 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
     for name, gamma in transport["gamma"].items():
         if gamma.shape != shape:
             raise ValueError(f"Unsupported {name} linewidth shape {gamma.shape}; expected {shape}")
+    # phono3py stores isotope linewidths separately, normally without a T axis.
+    # Use the saved result, not the current YAML switch, when plotting old data.
+    if isotope_gamma is not None:
+        if isotope_gamma.shape == frequency.shape:
+            isotope_gamma = np.broadcast_to(isotope_gamma, shape)
+        if isotope_gamma.shape != shape or not np.isfinite(isotope_gamma).all() or np.any(isotope_gamma < 0):
+            raise ValueError("Invalid gamma_isotope: expected finite nonnegative q-by-branch or temperature-by-q-by-branch linewidths")
+        transport["gamma"]["isotope"] = isotope_gamma
+    if "phph" in transport["gamma"]:
+        if isotope_gamma is None and getattr(config, "isotope", False) and getattr(config, "plot_tau", "total") in {"total", "all", "isotope"}:
+            raise ValueError("Isotope scattering was requested but gamma_isotope is missing in kappa HDF5; use plot.tau: phph for phonon-only rates or supply a result containing gamma_isotope")
+        transport["gamma"]["total"] = transport["gamma"]["phph"] + (isotope_gamma if isotope_gamma is not None else 0.0)
     kappa = transport["kappa"]
     if kappa.ndim != 2 or kappa.shape[0] != len(temperature) or kappa.shape[1] < 3:
         raise ValueError(f"Unsupported conductivity shape {kappa.shape}; select a single transport solution")
     if not np.isfinite(kappa).all():
         raise ValueError("Nonfinite conductivity values; results may be incomplete")
-    if "kappa_intra" in transport:
-        intra, inter = transport["kappa_intra"], transport["kappa_inter"]
-        if intra.shape != kappa.shape or inter.shape != kappa.shape:
-            raise ValueError("Wigner conductivity components have inconsistent shapes")
-        if not np.isfinite(intra).all() or not np.isfinite(inter).all():
-            raise ValueError("Nonfinite Wigner conductivity components")
-        if not np.allclose(kappa, intra + inter, rtol=5e-4, atol=5e-4):
-            raise ValueError("Wigner total conductivity differs from particle plus coherence")
+    if "kappa_RTA" in transport:
+        rta = transport["kappa_RTA"]
+        if rta.shape != kappa.shape or not np.isfinite(rta).all():
+            raise ValueError("kappa_RTA must match the kappa tensor shape and contain finite values")
 
     correction = effective_geometry_correction(config, primitive_cell, primitive_volume)
     effective_volume = primitive_volume / correction["factor"]
@@ -365,6 +415,14 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
              "kappa": transport["kappa_inter"] * correction["factor"]},
             {"label": "total", "temperature": temperature,
              "kappa": transport["kappa"]},
+        ]
+    elif "kappa_RTA" in transport:
+        transport["kappa_RTA"] *= correction["factor"]
+        transport["kappa_scenarios"] = [
+            {"label": "LBTE", "temperature": temperature,
+             "kappa": transport["kappa"], "linestyle": "-"},
+            {"label": "RTA", "temperature": temperature,
+             "kappa": transport["kappa_RTA"], "linestyle": "--"},
         ]
     if "mode_kappa" in transport:
         transport["mode_kappa"] = mode_kappa_contributions(
@@ -385,6 +443,7 @@ def read_transport_data(kappa_path, primitive_volume, primitive_cell, config):
     if not np.isclose(selected, requested):
         warnings.warn(f"Requested plot temperature {requested:g} K is unavailable; using {selected:g} K", RuntimeWarning)
     transport["tau_mode"] = getattr(config, "plot_tau", "total")
+    transport["scattering_rate_min"] = getattr(config, "plot_scattering_rate_min", 0.0)
     transport["kappa_mode"] = getattr(config, "plot_kappa", "all")
     return transport
 
@@ -417,11 +476,25 @@ def read_fourphonon_nu(path):
 
 def attach_fourphonon_results(transport, workdir, config):
     """Add only completed FourPhonon outputs to the standard plotting data."""
+    transport["scattering_rate_min"] = getattr(config, "plot_scattering_rate_min", 0.0)
     summary_path = workdir / "fourphonon-summary.yaml"
     summary = yaml.safe_load(summary_path.read_text(encoding="utf-8")) or {}
     solutions = summary.get("solutions") or {}
     factor = transport["geometry_correction"]["factor"]
-    scenarios = list(transport.get("kappa_scenarios", []))
+    reference = summary.get("three_phonon_reference")
+    scenarios = [] if reference else list(transport.get("kappa_scenarios", []))
+    if reference:
+        if reference.get("workdir") != "threephonon" or not reference.get("matched_inputs_verified"):
+            raise ValueError("Unverified FourPhonon three-phonon reference.")
+        for solution in ("rta", "iterative"):
+            if solution not in reference["solutions"]:
+                continue
+            result = read_fourphonon_kappa(workdir / "threephonon" / f"kappa3-{solution}.dat", factor)
+            combined = read_fourphonon_kappa(workdir / f"kappa4-{solution}.dat", factor)
+            if not np.array_equal(result["temperature"], combined["temperature"]):
+                raise ValueError("Three-phonon and four-phonon comparison temperatures do not match.")
+            scenarios.append({"label": "3ph RTA" if solution == "rta" else "3ph LBTE",
+                              "linestyle": "--", **result})
     if "kappa" in transport and not scenarios:
         scenarios.append({"label": "3ph only", "temperature": transport["temperature"],
                           "kappa": transport["kappa"]})
@@ -430,7 +503,7 @@ def attach_fourphonon_results(transport, workdir, config):
         "3ph-iterative": "3ph LBTE + 4ph RTA",
         "full-iterative": "3ph+4ph LBTE",
     }
-    solver = getattr(config, "fp_solver", "rta")
+    solver = summary.get("solver") or getattr(config, "fp_solver", "rta")
     for solution in ("rta", "iterative"):
         if solution not in solutions:
             continue
@@ -550,10 +623,9 @@ def available_figures(transports, include_fourphonon=False):
         if "fourphonon_nu" in transports[0]:
             figures.insert(figures.index("kappa") if "kappa" in figures else len(figures),
                            "scattering_rate_nu")
-        for channel in ("3ph", "4ph"):
-            if channel in rates:
-                figures.insert(figures.index("kappa") if "kappa" in figures else len(figures),
-                               f"scattering_rate_{channel}")
+        if any(channel in rates for channel in ("3ph", "4ph")):
+            figures.insert(figures.index("kappa") if "kappa" in figures else len(figures),
+                           "scattering_rate_3ph_4ph")
     return figures
 
 
@@ -648,6 +720,7 @@ def write_separate_figures(figures, plot_data, plot_dir, dpi):
         "heat_capacity": (5.8, 4.6),
         "group_velocity": (5.8, 4.6),
         "scattering_rate": (5.8, 4.6),
+        "scattering_rate_3ph_4ph": (5.8, 4.6),
         "scattering_rate_3ph": (5.8, 4.6),
         "scattering_rate_4ph": (5.8, 4.6),
         "scattering_rate_nu": (5.8, 4.6),
@@ -698,6 +771,8 @@ def draw_figure(name, ax, plot_data):
         draw_group_velocity(ax, plot_data["transport"])
     elif name == "scattering_rate":
         draw_scattering_rate(ax, plot_data["transport"])
+    elif name == "scattering_rate_3ph_4ph":
+        draw_fourphonon_scattering_rate(ax, plot_data["transport"])
     elif name == "scattering_rate_3ph":
         draw_fourphonon_scattering_rate(ax, plot_data["transport"], "3ph")
     elif name == "scattering_rate_4ph":
@@ -710,6 +785,41 @@ def draw_figure(name, ax, plot_data):
         draw_kappa(ax, plot_data["transport"])
     else:
         raise ValueError(f"Unknown plot figure: {name}")
+    reference = plot_data.get("harmonic_reference")
+    if reference is not None and name in {"dispersion", "dos", "heat_capacity", "group_velocity"}:
+        draw_harmonic_comparison(name, ax, reference, plot_data["sscha_temperature"])
+
+
+def draw_harmonic_comparison(name, ax, reference, temperature):
+    """Overlay a neutral harmonic reference on the colored SSCHA panels."""
+    from matplotlib.lines import Line2D
+
+    colors = {"dispersion": "tab:blue", "dos": "tab:green",
+              "heat_capacity": "tab:red", "group_velocity": "tab:purple"}
+    first_line, first_collection = len(ax.lines), len(ax.collections)
+    if name == "dispersion":
+        for distances, frequencies in zip(reference["band"]["distances"], reference["band"]["frequencies"]):
+            ax.plot(distances, frequencies)
+    elif name == "dos":
+        ax.plot(reference["dos"]["total_dos"], reference["dos"]["frequency_points"])
+    elif name == "heat_capacity":
+        data = reference["transport"]
+        ax.plot(data["temperature"], data["volume_heat_capacity"])
+    else:
+        draw_group_velocity(ax, reference["transport"])
+    for line in ax.lines[first_line:]:
+        line.set(color="0.4", linestyle="--", linewidth=1.2, zorder=1)
+    for collection in ax.collections[first_collection:]:
+        collection.set(color="0.4", alpha=0.25, zorder=0.5)
+    scatter = name == "group_velocity"
+    ax.legend(handles=[
+        Line2D([], [], color=colors[name], linestyle="None" if scatter else "-",
+               marker="o" if scatter else None, label=f"SSCHA ({temperature:g} K)"),
+        Line2D([], [], color="0.4", linestyle="None" if scatter else "--",
+               marker="o" if scatter else None, label="Harmonic reference"),
+    ], fontsize=9, loc="best")
+    if name == "heat_capacity":
+        ax.set_title(f"Fixed SSCHA FC2 at {temperature:g} K", fontsize=11)
 
 
 def draw_dispersion(ax, band):
@@ -780,19 +890,22 @@ def draw_group_velocity(ax, transport):
 
 
 def draw_scattering_rate(ax, transport):
-    """Draw total, Normal, and/or Umklapp scattering rates in ps^-1."""
+    """Draw phonon/isotope linewidth contributions as rates in ps^-1."""
     frequency = transport["frequency"]
     temp_index = transport["tau_temperature_index"]
     channels = scattering_channels(transport["tau_mode"], transport["gamma"])
     colors = {
-        "total": "tab:orange",
+        "total": "black",
+        "phph": "tab:orange",
+        "isotope": "tab:purple",
         "normal": "tab:blue",
         "umklapp": "tab:green",
     }
-    labels = {"total": "total", "normal": "N", "umklapp": "U"}
+    labels = {"total": "Total (ph-ph + isotope)", "phph": "Ph-ph (3ph, N+U)",
+              "isotope": "Isotope", "normal": "N", "umklapp": "U"}
     for name in channels:
         rate = 4.0 * np.pi * transport["gamma"][name][temp_index]
-        valid = np.isfinite(frequency) & np.isfinite(rate) & (frequency > 0) & (rate > 0)
+        valid = np.isfinite(frequency) & np.isfinite(rate) & (frequency > 0) & (rate > 0) & (rate >= transport.get("scattering_rate_min", 0.0))
         ax.scatter(
             frequency[valid],
             rate[valid],
@@ -804,20 +917,28 @@ def draw_scattering_rate(ax, transport):
     ax.set_yscale("log")
     ax.set_xlabel("Frequency (THz)")
     ax.set_ylabel(r"Scattering rate (ps$^{-1}$)")
-    if len(channels) > 1:
-        ax.legend(frameon=False)
+    ax.legend(frameon=False)
     ax.grid(color="0.9", linewidth=0.9)
 
 
-def draw_fourphonon_scattering_rate(ax, transport, channel):
-    """Draw one FourPhonon channel without combining 3ph and 4ph rates."""
-    data = transport["fourphonon_rates"][channel]
-    valid = (data[:, 0] > 0) & (data[:, 1] > 0)
-    color = "tab:blue" if channel == "3ph" else "tab:orange"
-    ax.scatter(data[valid, 0], data[valid, 1], s=12, alpha=0.4, color=color)
+def draw_fourphonon_scattering_rate(ax, transport, channel=None):
+    """Overlay available 3ph and 4ph rates, or draw a requested channel."""
+    rates = transport["fourphonon_rates"]
+    channels = (channel,) if channel is not None else ("3ph", "4ph")
+    for name in channels:
+        if name not in rates:
+            continue
+        data = rates[name]
+        valid = (np.isfinite(data).all(axis=1) & (data[:, 0] > 0)
+                 & (data[:, 1] > 0)
+                 & (data[:, 1] >= transport.get("scattering_rate_min", 0.0)))
+        color = "tab:blue" if name == "3ph" else "tab:orange"
+        ax.scatter(data[valid, 0], data[valid, 1], s=12, alpha=0.4,
+                   color=color, label=name)
     ax.set_yscale("log")
     ax.set_xlabel("Frequency (THz)")
-    ax.set_ylabel(rf"{channel} scattering rate (ps$^{{-1}}$)")
+    ax.set_ylabel(r"Scattering rate (ps$^{-1}$)")
+    ax.legend(frameon=False)
     ax.grid(color="0.9", linewidth=0.9)
 
 
@@ -825,7 +946,7 @@ def draw_fourphonon_nu(ax, transport):
     """Draw optional FourPhonon N and U rates together."""
     data = transport["fourphonon_nu"]
     for column, label, color in ((1, "N", "tab:blue"), (2, "U", "tab:green")):
-        valid = (data[:, 0] > 0) & (data[:, column] > 0)
+        valid = (data[:, 0] > 0) & (data[:, column] > 0) & (data[:, column] >= transport.get("scattering_rate_min", 0.0))
         ax.scatter(data[valid, 0], data[valid, column], s=12, alpha=0.4,
                    color=color, label=label)
     ax.set_yscale("log")
@@ -837,6 +958,13 @@ def draw_fourphonon_nu(ax, transport):
 
 def scattering_channels(tau_mode, gamma_data):
     """Return scattering-rate channels requested by YAML."""
+    if tau_mode in {"total", "all"} and "phph" in gamma_data:
+        channels = ["phph"]
+        if "isotope" in gamma_data:
+            channels.extend(["isotope", "total"])
+        if tau_mode == "all":
+            channels.extend(name for name in ("normal", "umklapp") if name in gamma_data)
+        return channels
     if tau_mode == "all":
         return [name for name in ("total", "normal", "umklapp") if name in gamma_data]
     if tau_mode == "nu":
@@ -863,7 +991,8 @@ def draw_kappa(ax, transport):
         for scenario in transport["kappa_scenarios"]:
             values = scenario["kappa"][:, :3]
             ordinate = values.mean(axis=1) if mode == "all" else values[:, AXIS_INDEX[mode]]
-            ax.plot(scenario["temperature"], ordinate, marker="o", label=scenario["label"])
+            ax.plot(scenario["temperature"], ordinate, marker="o", label=scenario["label"],
+                    linestyle=scenario.get("linestyle", "-"))
         ax.set_xlabel("Temperature (K)")
         axis_label = "average" if mode == "all" else mode + mode
         ax.set_ylabel(rf"Thermal conductivity {axis_label} (W m$^{{-1}}$ K$^{{-1}}$)")

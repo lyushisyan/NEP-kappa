@@ -9,6 +9,8 @@ import time
 from ase import Atoms
 from phonopy.structure.atoms import PhonopyAtoms
 
+from nepkappa.output import print_detail
+
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover - tqdm is a declared dependency
@@ -91,7 +93,7 @@ def run_activity_task(label, func, enabled=True, update_interval=1.0, log_interv
     thread.join()
     if "error" in result:
         raise result["error"]
-    print(f"{label}: {format_activity_elapsed(time.time() - start)} elapsed")
+    print_detail(f"{label}: {format_activity_elapsed(time.time() - start)} elapsed")
     return result.get("value")
 
 

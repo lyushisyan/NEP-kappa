@@ -30,7 +30,7 @@ COMMAND_SPECS = (
 
 PUBLIC_COMMANDS = tuple(spec.name for spec in COMMAND_SPECS)
 EXECUTION_COMMANDS = frozenset({"run", *CALCULATION_COMMANDS, "plot"})
-VALIDATION_TARGETS = ("run", *CALCULATION_COMMANDS, "plot")
+VALIDATION_TARGETS = ("run", *CALCULATION_COMMANDS, "plot", "report")
 
 
 def canonical_command(name: str) -> str:

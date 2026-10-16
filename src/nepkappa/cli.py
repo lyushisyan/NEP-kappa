@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import sys
 import time
+import warnings
 
 from nepkappa import __version__
 from nepkappa.command_registry import (
@@ -23,14 +24,16 @@ from nepkappa.config import (
     parse_workflow_args,
 )
 from nepkappa.provenance import ProvenanceRecorder
+from nepkappa.output import print_detail
 
 
 class Tee:
     """Write text to terminal and run.log, compacting dynamic terminal updates."""
 
-    def __init__(self, terminal_stream, log_stream):
+    def __init__(self, terminal_stream, log_stream, *, verbose=True):
         self.terminal_stream = terminal_stream
         self.log_stream = log_stream
+        self.detail_stream = self if verbose else log_stream
         self._rewrite_buffer = ""
         self._in_rewrite = False
 
@@ -73,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command in EXECUTION_COMMANDS:
-        return run_command(args.command, args.config, debug=args.debug)
+        return run_command(
+            args.command, args.config, debug=args.debug, verbose=args.verbose
+        )
     if args.command == "report":
         return report_command(args.config)
     if args.command == "info":
@@ -91,6 +96,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"nepkappa {__version__}")
     parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Show detailed output on screen as well as in run.log.",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Show Python tracebacks when a command fails.",
@@ -107,6 +116,10 @@ def build_parser() -> argparse.ArgumentParser:
             if spec.name == "report" else "YAML input file"
         )
         command_parser.add_argument("config", help=config_help)
+        command_parser.add_argument(
+            "-v", "--verbose", action="store_true", default=argparse.SUPPRESS,
+            help="Show detailed output on screen as well as in run.log.",
+        )
         if spec.name == "info":
             command_parser.add_argument(
                 "--for",
@@ -119,7 +132,39 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_command(command, config_path, *, debug=False) -> int:
+@contextlib.contextmanager
+def warning_output(stderr, *, verbose):
+    """Keep full warning diagnostics in the log and readable messages on screen."""
+    with warnings.catch_warnings():
+        original_showwarning = warnings.showwarning
+
+        def showwarning(message, category, filename, lineno, file=None, line=None):
+            if file is not None:
+                return original_showwarning(
+                    message, category, filename, lineno, file=file, line=line
+                )
+            detail = warnings.formatwarning(message, category, filename, lineno, line)
+            # Match category names without importing version-specific Phonopy
+            # classes: older supported releases do not define both warnings.
+            if category.__module__.startswith("phonopy.") and category.__name__ in {
+                "PrimitiveMatrixAutoDefaultWarning", "GammaAcousticWarning",
+            }:
+                stderr.log_stream.write(detail)
+                stderr.log_stream.flush()
+                return
+            stderr.detail_stream.write(detail)
+            stderr.detail_stream.flush()
+            if not verbose:
+                stderr.terminal_stream.write(
+                    f"[Warning] {category.__name__}: {' '.join(str(message).split())}\n"
+                )
+                stderr.terminal_stream.flush()
+
+        warnings.showwarning = showwarning
+        yield
+
+
+def run_command(command, config_path, *, debug=False, verbose=False) -> int:
     """Run one workflow command."""
     start_time = time.time()
     requested_command = canonical_command(command)
@@ -132,27 +177,30 @@ def run_command(command, config_path, *, debug=False) -> int:
     recorder = ProvenanceRecorder(args.result_dir, requested_command, config_path, args)
 
     with open(log_path, log_mode, encoding="utf-8") as log_file:
-        stdout = Tee(sys.stdout, log_file)
-        stderr = Tee(sys.stderr, log_file)
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        stdout = Tee(sys.stdout, log_file, verbose=verbose)
+        stderr = Tee(sys.stderr, log_file, verbose=verbose)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.redirect_stdout(stdout))
+            stack.enter_context(contextlib.redirect_stderr(stderr))
+            stack.enter_context(warning_output(stderr, verbose=verbose))
             if log_mode == "a" and os.path.getsize(log_path) > 0:
-                print("\n" + "=" * 60)
+                print_detail("\n" + "=" * 60)
             print(f"[main] Command: {requested_command}")
             if command != requested_command:
                 print(f"[main] Input-selected operation: {command}")
             if config_path is not None:
-                print(f"[main] Reading arguments from {config_path}...")
-            print(f"[main] Logging output to {log_path}")
-            print("-" * 60)
-            print(format_config(args, command=command))
-            print("-" * 60)
+                print_detail(f"[main] Reading arguments from {config_path}...")
+            print_detail(f"[main] Logging output to {log_path}")
+            print_detail("-" * 60)
+            print_detail(format_config(args, command=command))
+            print_detail("-" * 60)
 
             exit_code = 0
             execution = None
             failure = None
             try:
                 manifest_path = recorder.start()
-                print(f"[main] Provenance manifest: {manifest_path}")
+                print_detail(f"[main] Provenance manifest: {manifest_path}")
                 from nepkappa.application import execute_workflow_command
 
                 execution = execute_workflow_command(command, args)
@@ -176,19 +224,19 @@ def run_command(command, config_path, *, debug=False) -> int:
                 except Exception as exc:
                     exit_code = 1
                     print(f"\n[Error] Could not finalize provenance manifest: {exc}")
-                print("-" * 60)
+                print_detail("-" * 60)
+                print(f"[main] {'Completed' if exit_code == 0 else 'Failed'}: {requested_command}")
                 print(f"Total Execution Time: {format_duration(time.time() - start_time)}")
-                print("-" * 60)
+                print_detail("-" * 60)
+                print(f"Run log saved to: {log_path}")
 
-    print("-" * 60)
-    print(f"Run log saved to: {log_path}")
     return exit_code
 
 
 def parse_selected_command(config_path, command):
     """Resolve input-selected operations before command-specific validation."""
     if command in {"fc2", "kappa"}:
-        plan = parse_workflow_args(config_path, command="plot")
+        plan = parse_workflow_args(config_path, command="plot", input_command=command)
         try:
             selected = resolve_calculation_command(command, plan)
         except ValueError as exc:

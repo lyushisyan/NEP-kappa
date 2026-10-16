@@ -1,7 +1,8 @@
 Requirements
 ==============
 
-**NEP-kappa** requires the following Python packages:
+The core dependencies below are installed by ``pip`` from ``pyproject.toml``.
+See :doc:`installation` for environment setup.
 
 - python>=3.9
 - numpy
@@ -33,3 +34,14 @@ Additional requirements
   ``python -m pip install -e '.[mace]'``
 - Phonopy SSCHA requires an ASE calculator that supplies both total energy and
   forces; the NEP backend through Calorine satisfies this requirement
+
+- Thirdorder FC3 requires ``thirdorder_vasp.py`` or a configured executable
+- Fourthorder FC4 requires ``Fourthorder_vasp.py`` or a configured executable
+- four-phonon transport requires FourPhonon; its Wigner route needs Wigner_Park
+- optional TD-BTE acceleration uses Numba: ``python -m pip install -e '.[tdbte]'``
+- documentation builds use Sphinx and the Read the Docs theme:
+  ``python -m pip install -e '.[docs]'``
+
+The numerical backend and MPI libraries used to compile external executables
+must be available on the calculation host. Python installation does not install
+VASP, Thirdorder, Fourthorder or FourPhonon.

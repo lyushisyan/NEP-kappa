@@ -1,0 +1,38 @@
+structure:
+  poscar: POSCAR
+  relaxation: false
+calculator:
+  name: nep
+  model: nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+  fc3-backend: thirdorder
+  cutoff-fc3: -3
+  format: both
+  four-phonon:
+    enabled: true
+    compare-3ph: true
+    dim-fc4: [3, 3, 3]
+    cutoff-fc4: -2
+    command: ShengBTE_cpu
+kappa:
+  engine: fourphonon
+  method-3ph: lbte
+  method-4ph: rta
+  mesh: [8, 8, 8]
+  temps: [300, 900, 300]
+  isotope: true
+plot:
+  layout: both
+  path: seekpath
+  scattering-rate-min: 1.0e-08
+  temperature: 300
+  kappa: x
+  dpi: 300
+output:
+  result-dir: results/fourphonon
+parallel:
+  kappa:
+    mpi-processes: 4
+    omp-threads: 1

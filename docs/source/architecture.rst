@@ -11,7 +11,7 @@ preparation but neither route must run before the other.
 Both from-scratch routes use six sections. Phonon properties and transport use
 ``structure``/``calculator``/``force-constant``/``kappa``/``plot``/``output``;
 TD-BTE substitutes ``tdbte`` for ``kappa``. QHA, SSCHA, and four-phonon
-options add steps only in the transport route. A compact ``tdbte``/``output``
+options add steps only in the phonon-properties/transport route. A compact ``tdbte``/``output``
 input can instead reuse completed, mutually matching phono3py artifacts.
 ``nepkappa run`` derives the ordered steps from the selected input shape.
 
@@ -79,8 +79,10 @@ records deferred execution; Slurm tools can inspect live queue state.
 Maintaining the input contract
 ------------------------------
 
-Keep the six-section phonon/transport schema, six-section TD-BTE schema, and
-two-section TD-BTE artifact-reuse schema explicit.
+Keep six-section inputs mandatory for ``run``. Direct commands require only
+the sections used by their stage; preserve command-specific validation and
+compatibility with complete inputs. TD-BTE artifact reuse uses ``tdbte``, not
+a compact ``run`` input.
 Introduce a new stage behind the application interface and add parser, stage,
 and numerical checks appropriate to its behavior.
 Keep backend-specific details out of CLI handlers. Update the public example

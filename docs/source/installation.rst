@@ -1,29 +1,48 @@
-Installation
-==============
+Installation and environment setup
+======================================
 
-Install in an isolated Python environment
--------------------------------------------
+System requirements
+-----------------------
 
-The package declares Python >=3.9; Python 3.11 is a practical starting choice.
-Dependency availability may vary with the platform.
+NEP-kappa requires Python 3.9 or later. Python 3.11 is used in this example.
+Linux is suitable for local and cluster calculations; external executables and
+MPI must match the target machine. See :doc:`requirements` for dependencies.
+
+Create a Python environment
+-------------------------------
+
+.. code-block:: bash
+
+   conda create -n nepkappa python=3.11
+   conda activate nepkappa
+
+Alternatively, create and activate a virtual environment with
+``python -m venv .venv`` and ``source .venv/bin/activate``.
+
+Obtain the source
+---------------------
 
 .. code-block:: bash
 
    git clone https://github.com/lyushisyan/NEP-kappa.git
    cd NEP-kappa
-   python -m venv .venv
-   source .venv/bin/activate
+
+Install and check
+---------------------
+
+.. code-block:: bash
+
    python -m pip install -e .
+   python -m pip check
    nepkappa --version
    nepkappa info examples/nep-rta-wigner-3ph.yaml
 
-The editable installation uses this checkout directly. After local source
-updates, the command sees them; reinstall when dependency declarations change.
-Python libraries for the standard NEP/Phonopy/phono3py workflow are installed
-from ``pyproject.toml``.
+The editable installation uses this checkout directly. Python dependencies
+for the standard NEP/Phonopy/phono3py workflow are installed from
+``pyproject.toml``. ``info`` checks configuration without starting a calculation.
 
 Choose additional backends
-----------------------------
+------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -55,5 +74,22 @@ Executable discovery can be checked with ``command -v phono3py`` and, when
 needed, ``command -v thirdorder_vasp.py`` or ``command -v Fourthorder_vasp.py``.
 A parser check alone does not test these programs or run a force calculation.
 
-Next: :doc:`starting`. For testing and documentation builds, see
-:doc:`development`.
+Environment management and updates
+--------------------------------------
+
+Activate the environment in each new shell before using NEP-kappa. For a Git
+checkout, review local changes before updating:
+
+.. code-block:: bash
+
+   conda activate nepkappa
+   cd /path/to/NEP-kappa
+   git status
+   git pull --ff-only
+   python -m pip install -e .
+   python -m pip check
+   nepkappa --version
+
+Use the same environment and external programs on cluster compute nodes.
+Continue with :doc:`starting`; development and documentation build instructions
+are in :doc:`development`.

@@ -51,7 +51,7 @@ Do not require a potential or FC3 for FC2-only plotting, or a calculator for
 TD-BTE using existing force constants or a kernel. Inspect available artifacts
 before promising plots.
 
-Use one minimal example. For phonon properties and thermal transport, start from the six-section input
+Use one minimal example. For a complete `run` of phonon properties and thermal transport, start from the six-section input
 in `examples/nep-rta-wigner-3ph.yaml`: structure, calculator, force-constant, kappa, plot,
 and output. `structure.relaxation` controls optimization. QHA, SSCHA, and
 four-phonon switches belong inside `force-constant` and select additional
@@ -75,13 +75,26 @@ For a VASP harmonic calculation, use `nepkappa fc2` on a suitable VASP
 six-section input, then `nepkappa plot` after FC2 exists. Run `nepkappa relax`
 first if `structure.relaxation: true`; `nepkappa fc2fc3` computes both force
 constant orders without invoking transport.
-All six from-scratch sections must be present; use `{}` for an unused section.
-The TD-BTE reuse input has only `tdbte` and `output`. Older top-level
+Only `run` requires all six sections; use `{}` for an unused section. Direct
+commands accept minimal stage inputs or complete inputs. `relax` needs
+`structure` and `calculator`; `fc2`/`fc2fc3` additionally need `force-constant`.
+Ordinary `kappa` needs only `kappa`; `tdbte` needs only `tdbte` and existing
+artifacts. `plot` can use `plot`/`output`; add mesh/temperature or geometry
+settings only when needed. `output` is optional for these commands (default
+`result`), but explicit paths are recommended. `report` needs only
+`output.result-dir`, or a result-directory argument. Coupled QHA/SSCHA
+transport still requires the configurations used to compute new forces.
+A compact TD-BTE reuse input must use `tdbte`, never `run`. Older top-level
 `workflow`, `relaxation`, `qha`, `scph`, and `fourphonon` sections and flat
 parameters are rejected. Small variants such as RTA versus LBTE should edit
 the transport method, not create duplicate sections. Put user calculations under
 `calculations/<material-or-study>/`
 unless they choose another location. `examples/` is the public template catalog.
+
+Use `calculator.model` for both NEP and MACE; `calculator.name` selects
+the backend (default NEP). The legacy NEP `nep-model` key remains valid,
+but never combine it with `model`, even for identical paths. For generic
+ASE/plugin calculators, pass model-loading options through `kwargs`.
 
 Model identity is not established by its filename or directory. For readable
 NEP models inspect the header and ensure the structure's species are covered.
@@ -115,8 +128,8 @@ nepkappa info input.yaml --for run
 ```
 
 Replace `run` with the intended direct command (`relax`, `fc2`, `fc2fc3`,
-`kappa`, `tdbte`, or `plot`) for a narrower check. `report` reads
-existing results rather than validating an alternate YAML schema.
+`kappa`, `tdbte`, `plot`, or `report`) for a narrower check. Plain `info`
+checks the six-section `run` form; use `--for` for compact stage inputs.
 
 Repair the reported cause and repeat failed checks without dropping requested
 features. Check required files separately, distinguishing future stage outputs
