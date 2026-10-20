@@ -3,7 +3,7 @@ References
 
 If you use **NEP-kappa** in your research, please cite the following references.
 
-NEP-kappa framework
+Workflow references
 -------------------
 
 [1] S. Liu et al.,
@@ -11,9 +11,6 @@ NEP-kappa framework
 arXiv preprint (2026),
 `arXiv:2610.25477 <https://arxiv.org/abs/2610.25477>`_,
 `doi:10.48550/arXiv.2610.25477 <https://doi.org/10.48550/arXiv.2610.25477>`_.
-
-Workflow reference
---------------------
 
 [2] F. Yin, et al.,
 *Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
@@ -30,6 +27,6 @@ J. Phys. Chem. Lett. **16**, 8580-8587 (2025).
 Citation note
 ---------------
 
-Please cite Ref. [1] for the NEP-kappa framework and Ref. [2] when using the NEP and compressed-sensing workflow described there.
+If you use the NEP-kappa workflow, please cite Refs. [1] and [2].
 
 If your calculation uses the Si nanowire NEP model distributed with this project, please also cite Ref. [3].

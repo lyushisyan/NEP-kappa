@@ -267,8 +267,6 @@ arXiv preprint (2026).
 [arXiv:2610.25477](https://arxiv.org/abs/2610.25477) ·
 [DOI: 10.48550/arXiv.2610.25477](https://doi.org/10.48550/arXiv.2610.25477)
 
-Related workflow paper:
-
 F. Yin et al., *Accelerated phonon transport calculations for nanostructures:
 Combining neuroevolution potentials and compressed sensing*,
 Journal of Applied Physics **139**, 135103 (2026).
