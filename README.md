@@ -267,20 +267,6 @@ arXiv preprint (2026).
 [arXiv:2610.25477](https://arxiv.org/abs/2610.25477) ·
 [DOI: 10.48550/arXiv.2610.25477](https://doi.org/10.48550/arXiv.2610.25477)
 
-```bibtex
-@misc{liu2026nepkappa,
-  author={Liu, Shixian and Liu, Bin and Yin, Fei and Wang, Gang and Dong, Yiming and Qin, Yangjun and Kosyakova, Alexandra V. and Xian, Qiang and Barinov, Alexander A. and Xu, Ke and Zhang, Gang},
-  title={NEP-kappa 2.0: A unified framework for phonon transport and nonequilibrium thermalization with machine-learning interatomic potentials},
-  journal={arXiv preprint},
-  year={2026},
-  doi={10.48550/arXiv.2610.25477},
-  eprint={2610.25477},
-  archivePrefix={arXiv},
-  primaryClass={cond-mat.mtrl-sci},
-  url={https://arxiv.org/abs/2610.25477}
-}
-```
-
 Related workflow paper:
 
 F. Yin et al., *Accelerated phonon transport calculations for nanostructures:

@@ -97,7 +97,7 @@ F. Yin, S. Liu, Y. Dong, A. A. Barinov, K. Xu and V. I. Khvesyuk,
 *Accelerated phonon transport calculations for nanostructures: Combining
 neuroevolution potentials and compressed sensing*, Journal of Applied Physics
 **139**, 135103 (2026), `doi:10.1063/5.0324012 <https://doi.org/10.1063/5.0324012>`_.
-See :doc:`reference` for BibTeX and model-specific references.
+See :doc:`reference` for model-specific references.
 
 Related links
 -----------------
