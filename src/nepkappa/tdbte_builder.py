@@ -11,11 +11,11 @@ from pathlib import Path
 import numpy as np
 
 from .tdbte import ShellKernel
-from .tdbte_quadrature import section_quadrature
+from .tdbte_quadrature import section_quadrature, interval_quadrature
 from .tdbte_storage import ChunkWriter, atomic_json, sha256
 
 INPUT_FILES = ('phono3py_disp.yaml', 'fc2.hdf5', 'fc3.hdf5')
-BUILDER_VERSION = 1
+BUILDER_VERSION = 2
 CHUNK_EVENTS = 20000
 CUTOFF_THz = 1e-4
 
@@ -31,8 +31,10 @@ def source_hashes(source):
 def validate_mesh(mesh):
     if (not isinstance(mesh, (list, tuple, np.ndarray)) or len(mesh) != 3
             or any(isinstance(n, (bool, np.bool_)) or not isinstance(n, (int, np.integer))
-                   or n < 2 for n in mesh)):
-        raise ValueError('tdbte.mesh requires three integers >= 2 (full 3D Gamma-centered grid)')
+                   or n < 1 for n in mesh)
+            or np.count_nonzero(np.asarray(mesh) > 1) not in (1, 3)):
+        raise ValueError('tdbte.mesh requires a full 3D grid (all >= 2) or a 1D grid '
+                         '(one entry >= 2, two entries equal to 1); 2D is unsupported')
     return np.asarray(mesh, dtype=int)
 
 
@@ -45,16 +47,48 @@ def _geometry(addresses, mesh):
         return np.array([lookup[tuple(row % mesh)] for row in a.reshape(-1, 3)],
                         dtype=int).reshape(a.shape[:-1])
 
+    axes = np.flatnonzero(mesh > 1)
     local = []
-    for permutation in itertools.permutations(range(3)):
-        vertices = np.zeros((4, 3), int)
+    for permutation in itertools.permutations(axes):
+        vertices = np.zeros((len(axes) + 1, 3), int)
         for k, axis in enumerate(permutation):
             vertices[k + 1] = vertices[k]
             vertices[k + 1, axis] = 1
         local.append(vertices)
     local = np.asarray(local)
-    q1 = indices(addresses[:, None, None, :] + local[None, :, :, :]).reshape(-1, 4)
+    q1 = indices(addresses[:, None, None, :] + local[None, :, :, :]).reshape(-1, len(axes) + 1)
     return indices, q1, np.tile(local, (len(addresses), 1, 1))
+
+
+def _check_wire_rigid_modes(pp, gamma, zero, axis):
+    """Verify the mass-weighted Gamma null space, including axial rotation.
+
+    Frequencies alone cannot distinguish a rigid rotation from a soft internal
+    mode. Compare subspaces so arbitrary mixing of degenerate eigenvectors is
+    harmless. Positions must describe a contiguous ribbon across the vacuum.
+    """
+    count = np.count_nonzero(zero)
+    if count not in (3, 4):
+        raise ValueError('1D Gamma requires three translations and optionally one axial rotation')
+    primitive = pp.primitive
+    masses = np.asarray(primitive.masses)
+    positions = np.asarray(primitive.positions)
+    direction = np.array(primitive.cell[axis], dtype=float, copy=True)
+    direction /= np.linalg.norm(direction)
+    translations = (np.sqrt(masses)[:, None, None] * np.eye(3)[None, :, :]).reshape(-1, 3)
+    basis = translations
+    if count == 4:
+        centered = positions - np.average(positions, axis=0, weights=masses)
+        rotation = (np.sqrt(masses)[:, None] * np.cross(direction, centered)).ravel()
+        if np.linalg.norm(rotation) < 1e-10:
+            raise ValueError('Cannot identify an axial rigid rotation in this 1D structure')
+        basis = np.column_stack((basis, rotation))
+    basis = np.linalg.qr(basis)[0]
+    eigenvectors = np.asarray(pp.get_phonons()[1])[gamma][:, zero]
+    residual = np.linalg.norm(eigenvectors - basis @ (basis.conj().T @ eigenvectors), ord=2)
+    if not np.isfinite(residual) or residual > 1e-5:
+        raise ValueError('1D near-zero Gamma modes are not rigid translations/axial rotation; '
+                         'check FC2 rotational sum rules and ribbon geometry')
 
 
 def _prepare_modes(pp, mesh):
@@ -70,8 +104,15 @@ def _prepare_modes(pp, mesh):
         raise ValueError('Invalid native phonon frequencies')
     nb = original.shape[1]
     zero = abs(original) <= CUTOFF_THz
-    expected = np.all(addresses == 0, axis=1)[:, None] & (np.arange(nb)[None, :] < 3)
-    if nb < 3 or not np.array_equal(zero, expected) or np.any(original[~zero] <= 0):
+    gamma_mask = np.all(addresses == 0, axis=1)
+    if np.count_nonzero(mesh > 1) == 1:
+        gamma = np.flatnonzero(gamma_mask)
+        if len(gamma) != 1 or np.any(zero[~gamma_mask]) or np.any(original[~zero] <= 0):
+            raise ValueError('1D spectrum has unstable or extra near-zero modes away from Gamma')
+        _check_wire_rigid_modes(pp, int(grid.grg2bzg[gamma[0]]), zero[gamma[0]],
+                                int(np.flatnonzero(mesh > 1)[0]))
+    elif nb < 3 or not np.array_equal(
+            zero, gamma_mask[:, None] & (np.arange(nb)[None, :] < 3)) or np.any(original[~zero] <= 0):
         raise ValueError('Only three near-zero Gamma translations are allowed; '
                          'check FC2 stability and acoustic sum rules before TD-BTE')
     frequency = original.copy()
@@ -148,6 +189,11 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
         raise ValueError('Native phonon cutoff differs from the TD-BTE acoustic boundary')
     addresses, frequency, zero, original = _prepare_modes(pp, mesh)
     nq, nb = frequency.shape
+    dimension = int(np.count_nonzero(mesh > 1))
+    quadrature = interval_quadrature if dimension == 1 else section_quadrature
+    if dimension == 1:
+        print('TD-BTE 1D: experimental interval kernel; acoustic boundary and '
+              'absolute relaxation rates require physical validation.', flush=True)
     if excited_branches is not None and any(b >= nb for b in excited_branches):
         raise ValueError(f'Excited branch index is absent: this structure has {nb} branches')
     indices, q1, geometry = _geometry(addresses, mesh)
@@ -165,11 +211,15 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
         'coefficient_time_unit': 'ps', 'coefficient_conversion': conversion,
         'native_cutoff_frequency_THz': float(pp.cutoff_frequency),
         'mesh': mesh.tolist(), 'uniform_mode_weight': 1 / nq,
+        'integration_dimension': dimension,
+        'periodic_axis': int(np.flatnonzero(mesh > 1)[0]) if dimension == 1 else None,
+        'acoustic_branch_indices': np.flatnonzero(zero[np.all(addresses == 0, axis=1)][0]).tolist(),
         'mode_branch_indices': np.tile(np.arange(nb), nq).tolist(),
         'grid_addresses': addresses.tolist(), 'source': str(source), 'input_sha256': hashes,
-        'quadrature': 'six Freudenthal tetrahedra/cell; symmetric-degree2',
+        'quadrature': ('linear intervals; exact simple roots; endpoint half weights' if dimension == 1
+                       else 'six Freudenthal tetrahedra/cell; symmetric-degree2'),
         'normalization': 'ordered daughters; 4*pi*U*strength*surface weight; strength includes 1/Nq',
-        'boundary_assumptions': 'three fixed Gamma translations; eta_Gamma=0; strength_Gamma=0; acoustic limit not off-grid validated',
+        'boundary_assumptions': 'fixed Gamma rigid modes; eta_Gamma=0; strength_Gamma=0; acoustic limit not off-grid validated',
         'max_rigid_frequency_adjustment_THz': float(abs(original[zero]).max()),
         'source_sum_rule_diagnostics': {
             'fc2_sum_second_atom_max': float(abs(ph.fc2.sum(axis=1)).max()),
@@ -177,7 +227,11 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
             'fc3_sum_third_atom_max': float(abs(ph.fc3.sum(axis=2)).max()),
             'note': 'Compact-array partial checks; inputs are not modified or symmetrized'},
         'validated_for_physical_dynamics': False,
-        'limitations': 'frequency-sorted branches; acoustic endpoints and mesh/surface quadrature convergence need validation; not the native phono3py tetrahedron operator',
+        'limitations': ('frequency-sorted branches; acoustic endpoints and mesh/quadrature convergence need validation; '
+                       '1D zero vertex interpolants contribute zero, including unresolved first acoustic cells; '
+                       'nonzero flat resonances rejected; absolute 1D rates not independently validated'
+                       if dimension == 1 else
+                       'frequency-sorted branches; acoustic endpoints and mesh/surface quadrature convergence need validation; not the native phono3py tetrahedron operator'),
     }
     print(f'TD-BTE kernel: {nq} q points, {nb} branches; native vertex block '
           f'{nq * nb**3 * 8 / 2**20:.1f} MiB; streaming event chunks', flush=True)
@@ -185,6 +239,7 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
     buffers = [[] for _ in range(5)]
     parents, firsts, seconds, barys, rates = buffers
     max_residual = 0.
+    zero_strength_intervals = 0
 
     def flush():
         nonlocal max_residual
@@ -210,10 +265,18 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
                 detuning = frequency[p, a] - frequency[q1, b] - frequency[q2, c]
                 hit = (detuning.min(axis=1) <= 0) & (detuning.max(axis=1) >= 0)
                 for it in np.flatnonzero(hit):
-                    # Reject singular resonant volumes, even if grid vertices
-                    # happen to have zero strength. Never publish partial sums.
-                    nodes = section_quadrature(geometry[it], detuning[it])
                     vertex_strength = strength[q1[it], a, b, c]
+                    if dimension == 1 and np.all(vertex_strength == 0):
+                        # The selected linear vertex interpolant is identically
+                        # zero on this interval, including under any finite
+                        # delta regularization. Count this explicitly: at the
+                        # first acoustic cell it is an unresolved boundary
+                        # approximation, NOT evidence of physical zero coupling.
+                        zero_strength_intervals += 1
+                        continue
+                    # Nonzero flat resonances are singular, never broadened or
+                    # dropped. The 3D rejection policy remains unchanged.
+                    nodes = quadrature(geometry[it], detuning[it])
                     for w, surface_weight in nodes:
                         rate = conversion * (w @ vertex_strength) * surface_weight
                         if rate <= 0:
@@ -230,6 +293,10 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
         if source_hashes(source) != hashes:
             raise ValueError('Force-constant inputs changed during kernel construction')
         writer.metadata['max_shell_residual_THz'] = max_residual
+        writer.metadata['zero_strength_intervals'] = zero_strength_intervals
+        if dimension == 1:
+            print(f'TD-BTE 1D: {zero_strength_intervals} resonant intervals have '
+                  'identically zero vertex interpolants (including unresolved acoustic cells).', flush=True)
         return writer.finish()
     except Exception as exc:
         atomic_json(directory / 'build-failure.json', {

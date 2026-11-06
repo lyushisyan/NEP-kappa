@@ -42,7 +42,8 @@ class ShellKernel:
             raise ValueError('Empty or malformed mode/event arrays')
         if self.zero.dtype != np.bool_ or self.zero.shape != f.shape:
             raise ValueError('zero_modes must be a boolean mode mask')
-        if w.shape != (len(p), 4) or c.shape != p.shape:
+        if (w.ndim != 2 or w.shape[0] != len(p) or w.shape[1] not in (2, 4)
+                or c.shape != p.shape):
             raise ValueError('Invalid shell weight/coefficient shape')
         for a in (f, w, c):
             if not np.isfinite(a).all() or np.any(a < 0):
@@ -173,6 +174,9 @@ def run_tdbte(config):
     provenance = {'kernel_path': str(source.resolve()), 'kernel_sha256': sha256(source),
                   'metadata_sha256': sha256(metadata_path),
                   'mesh': metadata.get('mesh'), 'input_sha256': metadata.get('input_sha256'),
+                  'integration_dimension': metadata.get('integration_dimension', 3),
+                  'acoustic_branch_indices': metadata.get('acoustic_branch_indices'),
+                  'zero_strength_intervals': metadata.get('zero_strength_intervals', 0),
                   'kernel_chunks': len(metadata.get('chunks', [])),
                   'collision_backend': getattr(kernel, 'backend', 'numpy'),
                   'kernel_limitations': metadata.get('limitations'),

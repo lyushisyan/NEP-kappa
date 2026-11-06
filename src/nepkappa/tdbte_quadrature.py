@@ -6,6 +6,33 @@ tetrahedron collision operator. Coordinates are in mesh-cell units.
 import numpy as np
 
 
+def interval_quadrature(vertices, detuning):
+    """Integrate delta(linear detuning) on a 1D cell in mesh-cell units.
+
+    A root at a shared endpoint receives half weight from either cell. Flat
+    resonances are singular, not zero scattering, and must not be discarded.
+    The native vertex already contains 1/Nq, so no additional mesh factor is
+    included here. Near-tangent roots require independent mesh convergence.
+    """
+    vertices, d = np.asarray(vertices, float), np.asarray(detuning, float)
+    if (vertices.shape != (2, 3) or d.shape != (2,)
+            or not np.isfinite(vertices).all() or not np.isfinite(d).all()):
+        raise ValueError('Invalid interval vertices/detuning')
+    length = np.linalg.norm(vertices[1] - vertices[0])
+    if length <= 0:
+        raise ValueError('Degenerate interval')
+    slope = d[1] - d[0]
+    if abs(slope) < 1e-13:
+        if np.max(abs(d)) < 1e-12:
+            raise ValueError('Flat resonant interval: undefined delta integral')
+        return []
+    if min(d) > 0 or max(d) < 0:
+        return []
+    t = -d[0] / slope
+    boundary = .5 if d[0] == 0 or d[1] == 0 else 1.
+    return [(np.array([1 - t, t]), boundary * length / abs(slope))]
+
+
 def section_quadrature(vertices, detuning, rule='symmetric-degree2'):
     """Integrate delta(linear detuning) over a tetrahedron.
 

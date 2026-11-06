@@ -8,7 +8,7 @@ import numpy as np
 
 from .tdbte import ShellKernel
 
-FORMAT = 'nepkappa-tdbte-shell-v1'
+FORMAT = 'nepkappa-tdbte-shell-v2'
 EVENT_FIELDS = ('parent', 'daughter1', 'daughter2', 'weights', 'coefficients')
 
 
@@ -91,7 +91,7 @@ class ChunkedKernel:
         self.root = self.path.parent
         self.metadata = json.loads(self.path.read_text())
         meta = self.metadata
-        if meta.get('format') != FORMAT or meta.get('complete') is not True:
+        if meta.get('format') not in (FORMAT, 'nepkappa-tdbte-shell-v1') or meta.get('complete') is not True:
             raise ValueError('Unsupported or incomplete TD-BTE chunk manifest')
         self.chunks = meta.get('chunks')
         if not isinstance(self.chunks, list) or not self.chunks:

@@ -15,7 +15,7 @@ See :doc:`installation` for environment setup.
 - hiphive
 - trainstation
 - seekpath
-- calorine
+- calorine>=3.5 (CPU and GPU)
 - tqdm
 - PyYAML
 
@@ -23,6 +23,8 @@ Additional requirements
 -------------------------
 
 - a valid NEP model file is required when using the ``nep`` force backend
+- optional NEP GPU batches additionally require GPUMD's ``nep`` executable
+  on a compatible GPU node
 - VASP force calculations require a working VASP executable and POTCAR file or potential library
 - VASP examples contain placeholder paths that must be configured before use
 - bundled examples use paths relative to the repository root; custom inputs

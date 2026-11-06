@@ -42,7 +42,7 @@ class StructureRelaxationStage(HostStage):
 
         calculator = workflow._calculator_name()
         if calculator == "vasp":
-            primitive = workflow._run_vasp_relaxation(primitive)
+            primitive = workflow._make_vasp_backend().relax(primitive)
         elif calculator == "nep":
             print(f"  - Relaxing structure using NEP: {workflow.cfg.nep_model}")
             primitive.calc = workflow._make_nep_calculator()

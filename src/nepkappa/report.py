@@ -42,7 +42,7 @@ def resolve_result_directory(source):
         raise FileNotFoundError(f"Result directory or YAML input not found: {source}")
     if source.suffix.lower() not in {".yaml", ".yml"}:
         raise ValueError("Report input must be a result directory or a YAML file.")
-    from nepkappa.config import load_yaml_strict
+    from nepkappa.config_schema import load_yaml_strict
 
     data = load_yaml_strict(source.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict) or not isinstance(data.get("output", {}), dict):

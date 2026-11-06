@@ -168,20 +168,20 @@ class QHAWorkflow:
                 "ediffg": -float(self.cfg.qha_relax_fmax),
                 **self.cfg.qha_vasp_relax_kwargs,
             }
-            self.workflow._write_vasp_run_inputs(
+            self.workflow._make_vasp_backend().write_run_inputs(
                 relax_dir,
                 atoms,
                 incar_overrides=overrides,
                 system="NEP-kappa QHA fixed-cell relaxation",
             )
             ret = self.workflow._run_command(
-                self.workflow._vasp_command(), cwd=relax_dir
+                self.workflow._make_vasp_backend().command(), cwd=relax_dir
             )
             if ret != 0:
                 raise RuntimeError(
                     f"VASP QHA relaxation failed in {relax_dir} with return code {ret}"
                 )
-            relaxed = self.workflow._read_vasp_relaxed_structure(relax_dir)
+            relaxed = self.workflow._make_vasp_backend().read_relaxed_structure(relax_dir)
             # Guard against a calculator changing the QHA volume by mistake.
             relaxed.set_cell(atoms.cell, scale_atoms=False)
             return relaxed
@@ -203,14 +203,14 @@ class QHAWorkflow:
                 "nsw": 0,
                 **self.cfg.qha_vasp_static_kwargs,
             }
-            self.workflow._write_vasp_run_inputs(
+            self.workflow._make_vasp_backend().write_run_inputs(
                 static_dir,
                 atoms,
                 incar_overrides=overrides,
                 system="NEP-kappa QHA static energy",
             )
             ret = self.workflow._run_command(
-                self.workflow._vasp_command(), cwd=static_dir
+                self.workflow._make_vasp_backend().command(), cwd=static_dir
             )
             if ret != 0:
                 raise RuntimeError(
@@ -255,7 +255,7 @@ class QHAWorkflow:
         for number, supercell in enumerate(supercells, 1):
             displaced = phonopy_to_ase(supercell)
             if self.workflow._calculator_name() == "vasp":
-                force = self.workflow._run_vasp_forces_in_dir(
+                force = self.workflow._make_vasp_backend().run_forces_in_dir(
                     point_dir / "fc2" / f"{number:05d}",
                     displaced,
                     f"qha-{label}",
@@ -400,3 +400,57 @@ def write_energy_volume(path, volumes, energies):
         fmt="%.12f",
         header="primitive_cell_volume_A3 primitive_cell_energy_eV",
     )
+
+
+def load_qha_equilibrium_volumes(result_dir):
+    """Load QHA temperatures, primitive volumes, and normalization metadata."""
+    result_dir = Path(result_dir)
+    volume_path = result_dir / "volume-temperature.dat"
+    summary_path = result_dir / "qha-summary.yaml"
+    missing = [path for path in (volume_path, summary_path) if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "Completed QHA outputs are required. Missing: "
+            + ", ".join(str(path) for path in missing)
+        )
+    values = np.loadtxt(volume_path, comments="#", ndmin=2)
+    if values.shape[1] < 2 or values.shape[0] < 2:
+        raise ValueError(f"Invalid QHA volume table: {volume_path}")
+    temperatures = np.asarray(values[:, 0], dtype=float)
+    volumes = np.asarray(values[:, 1], dtype=float)
+    if not np.all(np.isfinite(temperatures)) or not np.all(np.isfinite(volumes)):
+        raise ValueError(f"Non-finite values in QHA volume table: {volume_path}")
+    if np.any(np.diff(temperatures) <= 0) or np.any(volumes <= 0):
+        raise ValueError(
+            "QHA volume-temperature data require increasing temperatures and "
+            "positive volumes."
+        )
+    summary = yaml.safe_load(summary_path.read_text(encoding="utf-8")) or {}
+    multiplicity = int(summary.get("normalization_multiplicity", 0))
+    if multiplicity <= 0:
+        raise ValueError(
+            f"Missing positive normalization_multiplicity in {summary_path}"
+        )
+    return temperatures, volumes, multiplicity
+
+
+def validate_temperature_range(requested, available):
+    """Ensure requested temperatures can be interpolated from the QHA result."""
+    if requested.size == 0:
+        raise ValueError("No temperatures were requested.")
+    if requested.min() < available.min() or requested.max() > available.max():
+        raise ValueError(
+            "Requested temperatures must lie inside the completed QHA range "
+            f"[{available.min():g}, {available.max():g}] K."
+        )
+
+
+def scale_atoms_to_primitive_volume(atoms, primitive_volume, multiplicity):
+    """Isotropically scale a cell to a target primitive-cell volume."""
+    if primitive_volume <= 0 or multiplicity <= 0:
+        raise ValueError("Target volume and normalization multiplicity must be positive.")
+    target_volume = float(primitive_volume) * int(multiplicity)
+    scale = (target_volume / float(atoms.get_volume())) ** (1.0 / 3.0)
+    scaled = atoms.copy()
+    scaled.set_cell(atoms.cell * scale, scale_atoms=True)
+    return scaled, float(scale)

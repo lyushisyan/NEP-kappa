@@ -140,8 +140,14 @@ def interpolate_mesh_energy(addresses, mesh, values, qpoints):
     """Periodic trilinear interpolation of frequency-sorted branch energies."""
     mesh = np.asarray(mesh, dtype=int)
     addresses = np.asarray(addresses)
-    if mesh.shape != (3,) or np.any(mesh < 2):
-        raise ValueError('TD-BTE dispersion needs a full diagonal mesh')
+    from .tdbte_builder import validate_mesh
+    validate_mesh(mesh)
+    qpoints = np.asarray(qpoints, dtype=float)
+    if qpoints.ndim != 2 or qpoints.shape[1] != 3 or not np.isfinite(qpoints).all():
+        raise ValueError('Invalid TD-BTE dispersion q points')
+    inactive = mesh == 1
+    if np.any(inactive) and not np.allclose(qpoints[:, inactive], np.rint(qpoints[:, inactive]), atol=1e-12, rtol=0):
+        raise ValueError('1D TD-BTE band path must stay on the periodic axis')
     nq = int(np.prod(mesh))
     if (addresses.shape != (nq, 3) or not np.issubdtype(addresses.dtype, np.integer)
             or values.shape[0] != nq):
@@ -205,8 +211,8 @@ def _load_dynamics(config, times, energies, csv_labels):
         raise ValueError('Malformed TD-BTE trajectory arrays')
     labels = np.unique(branch_ids)
     nb = len(labels)
-    if nb < 4 or not np.array_equal(labels, np.arange(nb)):
-        raise ValueError('Acoustic/optical panels require three acoustic branches and optical branches')
+    if nb < 3 or not np.array_equal(labels, np.arange(nb)):
+        raise ValueError('TD-BTE panels require contiguous branch indices')
     if csv_labels != [str(b) for b in labels]:
         raise ValueError('Branch-energy labels differ from trajectory branches')
     temperature = float(audit['temperature_K'])
@@ -266,7 +272,17 @@ def _load_dynamics(config, times, energies, csv_labels):
     check[abs(check) <= 1e-4] = 0.
     if not np.allclose(check.ravel(), frequency, rtol=1e-7, atol=1e-5):
         raise ValueError('Dispersion FC2 frequencies do not match TD-BTE modes')
-    paths, path_labels = make_band_paths(phonon.primitive, config)
+    if np.count_nonzero(mesh > 1) == 1 and getattr(config, 'plot_path', 'seekpath') != 'custom':
+        endpoint = np.zeros(3)
+        endpoint[np.flatnonzero(mesh > 1)[0]] = .5
+        paths, path_labels = [np.linspace(np.zeros(3), endpoint, 51)], [('Γ', 'X')]
+    else:
+        paths, path_labels = make_band_paths(phonon.primitive, config)
+    acoustic = metadata.get('acoustic_branch_indices', [0, 1, 2])
+    if (not isinstance(acoustic, list) or not acoustic
+            or any(type(b) is not int or b not in labels for b in acoustic)
+            or len(set(acoustic)) != len(acoustic)):
+        raise ValueError('Invalid acoustic branch indices in TD-BTE metadata')
     phonon.run_band_structure(paths, is_band_connection=False)
     band = phonon.get_band_structure_dict()
     band['labels'] = path_labels
@@ -274,6 +290,7 @@ def _load_dynamics(config, times, energies, csv_labels):
     snapshots = excess[:, indices].reshape(-1, nb, 3)
     colours = [interpolate_mesh_energy(addresses, mesh, snapshots, q) for q in paths]
     return dict(band=band, colours=colours, indices=indices, labels=labels,
+                acoustic=acoustic, optical=[int(b) for b in labels if b not in acoustic],
                 temperatures=branch_temperatures(frequency, occupations, branch_ids, weight),
                 reference_temperature=temperature, source=source)
 
@@ -367,9 +384,9 @@ def plot_tdbte_results(config):
         elif index == 3:
             draw_branches(ax)
         elif index == 4:
-            draw_temperature(ax, range(3), 'Acoustic branches')
+            draw_temperature(ax, dynamics['acoustic'], 'Acoustic branches (Γ classification)')
         else:
-            draw_temperature(ax, range(3, len(csv_labels)), 'Optical branches')
+            draw_temperature(ax, dynamics['optical'], 'Optical branches (Γ classification)')
 
     output = root / 'plots'
     output.mkdir(parents=True, exist_ok=True)
@@ -406,7 +423,9 @@ def plot_tdbte_results(config):
     (output / 'tdbte_plot_metadata.json').write_text(json.dumps({
         'snapshot_times_ps': times[dynamics['indices']].tolist(),
         'colour_quantity': 'H*f*(n(t)-n_Bose(T0)) in eV/mode; no zero-point contribution',
-        'colour_interpolation': 'periodic trilinear, frequency-sorted branches; visual interpolation only',
+        'colour_interpolation': 'periodic multilinear (linear in 1D), frequency-sorted branches; visual interpolation only',
+        'acoustic_branch_indices': dynamics['acoustic'],
+        'branch_classification': 'Gamma rigid modes; frequency ordering elsewhere, not polarization tracking',
         'colour_limits_eV_per_mode': [norm.vmin, norm.vmax],
         'reference_temperature_K': reference,
         'branch_temperature': 'Bose energy-equivalent temperature on the same q mesh; fixed zero modes excluded',

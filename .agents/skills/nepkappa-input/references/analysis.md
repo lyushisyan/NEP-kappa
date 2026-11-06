@@ -66,7 +66,8 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
   For artifact reuse, use a two-section `tdbte`/`output` input and set
   `tdbte.force-constants` to a directory containing matching
   `phono3py_disp.yaml`, `fc2.hdf5`, and `fc3.hdf5`, and set `tdbte.mesh` to three
-  integers >= 2. If neither source nor kernel is specified, direct `tdbte`
+  integers >= 2 for 3D, or one integer >= 2 and two ones for experimental 1D
+  ribbon/chain relaxation (for example `[51,1,1]`). 2D meshes are unsupported. If neither source nor kernel is specified, direct `tdbte`
   reads from `output.result-dir`, just as direct `kappa` does by default.
   Both commands accept `force-constants` in their respective sections to
   separate input and output directories. The source is reused; no calculator
@@ -75,14 +76,24 @@ laser-absorption, electron-phonon, coherent-phonon, or spatial transport model.
   completed packaged `tdbte-kernel/manifest.json`. Omit `mesh` on this route.
   Do not add the removed `experimental` key or substitute an LBTE matrix.
 - Automatic construction uses the full unshifted diagonal q grid. The branch
-  count comes from the structure, not a hardcoded SiC convention. NAC-bearing
-  inputs, unstable modes and extra near-zero modes are rejected. Do not discard
+  count comes from the structure, not a hardcoded SiC convention. The 1D route
+  uses interval roots and verifies three Gamma translations plus an optional
+  axial rotation against mass-weighted eigenvectors. NAC-bearing inputs,
+  unstable modes and extra/non-rigid near-zero modes are rejected. Do not discard
   Born charges or alter force constants just to bypass a check.
 - The builder and solver stream checked chunks; no manual concatenation is
   required. Old Figure6 research manifests are not the packaged format: rebuild
   from their recorded sources instead of changing a filename. `kappa.mesh`
   does not control TD-BTE. Dense grids can still be expensive in time and disk;
   chunking is not a convergence claim or permission to launch a large job.
+- For 1D, use vacuum-isolated structures and supercells along the periodic
+  direction. The TD-BTE mesh selects the integration dimension; no cross-sectional
+  area factor enters occupations or energy per primitive cell. Plots default to
+  Gamma--X along the active axis and classify acoustic branches from kernel
+  metadata. Nonzero flat resonances fail; identically zero vertex interpolants
+  contribute zero and are counted in `zero_strength_intervals`. The first
+  acoustic cells remain an unresolved boundary approximation. Do not describe
+  this experimental route as physically validated graphene-ribbon dynamics.
 - Check sidecar provenance, ps time unit, zero-based branch IDs, and uniform
   full-grid mode weight. Unequally weighted irreducible meshes are unsupported.
   Never assume branches `[3, 4, 5]` describe every material's optical modes.

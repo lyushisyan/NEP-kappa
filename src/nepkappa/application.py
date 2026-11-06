@@ -10,24 +10,32 @@ from dataclasses import dataclass, field
 import os
 import time
 
-from nepkappa.output import print_detail
+from nepkappa.output import print_detail, format_duration
 
 
 @dataclass
 class CommandExecution:
-    """Execution metadata returned to the CLI/provenance layer."""
+    """Command outcome: complete locally, or prepared/submitted for later work.
+
+    Exceptions propagate to the CLI as failures. Successful scheduler operations
+    retain their manifest status instead of claiming scientific completion.
+    """
 
     stage_timings: list[tuple[str, float]] = field(default_factory=list)
+    status: str = "complete"
 
     def run_stage(self, label, operation):
         """Run one operation and record a consistently formatted duration."""
         start = time.time()
         try:
-            return operation()
+            result = operation()
+            if isinstance(result, dict) and result.get("status") in {"prepared", "submitted"}:
+                self.status = result["status"]
+            return result
         finally:
             elapsed = time.time() - start
             self.stage_timings.append((label, elapsed))
-            print_detail(f"  - {label} elapsed time: {_format_duration(elapsed)}")
+            print_detail(f"  - {label} elapsed time: {format_duration(elapsed)}")
 
 
 class WorkflowStageRunner:
@@ -40,7 +48,7 @@ class WorkflowStageRunner:
 
     @property
     def core(self):
-        """Lazily create the compatibility context shared by all core stages."""
+        """Lazily create the structure/calculator context shared by core stages."""
         if self._core is None:
             from nepkappa.workflow import NEPPhononWorkflow
 
@@ -84,28 +92,46 @@ class WorkflowStageRunner:
         )
 
     def force_constants(self, *, include_fc3):
-        from nepkappa.force_constants import ForceConstantsWorkflow
+        """Prepare the structure, then fit locally or defer forces to Slurm."""
+        from pathlib import Path
+
+        from nepkappa.run_state import RunStateStore
         from nepkappa.stages.force_constants import (
-            FiniteDisplacementStage,
-            HiPhiveStage,
-            ThirdOrderStage,
+            FiniteDisplacementStage, HiPhiveStage, ThirdOrderStage,
         )
 
-        workflow = self.core
-        strategy = ForceConstantsWorkflow(
-            self.config,
-            prepare_structure=workflow.load_force_constant_structure,
-            timed_stage=self.execution.run_stage,
-            submit_slurm=workflow._submit_force_slurm,
-            run_finite_displacement=lambda include_fc3: FiniteDisplacementStage(
-                workflow, include_fc3=include_fc3
-            ).run(),
-            run_hiphive=lambda include_fc3: HiPhiveStage(
-                workflow, include_fc3=include_fc3
-            ).run(),
-            run_thirdorder=lambda: ThirdOrderStage(workflow).run(),
+        config, core = self.config, self.core
+        print("\n[Step 2] Generate Force Constants")
+        core.load_force_constant_structure()
+        collecting = os.environ.get("NEPKAPPA_FORCE_COLLECT") == "1"
+        parallel = getattr(config, "force_parallel", {}) or {}
+        if str(parallel.get("backend", "none")).lower() == "slurm" and not collecting:
+            return self.execution.run_stage(
+                "Slurm force preparation",
+                lambda: core._submit_force_slurm(include_fc3=include_fc3),
+            )
+
+        thirdorder = (
+            include_fc3 and getattr(config, "fc3_backend", "phono3py") == "thirdorder"
         )
-        return strategy.run(include_fc3=include_fc3)
+        native_fc3 = include_fc3 and not thirdorder
+        if getattr(config, "use_hiphive", False):
+            stage = HiPhiveStage(core, include_fc3=native_fc3)
+            label = "HiPhive fitting"
+        else:
+            stage = FiniteDisplacementStage(core, include_fc3=native_fc3)
+            label = "Finite displacement"
+        self.execution.run_stage(label, stage.run)
+        if thirdorder:
+            self.execution.run_stage("thirdorder FC3", ThirdOrderStage(core).run)
+        if collecting:
+            manifest = (
+                Path(getattr(config, "result_dir", "result")).resolve()
+                / "force-slurm" / "submission.yaml"
+            )
+            if manifest.is_file():
+                RunStateStore(manifest).mark_complete()
+        return None
 
     def fourth_order(self):
         from nepkappa.stages.force_constants import FourthOrderStage
@@ -136,7 +162,9 @@ class WorkflowStageRunner:
 
         return self.execution.run_stage(
             "Phonopy SSCHA",
-            PhonopySSCHAWorkflow(self.config, workflow=self.core).run,
+            PhonopySSCHAWorkflow(
+                self.config, workflow=self.core, execution=self.execution
+            ).run,
         )
 
     def bubble(self):
@@ -231,7 +259,7 @@ class WorkflowStageRunner:
 
         return self.execution.run_stage(
             "Report results",
-            lambda: generate_report(self.config.sections.output.result_dir),
+            lambda: generate_report(self.config.result_dir),
         )
 
 
@@ -249,7 +277,7 @@ def execute_workflow_command(command, config) -> CommandExecution:
 def execute_workflow_plan(config) -> CommandExecution:
     """Run the stages selected by input switches behind ``nepkappa run``."""
     execution = CommandExecution()
-    steps = list(config.sections.workflow.steps)
+    steps = list(config.workflow_steps)
     resume_after = os.environ.get("NEPKAPPA_RESUME_AFTER")
     if resume_after:
         if resume_after not in steps:
@@ -268,11 +296,8 @@ def execute_workflow_plan(config) -> CommandExecution:
     runner = WorkflowStageRunner(config, execution)
 
     for step in steps:
-        outcome = runner.run(step)
-        if step in {"fc2", "fc2fc3"} and outcome is not None:
-            _print_deferred(step)
-            break
-        if step == "kappa4" and isinstance(outcome, dict) and "submitted" in outcome:
+        runner.run(step)
+        if execution.status != "complete":
             _print_deferred(step)
             break
 
@@ -283,7 +308,7 @@ def execute_workflow_plan(config) -> CommandExecution:
 def _print_deferred(step):
     print(
         f"  - Plan paused after '{step}' because work was prepared or submitted. "
-        "The dependent collection job will resume the remaining plan."
+        "Scientific calculations are not yet complete."
     )
 
 
@@ -292,16 +317,4 @@ def _print_timing_summary(stage_timings):
         return
     print_detail("\n[Timing Summary]")
     for label, elapsed in stage_timings:
-        print_detail(f"  - {label:<24}: {_format_duration(elapsed)}")
-
-
-def _format_duration(seconds):
-    """Format a short stage duration without importing scientific backends."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    remaining = seconds % 60
-    if hours:
-        return f"{hours}h {minutes}m {remaining:.2f}s"
-    if minutes:
-        return f"{minutes}m {remaining:.2f}s"
-    return f"{remaining:.2f}s"
+        print_detail(f"  - {label:<24}: {format_duration(elapsed)}")

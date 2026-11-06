@@ -11,7 +11,7 @@ def _accumulate(n, eta, parent, first, second, weights, coefficients, rhs):
     for event in range(len(parent)):
         p = parent[event]
         eb, ec = 0., 0.
-        for j in range(4):
+        for j in range(weights.shape[1]):
             eb += weights[event, j] * eta[first[event, j]]
             ec += weights[event, j] * eta[second[event, j]]
         if eb <= 0 or ec <= 0:
@@ -24,7 +24,7 @@ def _accumulate(n, eta, parent, first, second, weights, coefficients, rhs):
         scale = np.log1p(n[p]) + lb + lc + max(affinity, 0.) + np.log(coefficients[event])
         flux = np.exp(scale) * np.sign(affinity) * (-np.expm1(-abs(affinity)))
         rhs[p] -= flux
-        for j in range(4):
+        for j in range(weights.shape[1]):
             value = weights[event, j] * flux
             rhs[first[event, j]] += value
             rhs[second[event, j]] += value

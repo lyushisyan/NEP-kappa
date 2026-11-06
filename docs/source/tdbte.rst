@@ -108,8 +108,10 @@ Input choices
 
 * ``force-constants`` is the source directory, not a request to compute forces.
 * ``mesh`` is the **q grid for the collision integral**, independent of
-  ``kappa.mesh``. Supply three integers of at least 2. The builder uses the full
-  unshifted, diagonal three-dimensional grid, not an irreducible grid.
+  ``kappa.mesh``. Supply three integers of at least 2 for 3D, or one integer
+  of at least 2 and two ones for the experimental 1D route, e.g. ``[51,1,1]``.
+  The builder uses a full unshifted diagonal grid, not an irreducible grid.
+  Two-dimensional meshes are not supported.
 * ``temperature`` (default 300 K) defines the initial Bose distribution.
 * ``branches`` explicitly lists zero-based, frequency-ordered branch IDs at
   every q point. The number of branches is read from the structure. ``[3,4,5]``
@@ -156,7 +158,7 @@ about 112 bytes per event, plus metadata; tens of millions of events require
 several GB of disk. Repeated block reads can become I/O-bound. Use local scratch
 storage when possible and benchmark a smaller grid before a large submission.
 
-The builder requires a stable harmonic spectrum with exactly three near-zero
+The 3D builder requires a stable harmonic spectrum with exactly three near-zero
 Gamma translations (absolute frequency <= 1e-4 THz), which it fixes at zero.
 Other imaginary or near-zero modes are rejected, not clipped. Input force
 constants are not silently symmetrized. The fixed-translation boundary uses
@@ -164,6 +166,71 @@ eta=0 and zero vertex strength on these legs; this acoustic-limit treatment
 needs separate validation. Flat resonant tetrahedra are rejected rather than
 omitted. NAC-bearing inputs and generalized/shifted grids are currently
 unsupported; Born-charge data must not be discarded just to bypass the check.
+
+One-dimensional ribbons and chains (experimental)
+------------------------------------------------------
+
+A mesh such as ``[51,1,1]`` selects a one-dimensional collision integral along
+the first reciprocal coordinate; the other two axes must be physically isolated
+by vacuum. The mesh selects this route, independently of the geometry factors
+used to normalize conductivity plots. All atomic displacement components and
+all phonon branches remain present. This remains a spatially homogeneous model:
+it does not propagate a heat pulse along the ribbon or impose end reservoirs.
+
+Reuse existing, matching force constants with the following illustrative input.
+Replace the source directory and choose branch indices from the actual ribbon
+spectrum; branch 4 is not a universal optical excitation. The mesh and duration
+are starting values, not converged settings.
+
+.. code-block:: yaml
+
+   tdbte:
+     force-constants: calculations/graphene-ribbon/force-constants
+     mesh: [51, 1, 1]
+     temperature: 300
+     branches: [4]
+     excitation: 0.01
+     duration-ps: 20
+     max-step-ps: 0.5
+     samples: 201
+   output:
+     result-dir: calculations/graphene-ribbon/tdbte-1d
+
+Validate with ``nepkappa info input.yaml --for tdbte`` and execute with
+``nepkappa tdbte input.yaml`` from the directory relative to which the paths
+are defined. A six-section input can also generate FC2/FC3 first using Tersoff
+or another supported calculator. Use supercells along the periodic direction
+and check that interactions do not cross the vacuum. This implementation does
+not infer vacuum sufficiency from the q mesh.
+
+The 1D builder replaces tetrahedra with intervals. It integrates simple roots
+of the piecewise-linear energy mismatch, using the inverse absolute slope and
+half weight at shared endpoints. Vertex strengths and entropy variables use
+the same two endpoint weights, with adjoint deposition for energy conservation
+and detailed balance. Native strengths contain ``1/Nq``; there is no additional
+mesh or cross-sectional-area factor in the occupation equation.
+
+Gamma may contain three rigid translations or those translations plus an axial
+rotation. The near-zero eigenvector subspace must match the corresponding
+mass-weighted rigid motions to a projection tolerance of ``1e-5``. The frequency
+threshold remains ``1e-4 THz``. Atom positions must form a contiguous ribbon
+across the vacuum for the rotation test. Extra soft modes, imaginary modes and
+non-rigid Gamma null spaces are rejected. Inputs are not silently repaired.
+
+An identically zero *linear vertex interpolant* contributes zero and is counted
+in ``zero_strength_intervals`` in the manifest and audit. This includes first
+acoustic cells whose endpoints have fixed rigid-mode legs; it is an unresolved
+low-frequency approximation, not proof of physically absent scattering inside
+the interval. Flat resonant intervals with nonzero interpolated coupling raise
+an error; no automatic broadening is applied. Near-tangent roots, branch
+crossings, rotational sum rules and the acoustic boundary require independent
+convergence and physical validation. Absolute graphene-nanoribbon relaxation
+rates have not been benchmarked; ``validated_for_physical_dynamics`` stays false.
+
+Plots default to Gamma--X along the active axis. Custom paths must stay on that
+axis. Acoustic/optical temperature panels use the Gamma classification stored
+in the kernel, which can include four acoustic branches. Indices elsewhere
+remain frequency ordered and do not track polarization through crossings.
 
 Reuse and failure handling
 ------------------------------
@@ -195,8 +262,9 @@ For a single-file kernel, required numeric arrays are:
 * ``frequency_THz``: (M,), nonnegative frequencies;
 * ``zero_modes``: boolean (M,), marking only fixed zero-energy translations;
 * ``parent``: integer (N,);
-* ``daughter1``, ``daughter2``: integer (N,4);
-* ``weights``: nonnegative (N,4), each row sums to one;
+* ``daughter1``, ``daughter2``: integer (N,V);
+* ``weights``: nonnegative (N,V), each row sums to one; V=2 for 1D intervals
+  or V=4 for 3D tetrahedra;
 * ``coefficients``: nonnegative (N,), with all integration and physical factors
   included so that dn/dt is in ps^-1.
 
@@ -205,6 +273,10 @@ The sidecar must supply ``model``, ``coefficient_time_unit: "ps"``,
 Unequally weighted reduced grids are unsupported. The reader verifies discrete
 shell consistency; it cannot verify the provenance or normalization claims of
 an arbitrary external kernel.
+
+New chunk manifests use ``nepkappa-tdbte-shell-v2``. Existing v1 manifests remain
+readable; automatic caches from the previous builder must be rebuilt in a new
+directory because builder identity is part of the cache check.
 
 Outputs and interpretation
 ------------------------------

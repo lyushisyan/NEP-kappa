@@ -29,6 +29,7 @@ def run_task_file(config_path, task_path):
     if not isinstance(tasks, list) or not tasks:
         raise ValueError(f"Force task file is empty or invalid: {task_path}")
 
+    jobs = []
     for task in tasks:
         if not isinstance(task, dict):
             raise ValueError(f"Invalid force task entry in {task_path}: {task!r}")
@@ -43,7 +44,12 @@ def run_task_file(config_path, task_path):
                 f"Force task POSCAR does not match its cache location: {poscar}"
             )
         atoms = read(str(poscar), format="vasp")
-        workflow._calculate_forces_cached(atoms, label, index)
+        if cfg.nep_force_backend == "gpu-batch":
+            jobs.append((atoms, label, index))
+        else:
+            workflow._calculate_forces_cached(atoms, label, index)
+    if jobs:
+        workflow._calculate_nep_batch_cached(jobs)
     print(f"Completed {len(tasks)} force job(s) from {task_path}")
 
 

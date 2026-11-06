@@ -9,8 +9,8 @@ import numpy as np
 from ase.io import read, write
 import yaml
 
-from nepkappa.config import expand_transport_temperatures, validate_temps
-from nepkappa.qha_sscha import (
+from nepkappa.config_validation import expand_transport_temperatures, validate_temps
+from nepkappa.qha import (
     load_qha_equilibrium_volumes,
     scale_atoms_to_primitive_volume,
     validate_temperature_range,

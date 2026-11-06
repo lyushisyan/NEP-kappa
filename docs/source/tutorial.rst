@@ -104,6 +104,12 @@ workflow may also run earlier local stages. After reviewing generated scripts,
 set ``submit: true`` to submit and inspect the jobs with the site's Slurm tools.
 Force-array collection jobs continue the remaining workflow when supported.
 
+For NEP force arrays on GPU nodes, set
+``calculator.nep-force-backend: gpu-batch`` and request a GPU for each worker.
+This requires Calorine >= 3.5 and the ``nep`` executable. See the
+``NEP GPU force batches`` section in :doc:`input_files` for input settings,
+cache behavior and the supported FC2/FC3 and HiPhive routes.
+
 Plot existing results
 -------------------------
 

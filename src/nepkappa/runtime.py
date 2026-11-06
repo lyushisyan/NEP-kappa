@@ -9,34 +9,12 @@ import time
 from ase import Atoms
 from phonopy.structure.atoms import PhonopyAtoms
 
-from nepkappa.output import print_detail
+from nepkappa.output import print_detail, format_activity_elapsed
 
 try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover - tqdm is a declared dependency
     tqdm = None
-
-
-def format_duration(seconds):
-    """Format elapsed seconds as a compact human-readable duration."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    if hours:
-        return f"{hours}h {minutes}m {secs:.2f}s"
-    if minutes:
-        return f"{minutes}m {secs:.2f}s"
-    return f"{secs:.2f}s"
-
-
-def format_activity_elapsed(seconds):
-    """Format elapsed seconds like tqdm's compact clock."""
-    total = int(seconds)
-    hours, remainder = divmod(total, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes:02d}:{secs:02d}"
 
 
 def progress_iter(iterable, enabled=True, **kwargs):

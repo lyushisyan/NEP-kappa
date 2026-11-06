@@ -2,26 +2,22 @@
 # ==============================================================================
 # Author: Shixian Liu, Fei Yin
 # Date: 2025
-# Description: Core workflow logic for Thermal Conductivity calculations 
-#              using NEP (Neuroevolution Potential), HiPhive (optional), 
-#              and Phono3py.
+# Description: Shared scientific context, force caches and export helpers.
+#              Command orchestration is owned by application.py.
 # ==============================================================================
 
 import subprocess
 import hashlib
 import shlex
 import shutil
-import time
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import numpy as np
 
 # ASE & Calorine
-from ase.io import read, write
-from ase import Atoms
+from ase.io import read
 from calorine.calculators import CPUNEP
-from calorine.tools import relax_structure
 
 # HiPhive
 from hiphive import ForceConstants
@@ -46,14 +42,15 @@ from nepkappa.provenance import (
 )
 from nepkappa.runtime import (
     ase_to_phonopy,
-    format_duration,
     phonopy_to_ase,
 )
 
 # --- Main Logic Class ---
 class NEPPhononWorkflow:
-    """
-    Handler for NEP + (HiPhive/FiniteDisp) + Phono3py Workflow.
+    """Shared structures, calculators and force artifacts for scientific stages.
+
+    Execution order and stage timing belong to application.py. The context is
+    also used directly by the Slurm force worker; it does not execute a plan.
     """
     def __init__(self, config):
         """
@@ -61,7 +58,6 @@ class NEPPhononWorkflow:
         """
         self.cfg = config
         self.show_progress = getattr(config, "progress", True)
-        self.stage_timings = []
         self.output_dir = Path(getattr(config, "result_dir", "result")).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.fc2_path = self.output_dir / "fc2.hdf5"
@@ -81,28 +77,13 @@ class NEPPhononWorkflow:
             config, "vasp_relax_workdir", "vasp-relax"
         )
         self._nep_calc = None
+        self._nep_batch_identity = None
         self._external_backend = None
         self._vasp_backend = None
         self._force_store = None
         self._cache_software_versions = None
         self.prim = None 
 
-    def _run_timed_stage(self, label, func):
-        """Run a workflow stage and record its elapsed time."""
-        start = time.time()
-        try:
-            return func()
-        finally:
-            elapsed = time.time() - start
-            self.stage_timings.append((label, elapsed))
-            print_detail(f"  - {label} elapsed time: {format_duration(elapsed)}")
-
-    def _print_timing_summary(self):
-        if not self.stage_timings:
-            return
-        print_detail("\n[Timing Summary]")
-        for label, elapsed in self.stage_timings:
-            print_detail(f"  - {label:<24}: {format_duration(elapsed)}")
 
     def _run_command(self, cmd, cwd=None):
         """Run a subprocess while forwarding output to terminal and run.log."""
@@ -195,10 +176,6 @@ class NEPPhononWorkflow:
             str(nz),
             self._format_fourthorder_value(self.cfg.cutoff_fc3),
         ]
-
-    def _fc3_backend(self):
-        """Return the selected FC3 generation backend."""
-        return getattr(self.cfg, "fc3_backend", "phono3py")
 
     def _fc_format(self):
         """Return requested FC2/FC3 export format."""
@@ -356,47 +333,6 @@ class NEPPhononWorkflow:
             )
         return self._force_store
 
-    def _vasp_command(self):
-        """Compatibility proxy for the VASP adapter command resolver."""
-        return self._make_vasp_backend().command()
-
-    def _detect_vasp_path(self):
-        """Compatibility proxy for VASP executable discovery."""
-        return self._make_vasp_backend().detect_path()
-
-    def _resolve_potcar_path(self, atoms):
-        """Compatibility proxy for POTCAR resolution."""
-        return self._make_vasp_backend().resolve_potcar(atoms)
-
-    def _detect_potcar_path(self, symbols):
-        """Compatibility proxy for POTCAR discovery."""
-        return self._make_vasp_backend().detect_potcar(symbols)
-
-    def _assemble_potcar_from_library(self, library, symbols):
-        """Compatibility proxy for multi-species POTCAR assembly."""
-        return self._make_vasp_backend().assemble_potcar(library, symbols)
-
-    def _find_potcar_for_symbol(self, library, symbol):
-        return self._make_vasp_backend().find_potcar(library, symbol)
-
-    def _write_vasp_run_inputs(self, run_dir, atoms, incar_overrides=None, system=None):
-        """Compatibility proxy for VASP input generation."""
-        return self._make_vasp_backend().write_run_inputs(
-            run_dir,
-            atoms,
-            incar_overrides=incar_overrides,
-            system=system,
-        )
-
-    def _run_vasp_forces(self, atoms, label, index):
-        """Compatibility proxy for one VASP force calculation."""
-        return self._make_vasp_backend().run_forces(atoms, label, index)
-
-    def _run_vasp_forces_in_dir(self, run_dir, atoms, label, index):
-        """Compatibility proxy for a VASP force calculation directory."""
-        return self._make_vasp_backend().run_forces_in_dir(
-            run_dir, atoms, label, index
-        )
 
     def _run_vasp_fc4_job(self, atoms, job_dir, index):
         """Compatibility proxy for a Fourthorder VASP job."""
@@ -410,12 +346,6 @@ class NEPPhononWorkflow:
             atoms, job_dir, "fc3-thirdorder", consumer="thirdorder reap"
         )
 
-    def _run_vasp_force_xml_job(self, atoms, job_dir, label):
-        """Compatibility proxy for an externally consumed VASP XML job."""
-        consumer = "Fourthorder reap" if label == "fc4" else "thirdorder reap"
-        return self._make_vasp_backend().run_order_job(
-            atoms, job_dir, label, consumer=consumer
-        )
 
     def _write_vasp_force_xml(self, filename, forces):
         """Write the minimal VASP XML force block parsed by *order scripts."""
@@ -458,47 +388,17 @@ class NEPPhononWorkflow:
         forces = self._make_external_backend().calculate_forces(atoms)
         return self._write_vasp_force_xml(job_dir / "vasprun.xml", forces)
 
-    def _combined_vasp_kwargs(self, overrides=None, system=None):
-        """Compatibility proxy for normalized VASP parameters."""
-        return self._make_vasp_backend().combined_kwargs(overrides, system)
-
-    def _write_vasp_incar(self, path, kwargs=None):
-        return self._make_vasp_backend().write_incar(path, kwargs)
-
-    def _write_vasp_kpoints(self, path, kwargs=None):
-        return self._make_vasp_backend().write_kpoints(path, kwargs)
-
-    def _format_vasp_value(self, value):
-        return self._make_vasp_backend().format_value(value)
-
-    def _read_vasp_forces(self, run_dir):
-        return self._make_vasp_backend().read_forces(run_dir)
-
-    def _default_vasp_relax_stages(self):
-        return self._make_vasp_backend().default_relax_stages()
-
-    def _vasp_relax_stages(self):
-        return self._make_vasp_backend().relax_stages()
-
-    def _read_vasp_relaxed_structure(self, run_dir):
-        return self._make_vasp_backend().read_relaxed_structure(run_dir)
-
-    def _run_vasp_relax_stage(self, atoms, stage_name, stage_index, overrides):
-        return self._make_vasp_backend().run_relax_stage(
-            atoms, stage_name, stage_index, overrides
-        )
-
-    def _run_vasp_relaxation(self, atoms):
-        return self._make_vasp_backend().relax(atoms)
 
     def _calculate_forces(self, atoms, label, index):
         """Calculate forces with the configured backend."""
         calculator = self._calculator_name()
         if calculator == "nep":
+            if getattr(self.cfg, "nep_force_backend", "cpu") == "gpu-batch":
+                raise RuntimeError("NEP GPU forces must be evaluated through the batch force path.")
             atoms.calc = self._make_nep_calculator()
             return atoms.get_forces()
         elif calculator == "vasp":
-            return self._run_vasp_forces(atoms, label, index)
+            return self._make_vasp_backend().run_forces(atoms, label, index)
         else:
             return self._make_external_backend().calculate_forces(atoms)
 
@@ -510,16 +410,6 @@ class NEPPhononWorkflow:
             calculator=self._calculator_name(),
         )
 
-    def _validated_force_array(self, forces, atom_count, source):
-        """Normalize forces and reject incomplete or corrupt cache entries."""
-        return self._make_force_store().validate_forces(
-            forces, atom_count, source
-        )
-
-    def _force_structures_match(self, first, second, atol=1.0e-8):
-        """Return whether two force-job structures are numerically equivalent."""
-        return self._make_force_store().structures_match(first, second, atol)
-
     def _calculate_forces_cached(self, atoms, label, index):
         """Calculate or reuse forces for one structure using audited inputs."""
         return self._make_force_store().calculate_or_reuse(
@@ -529,6 +419,20 @@ class NEPPhononWorkflow:
             calculator=self._calculator_name(),
             fingerprint=self._job_input_fingerprint,
             calculate=self._calculate_forces,
+        )
+
+    def _calculate_nep_batch_cached(self, jobs):
+        """Evaluate ordered (atoms, label, index) jobs, batching only cache misses."""
+        from nepkappa.nep_batch import predict_forces, resolve_nep_executable
+
+        command = resolve_nep_executable(self.cfg.nep_command)
+        print(f"  - NEP GPU batches: at most {self.cfg.nep_batch_size} structures per call")
+        return self._make_force_store().calculate_batch_or_reuse(
+            jobs, calculator="nep", fingerprint=self._job_input_fingerprint,
+            batch_size=self.cfg.nep_batch_size,
+            calculate=lambda structures: predict_forces(
+                structures, model=self.cfg.nep_model, command=command
+            ),
         )
 
     def _stage_force_job(self, atoms, label, index):
@@ -576,6 +480,8 @@ class NEPPhononWorkflow:
                 ph3.generate_displacements(cutoff_pair_distance=pair_cutoff)
             ph3.save(str(self.disp_path))
             for index, supercell in enumerate(ph3.supercells_with_displacements, 1):
+                if supercell is None:  # Keep original indices for cutoff-excluded pairs.
+                    continue
                 jobs.append(
                     self._stage_force_job(phonopy_to_ase(supercell), "fc3", index)
                 )
@@ -588,11 +494,6 @@ class NEPPhononWorkflow:
         jobs = self._prepare_force_slurm_jobs(include_fc3=include_fc3)
         return run_force_slurm(self.cfg, self.output_dir, jobs)
 
-    def relax_structure_stage(self):
-        """Load and relax through the extracted structure stage."""
-        from nepkappa.stages.structure import StructureRelaxationStage
-
-        return StructureRelaxationStage(self, ase_relax=relax_structure).run()
 
     def load_force_constant_structure(self):
         """Load the structure used by the force-constant stage."""
@@ -613,17 +514,6 @@ class NEPPhononWorkflow:
             print_detail(f"  - Reading input structure from {self.cfg.poscar}")
             self.prim = canonicalize_atoms(read(self.cfg.poscar))
 
-    def run_hiphive_fitting(self, include_fc3=True):
-        """Fit force constants through the extracted HiPhive stage."""
-        from nepkappa.stages.force_constants import HiPhiveStage
-
-        return HiPhiveStage(self, include_fc3=include_fc3).run()
-
-    def run_finite_disp_fitting(self, include_fc3=True):
-        """Generate FC2/FC3 through the extracted finite-displacement stage."""
-        from nepkappa.stages.force_constants import FiniteDisplacementStage
-
-        return FiniteDisplacementStage(self, include_fc3=include_fc3).run()
 
     def _displacement_pattern_sort_key(self, path):
         """Sort thirdorder/Fourthorder pattern files by embedded numbers."""
@@ -670,9 +560,9 @@ class NEPPhononWorkflow:
             if path.is_file():
                 sources = [path]
             elif path.is_dir():
-                sources = [self._find_potcar_for_symbol(path, symbol) for symbol in symbols]
+                sources = [self._make_vasp_backend().find_potcar(path, symbol) for symbol in symbols]
         else:
-            detected = self._detect_potcar_path(symbols)
+            detected = self._make_vasp_backend().detect_potcar(symbols)
             if detected is not None:
                 _, detected_sources = detected
                 sources = list(detected_sources)
@@ -715,6 +605,20 @@ class NEPPhononWorkflow:
             payload["calculator_inputs"] = {
                 "model": file_identity(model) if model else None,
             }
+            if getattr(self.cfg, "nep_force_backend", "cpu") == "gpu-batch":
+                from nepkappa import nep_batch
+
+                if self._nep_batch_identity is None:
+                    executable = nep_batch.resolve_nep_executable(self.cfg.nep_command)
+                    self._nep_batch_identity = {
+                        "executable": file_identity(executable),
+                        "adapter": file_identity(nep_batch.__file__),
+                    }
+                payload["calculator_inputs"].update({
+                    "force_backend": "gpu-batch",
+                    "batch_size": self.cfg.nep_batch_size,
+                    **self._nep_batch_identity,
+                })
         elif calculator == "vasp":
             command = getattr(self.cfg, "vasp_command", None)
             if command:
@@ -722,12 +626,12 @@ class NEPPhononWorkflow:
             elif getattr(self.cfg, "vasp_path", None):
                 command = [str(self.cfg.vasp_path)]
             else:
-                detected = self._detect_vasp_path()
+                detected = self._make_vasp_backend().detect_path()
                 command = [str(detected)] if detected else ["vasp_std"]
             atoms = read(str(pattern), format="vasp")
             payload["calculator_inputs"] = {
                 "command": self._command_cache_identity(command),
-                "incar": canonical_data(self._combined_vasp_kwargs()),
+                "incar": canonical_data(self._make_vasp_backend().combined_kwargs()),
                 "potcar_sources": self._potcar_cache_inputs(atoms),
             }
         else:
@@ -786,89 +690,3 @@ class NEPPhononWorkflow:
                     "for cutoff-fc3 and matches the thirdorder sow/reap run."
                 ) from exc
             self._write_phono3py_fc3(fcs.get_fc_array(3))
-
-    def run_thirdorder_fc3_fitting(self):
-        """Generate FC3 through the extracted thirdorder stage."""
-        from nepkappa.stages.force_constants import ThirdOrderStage
-
-        return ThirdOrderStage(self).run()
-
-    def run_fc4_fitting(self):
-        """Generate FC4 through the extracted Fourthorder stage."""
-        from nepkappa.stages.force_constants import FourthOrderStage
-
-        return FourthOrderStage(self).run()
-
-
-    def compute_kappa(self):
-        """Run the extracted phono3py thermal-transport stage."""
-        from nepkappa.transport import Phono3pyTransportWorkflow
-
-        transport = Phono3pyTransportWorkflow(
-            self.cfg,
-            self.output_dir,
-            run_command=self._run_command,
-            command_resolver=self._phono3py_command,
-            needs_fc_flags=self._phono3py_needs_fc_flags,
-        )
-        return transport.run()
-
-    def generate_force_constants(self, include_fc3=True):
-        """Generate FC2/FC3 through the extracted strategy layer."""
-        from nepkappa.force_constants import ForceConstantsWorkflow
-
-        workflow = ForceConstantsWorkflow(
-            self.cfg,
-            prepare_structure=self.load_force_constant_structure,
-            timed_stage=self._run_timed_stage,
-            submit_slurm=self._submit_force_slurm,
-            run_finite_displacement=self.run_finite_disp_fitting,
-            run_hiphive=self.run_hiphive_fitting,
-            run_thirdorder=self.run_thirdorder_fc3_fitting,
-        )
-        return workflow.run(include_fc3=include_fc3)
-
-    def generate_fc4_force_constants(self):
-        """Generate fourth-order force constants."""
-        print("\n[Step 2] Generate Fourth-Order Force Constants")
-        self.load_force_constant_structure()
-        self._run_timed_stage("FourPhonon FC4", self.run_fc4_fitting)
-
-    def calculate_kappa(self):
-        """Compute thermal conductivity from existing force constants."""
-        self._run_timed_stage("Phono3py kappa", self.compute_kappa)
-
-    def run_relax(self):
-        """Execute only the structure relaxation stage."""
-        self._run_timed_stage("Relax structure", self.relax_structure_stage)
-        self._print_timing_summary()
-
-    def run_force_constants(self, include_fc3=True):
-        """Execute only the force-constant generation stage."""
-        result = self.generate_force_constants(include_fc3=include_fc3)
-        self._print_timing_summary()
-        return result
-
-    def run_fc4(self):
-        """Execute only fourth-order force-constant generation."""
-        self.generate_fc4_force_constants()
-        self._print_timing_summary()
-
-    def run_kappa(self):
-        """Execute only the thermal conductivity stage."""
-        self.calculate_kappa()
-        self._print_timing_summary()
-
-    def run(self):
-        """Execute relaxation, force-constant generation, and kappa."""
-        self._run_timed_stage("Relax structure", self.relax_structure_stage)
-        force_result = self.generate_force_constants()
-        if force_result is not None:
-            print(
-                "  - Kappa is deferred until the Slurm force array and FC fitting "
-                "job complete."
-            )
-            self._print_timing_summary()
-            return force_result
-        self.calculate_kappa()
-        self._print_timing_summary()

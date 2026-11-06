@@ -66,6 +66,12 @@ class HiPhiveStage(HostStage):
             f"  - Computing forces with {workflow._calculator_name().upper()} "
             f"for {len(structures)} structures..."
         )
+        batch_forces = None
+        if getattr(cfg, "nep_force_backend", "cpu") == "gpu-batch":
+            batch_forces = workflow._calculate_nep_batch_cached([
+                (atoms, "hiphive", index)
+                for index, atoms in enumerate(structures, 1)
+            ])
         for index, atoms in enumerate(
             progress_iter(
                 structures,
@@ -76,7 +82,8 @@ class HiPhiveStage(HostStage):
             ),
             1,
         ):
-            forces = workflow._calculate_forces_cached(atoms, "hiphive", index)
+            forces = (batch_forces[index - 1] if batch_forces is not None else
+                      workflow._calculate_forces_cached(atoms, "hiphive", index))
             atoms.calc = SinglePointCalculator(atoms, forces=forces)
             atoms.get_forces()
             if index % 50 == 0:
@@ -147,6 +154,12 @@ class FiniteDisplacementStage(HostStage):
         fc2_supercells = ph3.phonon_supercells_with_displacements
         print(f"  - Generated {len(fc2_supercells)} FC2 supercells")
         print_detail("  - Computing forces for FC2...")
+        batch_fc2 = None
+        if getattr(cfg, "nep_force_backend", "cpu") == "gpu-batch":
+            batch_fc2 = workflow._calculate_nep_batch_cached([
+                (phonopy_to_ase(cell), "fc2", index)
+                for index, cell in enumerate(fc2_supercells, 1)
+            ])
         forces_fc2 = []
         for index, supercell in enumerate(
             progress_iter(
@@ -159,7 +172,7 @@ class FiniteDisplacementStage(HostStage):
             1,
         ):
             forces_fc2.append(
-                workflow._calculate_forces_cached(
+                batch_fc2[index - 1] if batch_fc2 is not None else workflow._calculate_forces_cached(
                     phonopy_to_ase(supercell), "fc2", index
                 )
             )
@@ -194,6 +207,15 @@ class FiniteDisplacementStage(HostStage):
         fc3_supercells = ph3.supercells_with_displacements
         print(f"  - Generated {len(fc3_supercells)} FC3 supercells")
         print_detail("  - Computing forces for FC3...")
+        batch_fc3 = None
+        if getattr(cfg, "nep_force_backend", "cpu") == "gpu-batch":
+            jobs = [
+                (phonopy_to_ase(cell), "fc3", index)
+                for index, cell in enumerate(fc3_supercells, 1) if cell is not None
+            ]
+            batch_fc3 = dict(zip(
+                [index for _, _, index in jobs], workflow._calculate_nep_batch_cached(jobs)
+            ))
         forces_fc3 = []
         for index, supercell in enumerate(
             progress_iter(
@@ -212,7 +234,7 @@ class FiniteDisplacementStage(HostStage):
                 forces_fc3.append(np.zeros((len(ph3.supercell), 3), dtype="double"))
                 continue
             forces_fc3.append(
-                workflow._calculate_forces_cached(
+                batch_fc3[index] if batch_fc3 is not None else workflow._calculate_forces_cached(
                     phonopy_to_ase(supercell), "fc3", index
                 )
             )
@@ -438,6 +460,8 @@ def _calculate_order_forces(workflow, patterns, *, backend, label):
             print_detail(f"    Skipping completed {label} #{index}: {vasprun_path}")
         else:
             atoms = read(str(pattern), format="vasp")
+            # Backends may overwrite XML before they return successfully.
+            (job_dir / "job-input.sha256").unlink(missing_ok=True)
             if backend == "thirdorder" and calculator == "vasp":
                 vasprun_path = workflow._run_vasp_thirdorder_job(
                     atoms, job_dir, index

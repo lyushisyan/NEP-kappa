@@ -43,6 +43,9 @@ class WorkflowPlanConfig:
 class CalculatorConfig:
     name: str
     nep_model: Optional[str]
+    nep_force_backend: str
+    nep_batch_size: int
+    nep_command: str
     factory: Optional[str]
     kwargs: Mapping[str, Any]
     model_files: StringValues
@@ -264,6 +267,9 @@ class WorkflowSections:
             calculator=CalculatorConfig(
                 name=cfg.calculator,
                 nep_model=cfg.nep_model,
+                nep_force_backend=cfg.nep_force_backend,
+                nep_batch_size=cfg.nep_batch_size,
+                nep_command=cfg.nep_command,
                 factory=cfg.calculator_factory,
                 kwargs=_mapping(cfg.calculator_kwargs),
                 model_files=_tuple(cfg.calculator_model_files),
@@ -416,7 +422,7 @@ class WorkflowSections:
 
 
 class WorkflowConfig(argparse.Namespace):
-    """Backward-compatible flat config with a typed ``sections`` view."""
+    """Canonical mutable configuration with fresh typed ``sections`` snapshots."""
 
     @property
     def sections(self) -> WorkflowSections:

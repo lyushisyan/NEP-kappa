@@ -12,7 +12,12 @@ from phonopy.file_IO import write_FORCE_CONSTANTS
 import yaml
 
 from nepkappa.approximations import sscha_approximation
-from nepkappa.config import expand_transport_temperatures, qha_sscha_transport_flags
+from nepkappa.config_validation import expand_transport_temperatures, qha_sscha_transport_flags, validate_scph
+from nepkappa.qha import (
+    load_qha_equilibrium_volumes,
+    scale_atoms_to_primitive_volume,
+    validate_temperature_range,
+)
 from nepkappa.runtime import ase_to_phonopy
 from nepkappa.sscha import (
     load_full_force_constants,
@@ -32,6 +37,9 @@ class QHASSCHAWorkflow:
 
     def run(self):
         """Generate a volume-matched structure, FCs, and SSCHA result at each T."""
+        error = validate_scph(self.cfg)
+        if error:
+            raise ValueError(error)
         if not self.cfg.qha_enabled or not self.cfg.scph_enabled:
             raise ValueError(
                 "qha-sscha requires both `qha:` and `scph:` YAML sections."
@@ -225,60 +233,6 @@ class QHASSCHAWorkflow:
                 "nested submission is not supported."
             )
         return result
-
-
-def load_qha_equilibrium_volumes(result_dir):
-    """Load QHA temperatures, primitive volumes, and normalization metadata."""
-    result_dir = Path(result_dir)
-    volume_path = result_dir / "volume-temperature.dat"
-    summary_path = result_dir / "qha-summary.yaml"
-    missing = [path for path in (volume_path, summary_path) if not path.is_file()]
-    if missing:
-        raise FileNotFoundError(
-            "qha-sscha needs completed QHA outputs. Missing: "
-            + ", ".join(str(path) for path in missing)
-        )
-    values = np.loadtxt(volume_path, comments="#", ndmin=2)
-    if values.shape[1] < 2 or values.shape[0] < 2:
-        raise ValueError(f"Invalid QHA volume table: {volume_path}")
-    temperatures = np.asarray(values[:, 0], dtype=float)
-    volumes = np.asarray(values[:, 1], dtype=float)
-    if not np.all(np.isfinite(temperatures)) or not np.all(np.isfinite(volumes)):
-        raise ValueError(f"Non-finite values in QHA volume table: {volume_path}")
-    if np.any(np.diff(temperatures) <= 0) or np.any(volumes <= 0):
-        raise ValueError(
-            "QHA volume-temperature data require increasing temperatures and "
-            "positive volumes."
-        )
-    summary = yaml.safe_load(summary_path.read_text(encoding="utf-8")) or {}
-    multiplicity = int(summary.get("normalization_multiplicity", 0))
-    if multiplicity <= 0:
-        raise ValueError(
-            f"Missing positive normalization_multiplicity in {summary_path}"
-        )
-    return temperatures, volumes, multiplicity
-
-
-def validate_temperature_range(requested, available):
-    """Ensure all SSCHA temperatures can be interpolated from the QHA result."""
-    if requested.size == 0:
-        raise ValueError("No SSCHA temperatures were requested.")
-    if requested.min() < available.min() or requested.max() > available.max():
-        raise ValueError(
-            "scph.temps must lie inside the completed QHA range "
-            f"[{available.min():g}, {available.max():g}] K."
-        )
-
-
-def scale_atoms_to_primitive_volume(atoms, primitive_volume, multiplicity):
-    """Isotropically scale a cell to a target primitive-cell volume."""
-    if primitive_volume <= 0 or multiplicity <= 0:
-        raise ValueError("Target volume and normalization multiplicity must be positive.")
-    target_volume = float(primitive_volume) * int(multiplicity)
-    scale = (target_volume / float(atoms.get_volume())) ** (1.0 / 3.0)
-    scaled = atoms.copy()
-    scaled.set_cell(atoms.cell * scale, scale_atoms=True)
-    return scaled, float(scale)
 
 
 def export_sscha_fc2(source, destination, atoms, dim_fc2):

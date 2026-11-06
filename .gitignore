@@ -41,9 +41,19 @@ htmlcov/
 !/calculations/README.md
 /PAPER_ARCHIVE.md
 /RELEASE_2_0.md
+/output/
+/outputs/
+/NEP_kappa_Manual*/
+/NEP_kappa_Manual*.zip
+/texput.log
 
-# Local verification suite and reference data
-/tests/
+# Keep the small public suite; scientific benchmarks and local tests stay local.
+/tests/*
+!/tests/public/
+!/tests/gpu/
+/tests/gpu/*
+!/tests/gpu/validate_nep_batch.py
+!/tests/gpu/benchmark_nep_batch.py
 /benchmarks/
 
 # Local scratch previews and draft inputs

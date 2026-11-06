@@ -175,6 +175,70 @@ execution host. Native MACE accepts ``model``, ``foundation``, ``device``, and
 ``factory``, ``kwargs``, and optional ``model-files``. An installed calculator
 plugin may supply a short name. An input check does not launch these programs.
 
+NEP GPU force batches
+~~~~~~~~~~~~~~~~~~~~~~
+
+For native phono3py FC2/FC3 or HiPhive, NEP displacement forces can be
+evaluated in GPU batches using Calorine 3.5 or newer:
+
+.. code-block:: yaml
+
+   calculator:
+     name: nep
+     model: /path/to/nep.txt
+     nep-force-backend: gpu-batch
+     nep-batch-size: 128
+     nep-command: /path/to/GPUMD/src/nep
+
+``nep-force-backend`` defaults to ``cpu`` (the existing CPUNEP path).
+``nep-batch-size`` is the maximum number of uncached structures per GPU call;
+reduce it if a batch exceeds GPU memory. ``nep-command`` defaults to ``nep``
+on PATH and must identify one executable, not a shell command or ``gpumd``.
+The standard ``python -m pip install -e .`` installation includes Calorine >= 3.5
+for both CPU and GPU. Install GPUMD's ``nep`` GPU executable separately.
+
+The batch path preserves displacement and atom ordering and rejects incorrect
+shapes or non-finite forces. It never falls back to CPU on failure. Force
+caches distinguish this backend from CPUNEP and record the model, executable
+hash, Calorine version and configured batch size. Existing CPU forces are not
+silently reused as GPU forces. Only cache misses are predicted; each result is
+published with its input marker last, allowing interrupted batches to recover.
+The existing force-constant fitting and transport algorithms are unchanged.
+
+Structure relaxation still uses CPUNEP; this option controls displacement-force
+evaluation, not geometry optimization. QHA, SSCHA, Thirdorder and Fourthorder
+workflows currently reject ``gpu-batch`` instead of partly executing on CPU.
+This does not enable GPU RTA/LBTE or change TD-BTE methods.
+
+Run the ordinary ``nepkappa fc2`` or ``nepkappa fc2fc3`` command inside a GPU
+allocation. The same option works in force-array workers. For example, append
+the following to an existing force input and replace the partition with the
+site's GPU partition:
+
+.. code-block:: yaml
+
+   parallel:
+     force-constant:
+       backend: slurm
+       partition: YOUR_GPU_PARTITION
+       jobs: 4
+       max-concurrent: 2
+       nodes: 1
+       ntasks: 1
+       cpus-per-task: 1
+       extra-sbatch: ["--gres=gpu:1"]
+       submit: false
+
+GPU allocation syntax depends on the cluster. Generated workers inherit
+Slurm's GPU visibility; NEP-kappa does not override it. Each array worker
+batches its own structures. The existing ``extra-sbatch`` settings also apply
+to the collection job. All nodes must see the same Python environment, NEP
+executable, model and shared result directory. Validate with
+``nepkappa info input.yaml --for fc2fc3``; this does not check GPU availability.
+Use ``submit: true`` when ready to submit. Many short NEP jobs can be slower
+than one larger batch because of scheduling and file I/O overhead; measure
+end-to-end time on the target GPU before choosing the number of jobs.
+
 force-constant: force constants and temperature effects
 -----------------------------------------------------------
 
@@ -259,6 +323,17 @@ harmonic FC2 at each requested temperature. Common options are ``snapshots``,
 When QHA and SSCHA are combined, set
 ``force-constant.sscha.run-transport: true`` to use both the QHA volume and
 the SSCHA FC2 for thermal transport. An explicit opposing QHA switch is rejected.
+SSCHA transport, including QHA-SSCHA, must finish synchronously at each
+temperature. With ``force-constant.sscha.run-transport: true``,
+``kappa.parallel.backend: slurm`` (or ``parallel.kappa.backend: slurm``) is
+rejected before calculations begin, even with ``submit: false`` or a single
+temperature. This intentionally removes the previously accepted but unsupported
+nested Slurm LBTE combination. Use ``backend: none`` for RTA or LBTE within the
+temperature loop; the whole workflow may run inside an outer batch allocation.
+Alternatively, run direct ``nepkappa kappa`` Slurm LBTE jobs separately on
+completed force constants using a dedicated transport input. Serial SSCHA and
+QHA-SSCHA, and direct Slurm LBTE, remain supported.
+
 Enabling ``bubble`` saves separate diagonal on-shell
 frequency shifts from the input FC3; those shifts do not update the exported
 FC2 or conductivity. See :doc:`harmonic_temperature` for fixed-volume and
@@ -387,6 +462,12 @@ kernel and evolving the excitation. It does not calculate conductivity:
      dpi: 300
    output:
      result-dir: calculations/3C-SiC/tdbte-from-scratch
+
+``tdbte.mesh`` selects the collision-integral dimension: all three entries
+at least 2 for 3D, or one entry at least 2 and two ones for experimental 1D
+ribbon/chain relaxation. Two-dimensional grids are unsupported. See
+:doc:`tdbte` for the 1D rigid-mode checks, acoustic-boundary approximation and
+physical-validation limits.
 
 Only phono3py FC2/FC3 are supported in this route; QHA, SSCHA, FC4, and
 FourPhonon settings do not feed the present TD-BTE solver. ``plot`` accepts

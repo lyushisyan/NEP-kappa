@@ -27,9 +27,7 @@ def activity_status(label, *, enabled=True):
     def draw():
         nonlocal width
         seconds = int(time.monotonic() - started)
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        elapsed = f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        elapsed = format_activity_elapsed(seconds)
         text = f"{label}: running ({elapsed} elapsed)"
         width = max(width, len(text))
         stream.write("\r" + text.ljust(width))
@@ -49,3 +47,25 @@ def activity_status(label, *, enabled=True):
         ticker.join()
         stream.write("\r" + " " * width + "\r")
         stream.flush()
+
+
+def format_duration(seconds):
+    """Format elapsed seconds as a compact human-readable duration."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    if hours:
+        return f"{hours}h {minutes}m {secs:.2f}s"
+    if minutes:
+        return f"{minutes}m {secs:.2f}s"
+    return f"{secs:.2f}s"
+
+
+def format_activity_elapsed(seconds):
+    """Format elapsed seconds like tqdm's compact clock."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"

@@ -166,6 +166,12 @@ See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
 
+NEP displacement forces can optionally use GPU batches with
+`calculator.nep-force-backend: gpu-batch` (Calorine >= 3.5 plus GPUMD's `nep`
+executable). Native FC2/FC3 and HiPhive support this path, including force-array
+workers; the default remains CPUNEP. See the
+[GPU input settings](docs/source/input_files.rst#nep-gpu-force-batches).
+
 Screen output keeps key progress, results, warnings, and total runtime. Input
 settings, individual force-cache paths, and detailed timings remain in
 `<result-dir>/run.log`. Use `nepkappa fc2 input.yaml --verbose` (or
@@ -211,13 +217,15 @@ starts a calculation.
 | `examples/` | Reusable input templates and small structures |
 | `potentials/` | Models and provenance notes |
 | `docs/` | User and developer documentation |
-| `tests/` | Local automated checks; ignored by Git |
+| `tests/public/` | Public parsing, execution and numerical checks run in CI |
+| Other `tests/` contents | Local scientific checks; ignored by Git |
 | `benchmarks/` | Local frozen reference data; ignored by Git |
 | `calculations/` | Local research inputs and results; ignored except its guide |
 | `.agents/skills/` | Maintained input-assistant skill |
 
 Follow the [development guide](docs/source/development.rst) for local testing
-and documentation builds. Tests and reference data are maintained locally and
+and documentation builds. Run the public suite with
+`python -m pytest tests/public -q`. Additional local tests and reference data
 are not included in a fresh GitHub checkout.
 
 ## 中文上手
@@ -236,7 +244,7 @@ nepkappa report input.yaml     # 汇总已有结果
 常规路径相对于命令启动目录；结果统一放在 `calculations/`。
 QHA 体积上的 SSCHA、三/四声子、Wigner 和含时 BTE 的入口见
 [示例目录](examples/README.md)，参数含义见 [输入参考](docs/source/input_files.rst)。
-`tests`、`benchmarks` 和实际计算结果保留在本地，不随代码提交。
+`tests/public` 是随代码提供的公开测试；其他本地测试、`benchmarks` 和实际计算结果不随代码提交。
 
 ## Time-dependent BTE
 

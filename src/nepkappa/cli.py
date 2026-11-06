@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import os
-from pathlib import Path
 import sys
 import time
 import warnings
@@ -17,14 +16,11 @@ from nepkappa.command_registry import (
     PUBLIC_COMMANDS,
     VALIDATION_TARGETS,
     canonical_command,
-    resolve_calculation_command,
 )
-from nepkappa.config import (
-    format_config,
-    parse_workflow_args,
-)
+from nepkappa.config import parse_selected_command
+from nepkappa.config_display import format_config
 from nepkappa.provenance import ProvenanceRecorder
-from nepkappa.output import print_detail
+from nepkappa.output import print_detail, format_duration
 
 
 class Tee:
@@ -169,7 +165,6 @@ def run_command(command, config_path, *, debug=False, verbose=False) -> int:
     start_time = time.time()
     requested_command = canonical_command(command)
     command, args = parse_selected_command(config_path, command)
-    args.config_path = str(Path(config_path).resolve())
     args.invoked_command = command
     os.makedirs(args.result_dir, exist_ok=True)
     log_path = os.path.join(args.result_dir, "run.log")
@@ -217,7 +212,7 @@ def run_command(command, config_path, *, debug=False, verbose=False) -> int:
             finally:
                 try:
                     recorder.finish(
-                        "complete" if exit_code == 0 else "failed",
+                        execution.status if exit_code == 0 else "failed",
                         error=failure,
                         stage_timings=getattr(execution, "stage_timings", None),
                     )
@@ -225,25 +220,16 @@ def run_command(command, config_path, *, debug=False, verbose=False) -> int:
                     exit_code = 1
                     print(f"\n[Error] Could not finalize provenance manifest: {exc}")
                 print_detail("-" * 60)
-                print(f"[main] {'Completed' if exit_code == 0 else 'Failed'}: {requested_command}")
+                status = execution.status if exit_code == 0 else "failed"
+                label = {"complete": "Completed", "prepared": "Prepared", "submitted": "Submitted", "failed": "Failed"}[status]
+                print(f"[main] {label}: {requested_command}")
+                if status in {"prepared", "submitted"}:
+                    print("[main] Scientific calculations are not yet complete.")
                 print(f"Total Execution Time: {format_duration(time.time() - start_time)}")
                 print_detail("-" * 60)
                 print(f"Run log saved to: {log_path}")
 
     return exit_code
-
-
-def parse_selected_command(config_path, command):
-    """Resolve input-selected operations before command-specific validation."""
-    if command in {"fc2", "kappa"}:
-        plan = parse_workflow_args(config_path, command="plot", input_command=command)
-        try:
-            selected = resolve_calculation_command(command, plan)
-        except ValueError as exc:
-            raise SystemExit(f"nepkappa {command}: error: {exc}") from None
-    else:
-        selected = command
-    return selected, parse_workflow_args(config_path, command=selected)
 
 
 def info_command(config_path, command="run") -> int:
@@ -269,15 +255,3 @@ def report_command(source) -> int:
     for output in outputs:
         print(f"  - {output}")
     return 0
-
-
-def format_duration(seconds):
-    """Format elapsed seconds as a compact human-readable duration."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    if hours:
-        return f"{hours}h {minutes}m {secs:.2f}s"
-    if minutes:
-        return f"{minutes}m {secs:.2f}s"
-    return f"{secs:.2f}s"

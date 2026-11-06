@@ -29,7 +29,7 @@ from phonopy.physical_units import get_physical_units
 import yaml
 
 from nepkappa.approximations import sscha_approximation
-from nepkappa.config import expand_transport_temperatures
+from nepkappa.config_validation import expand_transport_temperatures, validate_scph
 from nepkappa.provenance import canonical_data, data_sha256, file_identity
 from nepkappa.runtime import ase_to_phonopy, phonopy_to_ase, progress_iter
 
@@ -60,8 +60,9 @@ class SSCHATraceData:
 class PhonopySSCHAWorkflow:
     """Compute temperature-dependent FC2 using Phonopy sampling and ASE forces."""
 
-    def __init__(self, config, workflow):
+    def __init__(self, config, workflow, *, execution):
         self.cfg = config
+        self.execution = execution
         self.settings = config.sections.scph
         self.workflow = workflow
         self.output_dir = Path(config.result_dir).resolve()
@@ -72,6 +73,9 @@ class PhonopySSCHAWorkflow:
 
     def run(self):
         """Run one independent SSCHA calculation at every configured temperature."""
+        error = validate_scph(self.cfg)
+        if error:
+            raise ValueError(error)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.workflow.load_force_constant_structure()
         initial_fc2 = self._initial_fc2_path()
@@ -454,11 +458,20 @@ class PhonopySSCHAWorkflow:
         transport_config = copy.copy(self.cfg)
         transport_config.temps = [temperature]
         print(f"  - Running phono3py transport with FC2({temperature:g} K)")
-        Phono3pyTransportWorkflow(
+        transport = Phono3pyTransportWorkflow(
             transport_config,
             temperature_dir,
             run_command=self.workflow._run_command,
-        ).run()
+        )
+        result = self.execution.run_stage(
+            f"SSCHA transport at {temperature:g} K", transport.run
+        )
+        if self.execution.status in {"prepared", "submitted"}:
+            raise RuntimeError(
+                "SSCHA transport must complete synchronously; deferred work cannot "
+                "be reported as complete or followed by another temperature."
+            )
+        return result
 
 
 def load_full_force_constants(path, phonon):

@@ -16,7 +16,7 @@ dependencies = [
   "scipy",
   "h5py",
   "ase",
-  "calorine",
+  "calorine>=3.5",
   "hiphive",
   "trainstation",
   "phonopy>=4.1",

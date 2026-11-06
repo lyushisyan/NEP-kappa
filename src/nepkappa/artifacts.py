@@ -62,12 +62,14 @@ class ForceArtifactStore:
 
     @staticmethod
     def record_inputs(job_dir, input_digest, payload):
-        """Record a fast marker and the auditable payload behind its digest."""
+        """Publish the auditable payload first and the validity marker last."""
         job_dir = Path(job_dir)
         marker = job_dir / "job-input.sha256"
         marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text(input_digest + "\n", encoding="utf-8")
-        (job_dir / "job-input.json").write_text(
+        marker.unlink(missing_ok=True)
+        payload_path = job_dir / "job-input.json"
+        temporary = payload_path.with_suffix(".json.tmp")
+        temporary.write_text(
             json.dumps(
                 {"sha256": input_digest, "inputs": payload},
                 indent=2,
@@ -76,6 +78,10 @@ class ForceArtifactStore:
             + "\n",
             encoding="utf-8",
         )
+        temporary.replace(payload_path)
+        temporary = marker.with_suffix(".sha256.tmp")
+        temporary.write_text(input_digest + "\n", encoding="utf-8")
+        temporary.replace(marker)
 
     def stage_structure(self, atoms, label, index, *, calculator):
         """Persist a displaced structure and return its scheduler task record."""
@@ -95,7 +101,58 @@ class ForceArtifactStore:
         fingerprint,
         calculate,
     ):
-        """Return audited cached forces or calculate and atomically store them."""
+        """Reuse valid forces or publish new forces with a final input marker."""
+        cached, job_dir, input_digest, input_payload = self._prepare_force_job(
+            atoms, label, index, calculator=calculator, fingerprint=fingerprint
+        )
+        if cached is not None:
+            return cached
+        forces = self.validate_forces(
+            calculate(atoms, label, index),
+            len(atoms),
+            f"{calculator} {label.upper()} #{index}",
+        )
+        self._publish_forces(job_dir, forces, input_digest, input_payload)
+        return forces
+
+    def calculate_batch_or_reuse(
+        self, jobs, *, calculator, fingerprint, calculate, batch_size
+    ):
+        """Evaluate cache misses in bounded batches, preserving job order."""
+        results = [None] * len(jobs)
+        pending = []
+
+        def flush():
+            structures = [jobs[position][0] for position, *_ in pending]
+            forces = calculate(structures)
+            if len(forces) != len(pending):
+                raise RuntimeError("Batch force result count does not match input structures.")
+            # Validate the entire batch before publishing any of its results.
+            checked = [
+                self.validate_forces(force, len(atoms), "NEP GPU batch")
+                for atoms, force in zip(structures, forces)
+            ]
+            for (position, job_dir, digest, payload), force in zip(pending, checked):
+                self._publish_forces(job_dir, force, digest, payload)
+                results[position] = force
+            pending.clear()
+
+        for position, (atoms, label, index) in enumerate(jobs):
+            cached, job_dir, digest, payload = self._prepare_force_job(
+                atoms, label, index, calculator=calculator, fingerprint=fingerprint
+            )
+            if cached is not None:
+                results[position] = cached
+            else:
+                pending.append((position, job_dir, digest, payload))
+                if len(pending) == batch_size:
+                    flush()
+        if pending:
+            flush()
+        return results
+
+    def _prepare_force_job(self, atoms, label, index, *, calculator, fingerprint):
+        """Find matching forces or stage inputs for a new calculation."""
         job_dir = self.job_dir(label, index, calculator=calculator)
         job_dir.mkdir(parents=True, exist_ok=True)
         poscar = job_dir / "POSCAR"
@@ -113,27 +170,26 @@ class ForceArtifactStore:
             index,
         )
         if cached is not None:
-            return cached
+            return cached, job_dir, None, None
 
         write(str(poscar), atoms, format="vasp", direct=True, vasp5=True)
         input_digest, input_payload = fingerprint(poscar, backend)
         cached = self._load_matching_digest_cache(
             atoms, force_path, job_dir, input_digest, label, index
         )
-        if cached is not None:
-            return cached
+        return cached, job_dir, input_digest, input_payload
 
-        forces = self.validate_forces(
-            calculate(atoms, label, index),
-            len(atoms),
-            f"{calculator} {label.upper()} #{index}",
-        )
+    def _publish_forces(self, job_dir, forces, input_digest, input_payload):
+        """Replace force data only after withdrawing the previous validity marker."""
+        force_path = job_dir / "forces.npy"
         temporary = force_path.with_suffix(".npy.tmp")
         with temporary.open("wb") as handle:
             np.save(handle, forces, allow_pickle=False)
+        # An interruption must not leave old inputs certifying new force data.
+        # Validation and temporary-file writing leave the old cache intact.
+        (job_dir / "job-input.sha256").unlink(missing_ok=True)
         temporary.replace(force_path)
         self.record_inputs(job_dir, input_digest, input_payload)
-        return forces
 
     def _load_matching_structure_cache(
         self,
