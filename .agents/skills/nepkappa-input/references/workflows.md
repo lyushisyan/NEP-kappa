@@ -111,7 +111,10 @@ request to reuse existing results into one that regenerates force constants.
   require an appropriate custom CONTROL with dielectric/Born-charge data;
   do not invent this data. Espresso harmonic input also needs a matching
   custom CONTROL. Report this separately from YAML parser acceptance.
-- Slurm settings are stage-specific: force jobs, LBTE, and FourPhonon have
+- Slurm settings are stage-specific: force jobs, phono3py RTA/LBTE, and FourPhonon have
   distinct `parallel` sections. Use the corresponding example; check MPI
-  processes and OpenMP threads agree with the requested allocation. Ask for
+  processes and Rayon/OpenMP threads agree with the requested allocation.
+  Phono3py RTA/LBTE scripts set Rayon threads from cpus-per-task automatically;
+  RTA uses write-gamma/read-gamma over the full temperature range. Nested Slurm
+  transport is rejected in QHA/SSCHA temperature loops. Ask for
   missing site-specific settings.

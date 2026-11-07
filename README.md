@@ -165,6 +165,9 @@ enabled. `kappa` selects the configured transport backend and parameters.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
+Phono3py RTA and LBTE both support q-point Slurm arrays through
+`parallel.kappa.backend: slurm`. Generated transport jobs set Rayon threads
+from the allocated cores; see [parallel settings](docs/source/input_files.rst#parallel-execution).
 
 NEP displacement forces can optionally use GPU batches with
 `calculator.nep-force-backend: gpu-batch` (Calorine >= 3.5 plus GPUMD's `nep`

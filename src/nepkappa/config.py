@@ -364,7 +364,7 @@ def initialise_parser() -> argparse.ArgumentParser:
         "--lbte_parallel",
         type=json_dict,
         default={},
-        help="[LBTE] Slurm parallel calculation settings",
+        help="[Kappa] Slurm parallel RTA/LBTE calculation settings",
     )
     parser.add_argument(
         "--force_parallel",

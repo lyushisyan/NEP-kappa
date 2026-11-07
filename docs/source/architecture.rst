@@ -82,7 +82,7 @@ command dispatchers.
 ``CommandExecution.status`` is the application/CLI outcome contract for
 successful commands: ``complete`` means the requested calculations finished,
 while ``prepared`` and ``submitted`` mean scientific work is still pending.
-``run_stage`` retains the status returned by force, LBTE or FourPhonon scheduler
+``run_stage`` retains the status returned by force, RTA/LBTE or FourPhonon scheduler
 manifests; synchronous SSCHA transport shares the same execution record. A plan
 stops when that record indicates deferred work. The CLI preserves exit code
 zero for successful preparation/submission, but reports Prepared/Submitted and
@@ -91,11 +91,13 @@ Exceptions still produce a failed command and nonzero exit code. Scheduler
 submission manifests separately track the subsequent job lifecycle; finishing
 a batch job does not retroactively rewrite the original command's provenance.
 
-SSCHA and QHA-SSCHA reject configured nested Slurm LBTE in input validation
+SSCHA and QHA-SSCHA reject configured nested Slurm RTA/LBTE in input validation
 and again at their workflow entry points, before temperature calculations or
 submission. An unexpected deferred result from nested transport raises an error
 before later temperatures or workflow completion summaries. Both temperature
-loops remain sequential; direct Slurm LBTE retains its deferred status behavior.
+loops remain sequential; direct Slurm RTA/LBTE retains its deferred status behavior.
+Pure-QHA transport also rejects nested Slurm transport before its temperature
+loop and rejects unexpected prepared/submitted results from a synchronous call.
 
 ``workflow.py`` retains the shared structure, calculator instances, artifact
 paths, cache identities, force-job preparation and export helpers. This context

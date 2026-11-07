@@ -160,10 +160,10 @@ def validate_scph(args):
         (args.lbte_parallel or {}).get("backend", "none")
     ).lower() == "slurm":
         return (
-            "SSCHA and QHA-SSCHA require synchronous transport; nested Slurm LBTE "
+            "SSCHA and QHA-SSCHA require synchronous transport; nested Slurm RTA/LBTE "
             "is not supported, including submit: false. Set kappa.parallel.backend: "
             "none and run the whole workflow inside one allocation, or run direct "
-            "Slurm LBTE separately on completed force constants."
+            "Slurm RTA/LBTE separately on completed force constants."
         )
     if args.dimensionality != 3:
         return "SCPH currently supports only structure.dimensionality: 3."
@@ -546,7 +546,7 @@ def validate_calculator(args):
 
 
 def validate_lbte_parallel(args):
-    """Validate optional Slurm settings for distributed LBTE calculations."""
+    """Validate optional Slurm settings for distributed RTA/LBTE calculations."""
     settings = getattr(args, "lbte_parallel", {}) or {}
     if not isinstance(settings, dict):
         return "kappa.parallel must be a mapping."
@@ -585,8 +585,12 @@ def validate_lbte_parallel(args):
         return "kappa.parallel.backend must be 'none' or 'slurm'."
     if backend == "none":
         return None
-    if args.method != "lbte":
-        return "kappa.parallel.backend 'slurm' requires kappa.method: lbte."
+    if getattr(args, "qha_volumes", False):
+        return (
+            "QHA-volume transport requires synchronous transport; nested Slurm "
+            "RTA is not supported, including submit: false. Use "
+            "parallel.kappa.backend: none inside the temperature loop."
+        )
 
     try:
         values = [int(settings.get("jobs", 32))]
@@ -602,7 +606,7 @@ def validate_lbte_parallel(args):
     if nodes != 1 or ntasks != 1:
         return (
             "kappa.parallel.nodes and ntasks must be 1; use jobs to distribute "
-            "LBTE grid points across the Slurm array."
+            "RTA/LBTE grid points across the Slurm array."
         )
 
     for key in ("preamble", "extra_sbatch"):

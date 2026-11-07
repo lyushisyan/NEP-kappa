@@ -1,4 +1,4 @@
-"""Slurm orchestration for distributed phono3py LBTE calculations."""
+"""Slurm orchestration for forces and distributed phono3py RTA/LBTE."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shlex
 import sys
+from tempfile import mkdtemp
 
 import yaml
 
@@ -211,7 +212,7 @@ def render_force_script(
     return "\n".join(lines)
 
 
-def run_lbte_slurm(
+def run_transport_slurm(
     config,
     output_dir,
     disp_path,
@@ -219,16 +220,18 @@ def run_lbte_slurm(
     needs_fc_flags,
     run_command,
 ):
-    """Generate and optionally submit a three-stage Slurm LBTE workflow."""
+    """Generate and optionally submit a three-stage Slurm transport workflow."""
     output_dir = Path(output_dir).resolve()
     disp_path = Path(disp_path)
     settings = slurm_settings(config)
+    method = getattr(config, "method", "lbte")
     mesh_args = ["--mesh", *(str(value) for value in config.mesh)]
     base = [*phono3py_command, disp_path.name]
     if needs_fc_flags:
         base.extend(["--fc2", "--fc3"])
 
-    wgp_command = [*base, "--lbte", *mesh_args, "--wgp"]
+    method_flag = "--br" if method == "rta" else "--lbte"
+    wgp_command = [*base, method_flag, *mesh_args, "--wgp"]
     print("  - Discovering irreducible grid points")
     print(f"  - Running command: {shlex.join(wgp_command)}")
     ret = run_command(wgp_command, cwd=output_dir)
@@ -238,11 +241,21 @@ def run_lbte_slurm(
     grid_file = output_dir / "ir_grid_points.yaml"
     grid_points = load_ir_grid_points(grid_file)
     chunks = split_grid_points(grid_points, settings["jobs"])
-    work_dir = output_dir / "lbte-slurm"
+    work_dir = output_dir / f"{method}-slurm"
     chunk_dir = work_dir / "grid-points"
     log_dir = work_dir / "logs"
     chunk_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
+    calculation_dir = output_dir
+    if method == "rta":
+        # --read-gamma prefers a full kappa file over per-grid-point files.
+        # A fresh workspace prevents an earlier serial or collected result
+        # from masking the workers' new gamma data, including on resubmission.
+        calculation_dir = Path(mkdtemp(prefix="run-", dir=work_dir))
+        for name in (disp_path.name, "fc2.hdf5", "fc3.hdf5", "BORN"):
+            source = output_dir / name
+            if source.is_file():
+                calculation_dir.joinpath(name).symlink_to(source)
     for index, chunk in enumerate(chunks):
         (chunk_dir / f"{index:03d}.txt").write_text(
             ",".join(str(value) for value in chunk) + "\n",
@@ -257,15 +270,17 @@ def run_lbte_slurm(
         chunks,
         base,
         mesh_args,
+        calculation_dir=calculation_dir,
     )
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "workflow": "lbte",
+        "workflow": method,
         "backend": "slurm",
         "status": "prepared",
         "submitted": False,
         "grid_point_count": len(grid_points),
         "array_jobs": len(chunks),
+        "calculation_directory": str(calculation_dir),
         "scripts": {key: str(value) for key, value in scripts.items()},
     }
     manifest_path = work_dir / "submission.yaml"
@@ -290,12 +305,16 @@ def run_lbte_slurm(
         print(f"  - Prepare job: {job_ids['prepare']}")
         print(f"  - Array job:   {job_ids['array']}")
         print(f"  - Collect job: {job_ids['collect']}")
-        print("  - LBTE calculation submitted; the collect job runs after all array tasks.")
+        print(f"  - {method.upper()} calculation submitted; the collect job runs after all array tasks.")
     else:
         print("  - Submission disabled; inspect the generated scripts before enabling submit.")
 
     write_manifest(manifest_path, manifest)
     return manifest
+
+
+# Retain the former internal entry point for callers of the LBTE helper.
+run_lbte_slurm = run_transport_slurm
 
 
 def write_manifest(path, manifest):
@@ -321,7 +340,7 @@ def slurm_settings(config):
         "collect_cpus_per_task": optional_int(
             raw.get("collect_cpus_per_task", raw.get("cpus_per_task"))
         ),
-        "job_name": str(raw.get("job_name", "nepkappa-lbte")),
+        "job_name": str(raw.get("job_name", f"nepkappa-{getattr(config, 'method', 'lbte')}")),
         "preamble": list(raw.get("preamble", [])),
         "extra_sbatch": list(raw.get("extra_sbatch", [])),
         "submit": bool(raw.get("submit", True)),
@@ -375,22 +394,30 @@ def split_grid_points(grid_points, jobs):
     return chunks
 
 
-def write_slurm_scripts(config, settings, output_dir, work_dir, chunks, base, mesh_args):
+def write_slurm_scripts(
+    config, settings, output_dir, work_dir, chunks, base, mesh_args,
+    *, calculation_dir=None,
+):
     """Write prepare, array-worker, and collect Slurm scripts."""
     temperatures = getattr(config, "temperatures", getattr(config, "temps", None))
+    method = getattr(config, "method", "lbte")
+    calculation_dir = calculation_dir or output_dir
     common = [*base, *mesh_args]
     prepare_command = [*common, "--write-phonon"]
-    worker_command = [
-        *common,
-        "--lbte",
-        "--ts",
-        str(temperatures[0]),
-        "--write-pp",
-        "--read-phonon",
-    ]
-    collect_command = [*common, "--lbte", "--read-pp", "--read-phonon"]
-    collect_command.extend(transport_flags(config))
-    collect_command.extend(temperature_flags(temperatures))
+    if method == "rta":
+        # Gamma depends on temperature; unlike LBTE's pp workers, RTA workers
+        # must calculate the complete requested temperature range.
+        options = ["--br", "--nu", *transport_flags(config), *temperature_flags(temperatures)]
+        worker_command = [*common, *options, "--write-gamma", "--read-phonon"]
+        collect_command = [*common, *options, "--read-gamma", "--read-phonon"]
+    else:
+        worker_command = [
+            *common, "--lbte", "--ts", str(temperatures[0]),
+            "--write-pp", "--read-phonon",
+        ]
+        collect_command = [*common, "--lbte", "--read-pp", "--read-phonon"]
+        collect_command.extend(transport_flags(config))
+        collect_command.extend(temperature_flags(temperatures))
 
     array_range = f"0-{len(chunks) - 1}"
     if settings["max_concurrent"] is not None:
@@ -406,8 +433,9 @@ def write_slurm_scripts(config, settings, output_dir, work_dir, chunks, base, me
             settings,
             f"{settings['job_name']}-prepare",
             "prepare-%j.out",
-            output_dir,
+            calculation_dir,
             [shlex.join(prepare_command)],
+            log_dir=work_dir / "logs",
         ),
         encoding="utf-8",
     )
@@ -422,9 +450,10 @@ def write_slurm_scripts(config, settings, output_dir, work_dir, chunks, base, me
             settings,
             f"{settings['job_name']}-worker",
             "worker-%A_%a.out",
-            output_dir,
+            calculation_dir,
             worker_lines,
             array=array_range,
+            log_dir=work_dir / "logs",
         ),
         encoding="utf-8",
     )
@@ -435,14 +464,24 @@ def write_slurm_scripts(config, settings, output_dir, work_dir, chunks, base, me
         "--complete",
         str((work_dir / "submission.yaml").resolve()),
     ]
+    collect_lines = [shlex.join(collect_command)]
+    if method == "rta":
+        from nepkappa.transport import expected_kappa_name
+
+        filename = expected_kappa_name(config.mesh)
+        collect_lines.append(shlex.join([
+            "cp", str(calculation_dir / filename), str(output_dir / filename),
+        ]))
+    collect_lines.append(shlex.join(state_command))
     scripts["collect"].write_text(
         render_script(
             settings,
             f"{settings['job_name']}-collect",
             "collect-%j.out",
-            output_dir,
-            [shlex.join(collect_command), shlex.join(state_command)],
+            calculation_dir,
+            collect_lines,
             collect=True,
+            log_dir=work_dir / "logs",
         ),
         encoding="utf-8",
     )
@@ -451,17 +490,21 @@ def write_slurm_scripts(config, settings, output_dir, work_dir, chunks, base, me
     return scripts
 
 
-def render_script(settings, job_name, output_name, output_dir, commands, array=None, collect=False):
+def render_script(
+    settings, job_name, output_name, output_dir, commands, array=None, collect=False,
+    *, log_dir=None,
+):
     """Render one Slurm batch script."""
     cpus = settings["collect_cpus_per_task"] if collect else settings["cpus_per_task"]
     walltime = settings["collect_time"] if collect else settings["time"]
     memory = settings["collect_memory"] if collect else settings["memory"]
     error_name = output_name.removesuffix(".out") + ".err"
+    log_dir = Path(log_dir) if log_dir is not None else Path("lbte-slurm/logs")
     lines = [
         "#!/usr/bin/env bash",
         f"#SBATCH --job-name={job_name}",
-        f"#SBATCH --output=lbte-slurm/logs/{output_name}",
-        f"#SBATCH --error=lbte-slurm/logs/{error_name}",
+        f"#SBATCH --output={shlex.quote(str(log_dir / output_name))}",
+        f"#SBATCH --error={shlex.quote(str(log_dir / error_name))}",
     ]
     if cpus is not None:
         lines.append(f"#SBATCH --cpus-per-task={cpus}")
@@ -482,6 +525,7 @@ def render_script(settings, job_name, output_name, output_dir, commands, array=N
             "",
             "set -euo pipefail",
             f"export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK:-{cpus or 1}}}",
+            f"export RAYON_NUM_THREADS=${{SLURM_CPUS_PER_TASK:-{cpus or 1}}}",
             *settings["preamble"],
             f"cd {shlex.quote(str(output_dir))}",
             *commands,
@@ -492,7 +536,7 @@ def render_script(settings, job_name, output_name, output_dir, commands, array=N
 
 
 def transport_flags(config):
-    """Return final LBTE transport flags shared with the serial workflow."""
+    """Return transport flags shared with the serial workflow."""
     flags = []
     if config.wigner:
         flags.extend(["--tt", "smm19"])

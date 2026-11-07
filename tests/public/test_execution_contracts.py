@@ -11,7 +11,7 @@ from nepkappa.application import execute_workflow_command, execute_workflow_plan
 from nepkappa.config import parse_selected_command
 
 
-@pytest.mark.parametrize("backend", ["phono3py", "fourphonon"])
+@pytest.mark.parametrize("backend", ["phono3py", "phono3py-rta", "fourphonon"])
 @pytest.mark.parametrize("status", ["prepared", "submitted", "complete"])
 def test_transport_command_and_plan_share_execution_status(tmp_path, monkeypatch, backend, status):
     from nepkappa.cli import main
@@ -20,6 +20,8 @@ def test_transport_command_and_plan_share_execution_status(tmp_path, monkeypatch
 
     root = Path(__file__).resolve().parents[2]
     name = "nep-rta-3ph-4ph.yaml" if backend == "fourphonon" else "nep-lbte-wigner-3ph.yaml"
+    if backend == "phono3py-rta":
+        name = "nep-rta-wigner-3ph.yaml"
     data = yaml.safe_load((root / "examples" / name).read_text())
     data["output"]["result-dir"] = str(tmp_path / "result")
     source = tmp_path / "input.yaml"

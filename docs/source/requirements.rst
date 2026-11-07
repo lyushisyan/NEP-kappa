@@ -29,7 +29,7 @@ Additional requirements
 - VASP examples contain placeholder paths that must be configured before use
 - bundled examples use paths relative to the repository root; custom inputs
   can use paths relative to another launch directory
-- Slurm LBTE mode requires ``sbatch`` and a result directory on a shared filesystem
+- Slurm RTA/LBTE mode requires ``sbatch`` and a result directory on a shared filesystem
 - generic ASE/plugin calculators require their provider package to be installed
   separately; those optional machine-learning frameworks are not core dependencies
 - native MACE force evaluation requires the ``mace`` optional dependency:

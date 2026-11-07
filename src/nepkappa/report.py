@@ -158,6 +158,8 @@ def _read_sscha(root, warnings):
 def _read_transport(root, warnings):
     records = []
     for path in sorted(root.rglob("kappa-m*.hdf5")):
+        if "rta-slurm" in path.relative_to(root).parts[:-1]:
+            continue  # Worker data and the unpublished collection copy are internal.
         try:
             with h5py.File(path, "r") as handle:
                 if "temperature" not in handle or "kappa" not in handle:

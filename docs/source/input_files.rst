@@ -108,7 +108,7 @@ When the directories differ, ``kappa`` copies the three required inputs and
 an optional ``BORN`` file into the result directory for phono3py and subsequent
 plotting. It leaves the source unchanged and refuses conflicting destination
 inputs; identical copies can be reused. This also applies to custom phono3py
-commands and Slurm LBTE preparation. TD-BTE reads its source directly.
+commands and Slurm RTA/LBTE preparation. TD-BTE reads its source directly.
 The explicit ``kappa.force-constants`` option is for ordinary phono3py reuse,
 not FourPhonon or coupled QHA/SSCHA transport. Omit explicit force-constant
 sources for ``run``, which generates and passes on its own force constants.
@@ -328,11 +328,12 @@ temperature. With ``force-constant.sscha.run-transport: true``,
 ``kappa.parallel.backend: slurm`` (or ``parallel.kappa.backend: slurm``) is
 rejected before calculations begin, even with ``submit: false`` or a single
 temperature. This intentionally removes the previously accepted but unsupported
-nested Slurm LBTE combination. Use ``backend: none`` for RTA or LBTE within the
+nested Slurm transport combination. Use ``backend: none`` for RTA or LBTE within the
 temperature loop; the whole workflow may run inside an outer batch allocation.
-Alternatively, run direct ``nepkappa kappa`` Slurm LBTE jobs separately on
+Alternatively, run direct ``nepkappa kappa`` Slurm RTA/LBTE jobs separately on
 completed force constants using a dedicated transport input. Serial SSCHA and
-QHA-SSCHA, and direct Slurm LBTE, remain supported.
+QHA-SSCHA, and direct Slurm RTA/LBTE, remain supported. Pure-QHA transport also
+requires synchronous execution and rejects nested Slurm transport.
 
 Enabling ``bubble`` saves separate diagonal on-shell
 frequency shifts from the input FC3; those shifts do not update the exported
@@ -603,15 +604,47 @@ of the six scientific sections:
        submit: false
      kappa:
        backend: slurm
+       jobs: 4
+       max-concurrent: 4
+       cpus-per-task: 8
+       collect-cpus-per-task: 8
        submit: false
 
 ``parallel.force-constant`` controls displacement-force jobs.
-``parallel.kappa`` controls phono3py LBTE or FourPhonon jobs according to the
+``parallel.kappa`` controls phono3py RTA/LBTE or FourPhonon jobs according to the
 engine. ``submit: false`` writes scripts for review without calling ``sbatch``.
 MPI/OpenMP settings for FourPhonon may also be specified there. QHA-coupled
 calculations should be submitted as a whole allocation; nested force-job arrays
 are not supported. Force-job caches and Slurm collection state are kept under
 ``output.result-dir``.
+
+For phono3py, ``kappa.method: rta`` and ``kappa.method: lbte`` both support
+this Slurm backend. Each worker receives a round-robin subset of the
+irreducible q points. ``jobs`` sets the number of subsets (capped by the
+number of q points), ``max-concurrent`` limits simultaneous workers, and
+``cpus-per-task`` selects cores per worker. Generated transport scripts set
+both ``RAYON_NUM_THREADS`` (the default Rust backend) and ``OMP_NUM_THREADS``
+(the legacy C backend) from ``SLURM_CPUS_PER_TASK``. ``preamble`` commands
+run afterwards and may override them. NumPy/SciPy BLAS threads are configured
+separately through the BLAS library's environment variables.
+
+The pipeline prepares shared phonon eigenvectors, runs the worker array,
+and collects after every worker succeeds. RTA workers use ``--write-gamma``
+with the complete temperature range, N/U separation, isotope, boundary and
+Wigner settings; collection uses ``--read-gamma`` with the same settings.
+LBTE retains the ``--write-pp`` / ``--read-pp`` route. ``submit: false`` still
+runs q-point discovery locally, but does not submit any jobs.
+
+RTA scripts, logs and the submission manifest are stored under
+``<result-dir>/rta-slurm/``; LBTE retains ``lbte-slurm/``. RTA uses a fresh
+``rta-slurm/run-*`` workspace for each preparation so old full-grid results
+cannot mask the workers' gamma files. Its input links point to the staged
+force constants and optional BORN in the result directory; keep those inputs
+unchanged while jobs run. Successful collection copies the final
+``kappa-m*.hdf5`` back into ``output.result-dir`` before marking the manifest
+complete. All jobs must share the same result filesystem and Python environment.
+Preparing or submitting transport defers subsequent local workflow stages;
+run ``nepkappa plot input.yaml`` after collection finishes if plots are needed.
 
 Custom phono3py command sampling
 ------------------------------------

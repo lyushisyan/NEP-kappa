@@ -93,7 +93,7 @@ Slurm execution
 The ten public inputs keep site-specific scheduler resources out of their
 scientific settings. Use an external batch script for a whole workflow, or
 add an optional top-level ``parallel.force-constant`` for displaced-force
-arrays and ``parallel.kappa`` for distributed phono3py LBTE or FourPhonon.
+arrays and ``parallel.kappa`` for distributed phono3py RTA/LBTE or FourPhonon.
 Configure allocation sizes, MPI/OpenMP settings, environment setup, and a
 shared result directory for the actual cluster. Start with ``submit: false``
 when generating NEP-kappa-managed scripts for inspection.

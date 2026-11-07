@@ -112,14 +112,17 @@ For long VASP or large ``phono3py`` calculations, use a scheduler such as Slurm
 when available. For workstation testing, run inside ``tmux`` so the calculation
 continues after disconnecting.
 
-Slurm LBTE submission
------------------------
+Slurm RTA/LBTE submission
+---------------------------
 
 If ``sbatch`` is unavailable, set ``parallel.kappa.submit: false`` to generate
 the scripts without submitting them. The configured ``output.result-dir`` must
 be on a filesystem shared by the login and compute nodes. Job IDs and generated
-script paths are recorded in ``<result-dir>/lbte-slurm/submission.yaml``;
-Slurm stdout and stderr files are written under ``lbte-slurm/logs``.
+script paths are recorded in ``<result-dir>/rta-slurm/submission.yaml`` or
+``<result-dir>/lbte-slurm/submission.yaml`` according to ``kappa.method``;
+Slurm stdout and stderr files are written in the corresponding ``logs`` directory.
+Transport scripts automatically set Rayon and OpenMP threads from the allocated
+cores. Check the phono3py header for the actual Rayon thread count.
 
 To inspect active Slurm jobs, run:
 

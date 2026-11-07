@@ -55,14 +55,11 @@ class Phono3pyTransportWorkflow:
             return self._run_custom_command()
 
         parallel = self.settings.parallel
-        if (
-            self.settings.method == "lbte"
-            and str(parallel.get("backend", "none")).lower() == "slurm"
-        ):
-            print("  - Method: distributed LBTE with Slurm")
-            from nepkappa.slurm import run_lbte_slurm
+        if str(parallel.get("backend", "none")).lower() == "slurm":
+            print(f"  - Method: distributed {self.settings.method.upper()} with Slurm")
+            from nepkappa.slurm import run_transport_slurm
 
-            return run_lbte_slurm(
+            return run_transport_slurm(
                 self.settings,
                 self.output_dir,
                 self.disp_path,

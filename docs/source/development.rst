@@ -23,7 +23,7 @@ From the repository root, run the public tests and build the documentation:
 .. code-block:: bash
 
    python -m pip install -e '.[dev,docs]'
-   OMP_NUM_THREADS=1 python -m pytest tests/public -q
+   RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest tests/public -q
    python -m sphinx -b html -W --keep-going docs/source docs/build/html
 
 ``.github/workflows/checks.yml`` runs the public tests and strict documentation
@@ -37,7 +37,7 @@ If the local ``tests/`` and ``benchmarks/`` directories are available, also run:
 .. code-block:: bash
 
    python -m pip install -e '.[dev]'
-   OMP_NUM_THREADS=1 python -m pytest -q
+   RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest -q
 
 Keep the collection scope consistent when comparing regression totals.
 ``pytest tests/public`` runs the public suite; ``pytest tests`` also runs local
@@ -98,6 +98,26 @@ This validates the tested model and geometry only; it does not establish
 converged transport results or performance for large systems. Slurm force-array
 worker/collection integration is covered by the public mocked tests; the GPU
 validation ran the direct FC2/FC3 workflow inside one real Slurm allocation.
+
+RTA Slurm validation
+----------------------
+
+The distributed RTA path adds 22 public cases covering single temperatures and
+temperature ranges, ordinary and Wigner transport, dependency chaining,
+prepared/submitted status, automatic Rayon settings, and rejection of nested
+Slurm transport in QHA/SSCHA temperature loops. The former local test requiring
+RTA Slurm rejection now checks acceptance.
+
+Two integration cases use the checked-in 3C-SiC NEP model to generate FC2/FC3
+in a 2x2x2 primitive supercell, then run real phono3py 4.1.0 on a 3x3x3 mesh
+at 200, 300 and 400 K. The generated prepare, array and collect shell scripts
+are executed locally with simulated Slurm environment variables. Ordinary RTA
+and SMM19 Wigner results match serial calculations with both relative and
+absolute tolerances of 1e-10, including gamma, N/U, isotope and conductivity
+datasets. A deliberately stale full-grid result is ignored, missing worker
+data fails collection without replacing the published result, and reports
+summarize only the published result. These checks do not submit real Slurm
+jobs or establish cluster performance or convergence of the small mesh.
 
 Source layout
 ---------------

@@ -37,6 +37,11 @@ class QHA3PhWorkflow:
     def run(self):
         if not self.cfg.qha_enabled or not self.cfg.qha_volumes:
             raise ValueError("QHA-volume transport requires force-constant.qha.run-transport: true.")
+        if str((getattr(self.cfg, "lbte_parallel", {}) or {}).get("backend", "none")).lower() == "slurm":
+            raise ValueError(
+                "QHA-volume transport requires synchronous transport; use "
+                "parallel.kappa.backend: none inside the temperature loop."
+            )
         qha_temperatures, qha_volumes, multiplicity = load_qha_equilibrium_volumes(
             self.output_dir
         )
@@ -100,7 +105,10 @@ class QHA3PhWorkflow:
                 "run inside one allocation with parallel.force-constant.backend: none."
             )
         kappa_result = runner.run("kappa")
-        if isinstance(kappa_result, dict) and kappa_result.get("submitted"):
+        if isinstance(kappa_result, dict) and (
+            kappa_result.get("submitted")
+            or kappa_result.get("status") in {"prepared", "submitted"}
+        ):
             raise RuntimeError("qha-kappa cannot continue from a deferred kappa job.")
         return {
             "temperature_K": temperature,
