@@ -167,7 +167,7 @@ enabled. `kappa` selects the configured transport backend and parameters.
 `fc2fc3fc4` reuses the FC2/FC3 stage followed by Fourthorder FC4 generation;
 it does not relax the structure or run transport. It accepts compact force-constant
 inputs or ordinary four-phonon inputs; QHA, SSCHA and TD-BTE use `run`.
-See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
+See `nepkappa --help` and the [workflow guide](docs/source/workflow.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
 Phono3py RTA and LBTE both support q-point Slurm arrays through
@@ -215,7 +215,7 @@ starts a calculation.
 > 使用 $nepkappa-input，检查我的结果目录，只用已有 FC2 准备色散、DOS、
 > 体积热容和群速度绘图，单图和组合图都要。先验证输入，不重新计算。
 
-[Skill usage](docs/source/input_assistant.rst)
+[Input-assistant skill](.agents/skills/nepkappa-input/SKILL.md)
 
 ## Repository layout
 
@@ -224,17 +224,17 @@ starts a calculation.
 | `src/nepkappa/` | Installable source code |
 | `examples/` | Reusable input templates, structures, and model files |
 | `examples/potentials/` | Models and provenance notes |
-| `docs/` | User and developer documentation |
+| `docs/` | English and Chinese user documentation |
 | `tests/public/` | Public parsing, execution and numerical checks run in CI |
 | Other `tests/` contents | Local scientific checks; ignored by Git |
 | `benchmarks/` | Local frozen reference data; ignored by Git |
 | `calculations/` | Local research inputs and results; entirely ignored by Git |
 | `.agents/skills/` | Maintained input-assistant skill |
 
-Follow the [development guide](docs/source/development.rst) for local testing
-and documentation builds. Run the public suite with
-`python -m pytest tests/public -q`. Additional local tests and reference data
-are not included in a fresh GitHub checkout.
+Run the public suite with `python -m pytest tests/public -q`.
+For documentation, install `python -m pip install -e '.[docs]'` and Graphviz,
+then build English with `make -C docs html` or Chinese with `make -C docs html-zh`.
+Additional local tests and reference data are not included in a fresh GitHub checkout.
 
 ## 中文上手
 

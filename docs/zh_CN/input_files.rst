@@ -1,82 +1,42 @@
+
 输入文件与参数
 ========================
 
-完整输入与单阶段输入
---------------------------
 
-``nepkappa run`` 要求完整路线的六个部分。声子 / 输运路线使用 ``structure``、``calculator``、
-``force-constant``、``kappa``、``plot``、``output``；非平衡动力学用 ``tdbte`` 替代 ``kappa``。
-未配置选项的部分可写成 ``{}``。两种路线不能在同一输入中同时出现 ``kappa`` 和 ``tdbte``。
-可选的 ``parallel`` 是额外的资源设置部分。
 
-.. code-block:: yaml
+``structure``：晶体结构
+----------------------------------------
 
-   structure:
-     poscar: examples/structures/3C-SiC/POSCAR_primitive
-     relaxation: true
-   calculator:
-     name: nep
-     model: examples/potentials/3C-SiC/nep_3C-SiC.txt
-   force-constant:
-     dim-fc2: [3, 3, 3]
-     dim-fc3: [3, 3, 3]
-   kappa:
-     engine: phono3py
-     mesh: [31, 31, 31]
-     temps: [100, 1000, 50]
-     method: rta
-   plot:
-     layout: both
-   output:
-     result-dir: calculations/example-runs/3c-sic-nep-rta
+``structure`` 用于指定晶体结构、结构弛豫及低维体系的几何归一化参数。
 
-直接命令只执行对应的计算阶段，允许使用精简输入，也接受完整输入。
-
-.. list-table:: 单阶段所需内容
+.. list-table:: 结构参数
    :header-rows: 1
-   :widths: 24 76
+   :widths: 38 62
 
-   * - 命令
-     - 必需内容和说明
-   * - ``relax``
-     - ``structure``、``calculator``。
-   * - ``fc2`` / ``fc2fc3``
-     - ``structure``、``calculator``、``force-constant``。
-   * - ``fc2fc3fc4``
-     - 同上；依次生成 FC2、FC3、FC4，不执行结构弛豫或热导率计算。
-   * - 普通 phono3py ``kappa``
-     - ``kappa``；可用 ``kappa.force-constants`` 选择已有力常数。
-   * - ``tdbte``
-     - ``tdbte``；指定力常数目录与网格，或指定已有 ``kernel``。
-   * - ``plot``
-     - 可只写 ``output`` 使用默认绘图，或加入 ``plot``；按需增加网格、温度及几何参数。
-   * - ``report``
-     - ``output.result-dir``，也可直接把结果目录作为命令参数。
+   * - 参数
+     - 说明
+   * - ``poscar``
+     - 晶体结构文件，采用 VASP POSCAR 格式。
+   * - ``relaxation``
+     - 是否进行结构弛豫，支持布尔值或详细配置。
+   * - ``dimensionality``
+     - 体系维度：``1``、``2`` 或 ``3``，默认 ``3``。
+   * - ``effective-thickness``
+     - 二维体系的有效厚度，单位 Å。
+   * - ``effective-area``
+     - 一维体系的有效横截面积，单位 Å²。
+   * - ``vacuum-axis``
+     - 二维体系的真空方向，可选。
+   * - ``periodic-axis``
+     - 一维体系的周期方向，可选。
 
-除报告 YAML 外，``output`` 可省略，默认结果目录为启动目录下的 ``result``。
-建议显式指定输出路径。``info --for <命令>`` 检查对应的阶段；不带 ``--for`` 时检查完整 ``run`` 输入。
-精简的复用输入不能交给 ``run``。内部 FC4、SSCHA、bubble 和耦合步骤由输入开关选择，没有独立公开命令。
 
-``fc2fc3fc4`` 组合执行已有的 FC2/FC3 和 FC4 阶段，FC4 通过 Fourthorder
-生成 ``FORCE_CONSTANTS_4TH``，FC2/FC3 的后端和输出格式遵循输入设置。
-可使用精简力常数输入或普通四声子完整输入；此命令不要求额外启用
-``force-constant.four-phonon``。QHA、SSCHA 和 TD-BTE 配置应使用 ``run``。
-FC2/FC3 的原子力任务交给 Slurm 时，命令先暂停，生成的收集脚本会在收集完成后继续生成 FC4。
+结构弛豫
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+设置 ``relaxation: true`` 启用结构弛豫。
 
-   nepkappa info input.yaml --for fc2fc3fc4
-   nepkappa fc2fc3fc4 input.yaml
-
-.. important::
-
-   普通相对路径以启动目录为准，不以 YAML 文件所在目录为准。
-   ``info`` 检查输入结构与参数关系，不会验证模型精度、外部程序可运行性或数值收敛。
-
-structure：结构与归一化
---------------------------
-
-``poscar`` 指向结构。``relaxation: true`` 启用弛豫，也可以配置 VASP 的分阶段弛豫：
+对于 VASP，还可以设置多阶段弛豫：
 
 .. code-block:: yaml
 
@@ -89,39 +49,79 @@ structure：结构与归一化
          coarse: {ediffg: -0.05, prec: Normal}
          fine: {ediffg: -0.01, prec: Accurate}
 
-启用弛豫后，单独运行 ``fc2`` / ``fc2fc3`` / ``fc2fc3fc4`` 之前需先运行 ``relax``，因为力常数阶段读取 ``POSCAR_relaxed``。
-完整 ``run`` 会安排顺序。QHA 直接读取指定结构，因此它的输入要求 ``relaxation: false``。
+.. note::
 
-``dimensionality`` 可为 1、2 或 3。薄膜需指定物理有效厚度 ``effective-thickness``（Å），
-可选 ``vacuum-axis``；纳米线需指定 ``effective-area``（Å²），可选 ``periodic-axis``。
-这些因子修正绘图中的热容和热导率，不改写原始 phono3py HDF5。
-当前 QHA、SSCHA 和 FourPhonon 只接受 ``dimensionality: 3``，单独设置几何归一化不能消除这一限制。
+  ``nepkappa run`` 会自动执行结构弛豫及后续计算。
+  使用 ``fc2``、``fc2fc3`` 或 ``fc2fc3fc4`` 独立生成力常数时，
+  如果启用了结构弛豫，需要先运行 ``nepkappa relax``，
+  生成 ``POSCAR_relaxed``。
+  QHA 使用指定的输入结构，要求 ``relaxation: false``。
 
-calculator：能量和原子力
---------------------------
 
-.. list-table:: 计算器选项
+低维体系的几何归一化
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+对于包含真空层的二维薄膜和一维纳米线，
+需要使用有效厚度或横截面积进行物理体积归一化。
+
+.. list-table:: 低维体系设置
    :header-rows: 1
-   :widths: 30 70
+   :widths: 20 72 38
 
-   * - 选项
-     - 含义
-   * - ``name``
-     - 默认 ``nep``；可选 ``vasp``、``mace``、``ase`` 或已安装的插件名。
-   * - ``model``
-     - NEP 势文件，或 MACE checkpoint / 基础模型工厂认可的标识。
-   * - ``nep-model``
-     - 保留的 NEP 旧键，不能与 ``model`` 同时出现，即使值相同。
-   * - ``vasp-command`` / ``vasp-path``
-     - VASP 启动命令 / 可执行文件，前者优先。
-   * - ``potcar-path``
-     - 合并的 POTCAR 文件或势库目录，必须在执行主机可访问。
-   * - ``foundation``、``device``、``dtype``
-     - MACE 工厂、设备和精度设置。
-   * - ``factory``、``kwargs``、``model-files``
-     - 通用 ASE 工厂路径、参数和显式纳入身份记录的模型文件。
+   * - 体系
+     - 必需参数
+     - 可选参数
+   * - 二维薄膜
+     - ``dimensionality: 2`` 和
+       ``effective-thickness``
+     - ``vacuum-axis``
+   * - 一维纳米线
+     - ``dimensionality: 1`` 和
+       ``effective-area``
+     - ``periodic-axis``
 
-GPU 位移力使用：
+上述参数用于绘图时的体积热容和热导率归一化，
+不修改原始 phono3py HDF5 数据。
+
+.. note::
+
+   QHA、SSCHA 和 FourPhonon 目前仅支持三维体系
+   （``dimensionality: 3``）。
+   几何归一化参数不会改变这些方法的适用范围。
+
+
+
+``calculator``：原子间相互作用
+----------------------------------------
+
+``calculator`` 指定能量和原子力的计算方法。
+NEP-kappa 支持 NEP、VASP、MACE 和其他 ASE 兼容计算器。
+
+.. list-table:: 计算器类型
+   :header-rows: 1
+   :widths: 16 16 64
+
+   * - 计算器
+     - ``name``
+     - 主要配置
+   * - NEP
+     - ``nep``
+     - 通过 ``model`` 指定 NEP 势文件，默认使用 CPU 计算。
+   * - MACE
+     - ``mace``
+     - 通过 ``model`` 或 ``foundation`` 指定模型，可使用 ``device`` 和 ``dtype`` 控制计算设备与精度。
+   * - VASP
+     - ``vasp``
+     - 配置 ``vasp-command``、``vasp-path`` 和 ``potcar-path``。
+   * - ASE
+     - ``ase``
+     - 使用 ``factory``、``kwargs`` 和 ``model-files`` 配置其他计算器。
+
+
+NEP GPU 加速
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+对于大量位移结构，可以使用 GPU 批量计算原子力：
 
 .. code-block:: yaml
 
@@ -132,201 +132,460 @@ GPU 位移力使用：
      nep-batch-size: 128
      nep-command: /path/to/nep
 
-``nep-force-backend`` 默认 ``cpu``。``nep-command`` 必须是一份可执行文件，不是 shell 命令或 ``gpumd``。
-批处理保留结构和原子顺序，拒绝形状错误或非有限力；失败时不切换 CPU。
-CPU / GPU 缓存身份不同，GPU 记录模型、程序及批大小等信息。
-GPU 目前只用于原生 FC2/FC3 与 HiPhive 位移力，弛豫仍为 CPU；不适用于 QHA、SSCHA 和 Thirdorder / Fourthorder 路线。
-安装与节点检查见 :doc:`installation`。
+主要参数：
 
-force-constant：力常数与温度修正
-------------------------------------
+- ``nep-force-backend``：选择 ``cpu`` 或 ``gpu-batch``。
+- ``nep-batch-size``：每批处理的结构数量上限。
+- ``nep-command``：GPUMD ``nep`` 可执行文件的路径。
 
-.. list-table:: 力常数选项与单位
+GPU 批处理适用于原生 phono3py FC2/FC3 和 HiPhive 位移力计算，目前不支持 QHA、SSCHA、Thirdorder 和 Fourthorder。
+
+.. note::
+
+   GPU 批处理需要 Calorine 3.5 及以上版本、
+   GPUMD 的 ``nep`` 可执行文件和兼容的 GPU 环境。
+
+
+``force-constant``：力常数
+----------------------------------------
+
+``force-constant`` 控制二阶、三阶和四阶力常数的生成。
+可使用有限位移方法或 HiPhive 拟合，并支持不同的力常数计算后端。
+
+.. list-table:: 力常数参数
    :header-rows: 1
-   :widths: 30 70
+   :widths: 35 65
 
-   * - 选项
-     - 含义
+   * - 参数
+     - 说明
    * - ``dim-fc2`` / ``dim-fc3`` / ``dim-fc4``
-     - 分别指定二、三、四阶力常数超胞。
+     - 分别指定 FC2、FC3 和 FC4 的超胞维度。
    * - ``fc3-backend``
-     - 默认原生 phono3py；``thirdorder`` 使用 Thirdorder 生成 FC3。
+     - 默认使用 phono3py，也可选择 ``thirdorder``。
    * - ``cutoff-fc3``
-     - 原生 phono3py：位移原子对距离截断，单位 Å；Thirdorder：负整数为邻居壳层，正值单位 nm。
+     - 三阶力常数的位移截断设置，具体定义取决于计算后端。
    * - ``cutoff-fc4``
-     - 传给 Fourthorder；负值选择邻居壳层，需独立检查收敛。
+     - Fourthorder 的四阶相互作用截断设置。
    * - ``use-hiphive``
-     - 启用 HiPhive 拟合，配合 ``n-structures``、``rattle-std``、``cutoffs`` 和 ``min-dist``。
+     - 启用 HiPhive 力常数拟合。
    * - ``format``
-     - ``phono3py``、``shengbte`` 或 ``both``；phono3py 需要 HDF5，FourPhonon 需要文本 FC2/FC3/FC4。
+     - 输出格式：``phono3py``、``shengbte`` 或 ``both``。
    * - ``thirdorder-command`` / ``fourthorder-command``
-     - 外部位移生成 / 收集程序的启动命令。
+     - Thirdorder 和 Fourthorder 可执行程序的路径或启动命令。
    * - ``qha`` / ``sscha`` / ``four-phonon``
-     - 可为布尔值，也可为含 ``enabled`` 和具体参数的映射。
+     - 启用相应的计算模块，并设置其参数。
 
-原生 FC3 的截断限制位移原子对，不等于把张量在同一距离处直接截断。
-HiPhive 的 ``cutoffs`` 是按阶设置的拟合截断，单位 Å。原生 FC2 没有独立的同类实空间截断，需检查超胞。
+力常数超胞和截断
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-QHA 与 SSCHA 的配置关系
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``dim-fc2``、``dim-fc3`` 和 ``dim-fc4`` 分别控制不同阶次的超胞。
+超胞大小会影响计算成本及力常数的收敛性，应针对不同材料进行测试。
 
-.. code-block:: yaml
+``cutoff-fc3`` 的定义取决于 FC3 后端：
 
-   force-constant:
-     dim-fc2: [3, 3, 3]
-     dim-fc3: [3, 3, 3]
-     qha:
-       enabled: true
-       volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
-       temps: [0, 1000, 10]
-     sscha:
-       enabled: true
-       run-transport: true
-       temps: [300, 900, 300]
-       snapshots: 200
-       iterations: 4
-   kappa:
-     engine: phono3py
-     temps: [300, 900, 300]
-     method: rta
+- **phono3py**：位移原子对的距离截断，单位 Å。
+- **Thirdorder**：负整数表示邻居壳层，正值表示距离截断，单位 nm。
 
-QHA 各向同性缩放体积并拟合状态方程。常用参数还有 ``dim-fc2``、``mesh``、``eos``、``pressure``、
-``relax-internal`` 以及 VASP 弛豫 / 静态计算参数。
-仅 QHA 的 ``run-transport: true`` 路线在各温度的 QHA 平衡体积上重新生成 FC2/FC3，
-目前只支持 phono3py RTA；它不包含显式非谐频率重整化。
+``cutoff-fc4`` 传递给 Fourthorder，负整数表示邻居壳层。
 
-``qha.equilibrium-phonons: true`` 会在体积拟合后，为各输出温度的平衡体积额外计算 FC2，
-写入 ``qha-phonons/T.../`` 和 ``qha-phonons.yaml``。平衡体积超出扫描范围时拒绝计算。
-随后 ``plot`` 读取这些结果生成自由能、平衡体积、体积热膨胀及色散 / DOS 四面板。
-缺少这些平衡体积 FC2 的旧结果，需要重新执行对应计算，绘图本身不生成力。
+HiPhive 使用 ``n-structures``、``rattle-std``、``cutoffs`` 和 ``min-dist``
+等参数控制训练结构与力常数拟合，其中 ``cutoffs`` 的单位为 Å。
 
-SSCHA 在每个温度重新拟合辅助谐近似 FC2。常用参数为 ``snapshots``、``iterations``、``transient``、
-``sscha-mesh``、``initial-fc2``。QHA+SSCHA 在 QHA 给定的平衡体积上进行固定体积 SSCHA，
-不会用 SSCHA 自由能重新优化体积。该路线中的 FC3/FC4 在对应体积重新生成，但不作显式温度重整化。
 
-QHA / SSCHA 默认 ``run-transport: false``。同时启用时，任一 ``run-transport: true`` 可选择组合输运，
-显式冲突的开关会报错。耦合温度循环必须同步完成各温度的输运，拒绝嵌套 Slurm 输运，
-即使 ``submit: false`` 也不例外。可把整个流程放在外层 Slurm 分配中，内部使用 ``backend: none``。
+QHA 与 SSCHA
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-``sscha.bubble`` 保存由输入 FC3 得到的独立对角 on-shell 频移，不更新导出的 FC2 或热导率。
-详细输入见 :doc:`harmonic_temperature`。
+NEP-kappa 支持准谐近似（QHA）、固定体积随机自洽谐近似（SSCHA），
+以及 QHA 平衡体积上的 SSCHA 计算。
 
-kappa：散射与热导率
---------------------------
+三种路线的主要区别如下：
 
-``engine: phono3py`` 使用 ``method: rta`` 或 ``lbte``；``isotope`` 启用同位素散射，
-``bfmp`` 的单位为微米，``wigner`` 启用 SMM19 相干贡献。
-FourPhonon 使用 ``engine: fourphonon``，并分别设置 ``method-3ph`` 与 ``method-4ph``：
-支持 ``rta/rta``、``lbte/rta``、``lbte/lbte``，不支持 ``rta/lbte``。
-四声子 Wigner 需要 ``rta/rta`` 和 Wigner_Park。
+.. list-table:: 温度相关声子计算
+   :header-rows: 1
+   :widths: 25 75
 
-``four-phonon.compare-3ph: true`` 用同一 FourPhonon 程序顺序运行纯三声子与三加四声子两组结果，
-保持结构、FC2/FC3、网格、温度、展宽和同位素设置一致。
-参考结果在 ``fourphonon/threephonon/``，组合结果在 ``fourphonon/``。
-该比较要求自动生成 CONTROL，不能与自定义 CONTROL、Wigner 或 only-harmonic 组合。
+   * - 方法
+     - 计算内容
+   * - QHA
+     - 通过体积扫描和状态方程拟合获得温度相关平衡体积，描述热膨胀对声子性质的影响。
+   * - SSCHA
+     - 在固定体积下进行有限温度采样，自洽更新辅助谐近似力常数。
+   * - QHA + SSCHA
+     - 先由 QHA 确定各温度的平衡体积，再在对应体积上进行固定体积 SSCHA。
 
-FC2、Thirdorder FC3、Fourthorder FC4 和自动 CONTROL 共用规范化晶胞坐标：
-周期位置折叠到 [0, 1)，距边界 1e-10 内的浮点噪声归零，原子顺序与晶格保持不变。
-只修改 CONTROL 不能转换旧力常数中的晶格平移标记；不一致的旧数据应重新生成或按原始元数据显式重映射。
-自动 CONTROL 默认关闭 NAC；极性材料需要相应的 Born 电荷和介电数据时，应使用经过验证的一致输入。
+主要参数：
 
-温度网格
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- ``qha.volume-ratios``：体积扫描范围。
+- ``qha.temps``：QHA 的温度范围。
+- ``sscha.temps``：SSCHA 采样温度。
+- ``sscha.snapshots``：每次迭代的采样结构数量。
+- ``sscha.iterations``：自洽迭代次数。
+- ``run-transport``：是否在相应温度计算热导率。
 
-* ``qha.temps``：``[Tmin, Tmax, step]``，要求 ``0 <= Tmin < Tmax``。
-* ``sscha.temps``：同样是范围写法，允许 ``Tmin == Tmax`` 表示单点，步长仍须为正。
-* ``kappa.temps``：``[T]`` 或 ``[Tmin, Tmax, step]``，温度必须大于零，不接受任意不等间隔列表。
+详细的计算方法与完整示例见 :doc:`temperature`。
 
-步长须为正并恰好覆盖终点。SSCHA 范围必须位于 QHA 范围内，允许对 QHA 平衡体积插值。
-启用 SSCHA 输运时，每个热导率温度必须是实际 SSCHA 采样点；它们可以是采样点的子集。
-例如 QHA ``[0,1000,10]``、SSCHA ``[300,900,100]`` 与输运 ``[300,900,300]`` 相容。
-耦合输运必须显式写出 ``kappa.temps``；禁用输运时，它不会限制 QHA / SSCHA 温度范围。
+
+
+``kappa``：声子散射与热导率
+----------------------------------------
+
+``kappa`` 用于配置声子散射、玻尔兹曼输运方程（BTE）求解方法及晶格热导率计算。
+NEP-kappa 支持 phono3py 和 FourPhonon 两种计算引擎，可选择不同的散射机制与求解方法。
+
+
+常用参数
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table:: 热输运参数
+   :header-rows: 1
+   :widths: 36 64
+
+   * - 参数
+     - 说明
+   * - ``engine``
+     - 计算引擎：``phono3py`` 或 ``fourphonon``。
+   * - ``mesh``
+     - 布里渊区 q 网格，例如 ``[31, 31, 31]``。
+   * - ``temps``
+     - 计算温度，单位 K。
+   * - ``method``
+     - phono3py 求解方法：``rta`` 或 ``lbte``。
+   * - ``method-3ph`` / ``method-4ph``
+     - FourPhonon 中三声子与四声子的求解方法。
+   * - ``isotope``
+     - 是否考虑同位素散射。
+   * - ``bfmp``
+     - 边界散射的平均自由程参数，单位 μm。
+   * - ``wigner``
+     - 是否启用 Wigner 相干输运计算。
+   * - ``force-constants``
+     - 已有力常数的来源目录，仅适用于普通 phono3py 单阶段输运。
+   * - ``command``
+     - 自定义 phono3py 启动命令。
+
+
+计算引擎与求解方法
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+phono3py 主要用于三声子热输运，FourPhonon 则同时考虑三声子和四声子散射。
+两种引擎均支持 RTA 和迭代 LBTE，但可用的求解组合不同。
+
+.. list-table:: 支持的热输运方法
+   :header-rows: 1
+   :widths: 25 30 45
+
+   * - 计算引擎
+     - 求解方法
+     - 计算内容
+   * - phono3py
+     - ``rta``
+     - 三声子弛豫时间近似。
+   * - phono3py
+     - ``lbte``
+     - 三声子线性化 BTE 迭代求解。
+   * - FourPhonon
+     - ``rta / rta``
+     - 三声子与四声子均采用 RTA。
+   * - FourPhonon
+     - ``lbte / rta``
+     - 三声子迭代求解，四声子采用 RTA。
+   * - FourPhonon
+     - ``lbte / lbte``
+     - 三声子与四声子均采用迭代求解。
+
+RTA 使用各声子模式的弛豫时间近似处理碰撞项；
+迭代 LBTE 则进一步考虑不同声子模式之间的线性耦合。
+
+FourPhonon 使用 ``method-3ph`` 和 ``method-4ph`` 分别指定求解方法。
+目前不支持 ``rta / lbte`` 组合。
+
+Wigner 相干输运
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+设置 ``wigner: true`` 可启用 Wigner 输运计算，
+将晶格热导率分为粒子贡献（particle）和相干贡献（coherence）。
+
+总热导率为：
+
+.. math::
+
+   \kappa_{\mathrm{total}}
+   = \kappa_{\mathrm{P}} + \kappa_{\mathrm{C}}.
+
+其中，粒子项描述声子布居的输运贡献，
+相干项描述不同振动模式之间的非对角相干贡献。
+
+Wigner 并非独立的 BTE 求解方法，其支持范围取决于计算引擎：
+
+- **phono3py**：支持三声子 RTA 或 LBTE，并通过 SMM19 计算相干贡献。
+- **FourPhonon**：需要 Wigner_Park，目前仅支持三声子和四声子均采用 RTA。
+
+具体输入和计算示例见 :doc:`thermal_transport`。
+
+
+计算温度
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``temps`` 支持单温度和等间隔温度范围两种格式：
+
+.. list-table:: 温度设置
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 格式
+     - 示例
+   * - 单温度 ``[T]``
+     - ``temps: [300]``
+   * - 温度范围 ``[Tmin, Tmax, step]``
+     - ``temps: [100, 1000, 50]``
+
+温度单位为 K，必须大于零。范围格式包含起点和终点，
+步长必须为正，且能够恰好到达终点。
+
+目前不支持直接输入任意不等间隔的温度列表。
+
+对于 QHA 或 SSCHA 耦合输运，热导率温度还必须满足对应的采样范围要求，
+详见 :doc:`temperature`。
+
 
 复用已有力常数
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+如果已经生成 FC2 和 FC3，可以跳过原子力计算，
+直接使用 phono3py 计算不同温度或 q 网格下的热导率。
+
+例如：
 
 .. code-block:: yaml
 
    kappa:
      force-constants: calculations/3C-SiC/fc
-     method: rta
-     mesh: [5, 5, 5]
+     engine: phono3py
+     mesh: [41, 41, 41]
      temps: [300]
+     method: rta
+
    output:
-     result-dir: calculations/3C-SiC/kappa-reuse
+     result-dir: calculations/3C-SiC/kappa-m41
 
-使用 ``nepkappa kappa kappa.yaml``。来源目录必须包含配套的 ``phono3py_disp.yaml``、``fc2.hdf5``、``fc3.hdf5``。
-来源与输出不同时，普通 phono3py 路线复制三份文件及可选 BORN；冲突输入会被拒绝，源文件不改动。
-该来源选项用于普通直接 phono3py 输运，不用于 FourPhonon、耦合路线或从头执行的 ``run``。
+首先检查输入，再执行计算：
 
-自定义命令
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: bash
 
-``kappa.command`` 替代整个 phono3py 命令，不会再自动附加其他计算选项。
-程序可读取命令里的 ``--mesh``、``--ts`` / ``--temperature``，或完整的 ``--tmin/--tmax/--tstep``。
-命令行 ``--ts`` 是实际温度点列表，与 YAML 的三数范围约定不同；多点须递增且等间隔。
-若同时写 YAML 网格 / 温度，二者必须一致。隐藏在外部脚本或配置文件里的采样设置不会自动推断。
-命令在结果目录中执行，不经过 shell，因此管道和重定向不会被解释。
+   nepkappa info kappa.yaml --for kappa
+   nepkappa kappa kappa.yaml
 
-tdbte：非平衡动力学
---------------------------
+``force-constants`` 指定已有力常数目录，
+``output.result-dir`` 指定新的计算结果目录。
 
-从头计算用 :download:`完整示例 <../../examples/tdbte.yaml>` 和 ``run``；
-已有力常数用 ``tdbte.force-constants`` 与 ``tdbte.mesh``，再执行 ``nepkappa tdbte``。
-已有碰撞核则只指定 ``kernel``，不能同时指定网格或力常数来源。
-三维碰撞网格三个分量均须至少为 2；实验一维路线只允许一个分量大于 1，二维网格不支持。
+来源目录必须包含以下配套文件：
 
-``branches`` 是从零开始、按各 q 点频率排序的分支编号。
-``excitation`` 表示所选占据数乘以 ``1 + excitation``，不是温升或激光能流密度。
-``temperature`` 为初始 Bose 参考温度；``duration-ps``、``max-step-ps``、``samples`` 分别控制时长、
-最大步长和保存时刻数量。默认值及数值模型见 :doc:`tdbte`。
-可选 ``spatial`` 打开周期一维实空间输运，此时 q 网格仍为三维，详见 :doc:`tdbte_spatial`。
-QHA、SSCHA、FC4 和 Wigner 设置不会自动传入 TD-BTE。
+- ``fc2.hdf5``：二阶力常数。
+- ``fc3.hdf5``：三阶力常数。
+- ``phono3py_disp.yaml``：晶体结构、位移及相关元数据。
 
-plot：绘图
---------------------------
+当来源目录与结果目录不同时，
+程序会将所需输入文件复制到结果目录，不修改原始文件。
 
-.. list-table:: 常用绘图选项
+
+自定义 phono3py 命令
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+高级用户可以通过 ``kappa.command`` 指定完整的 phono3py 启动命令，
+代替 NEP-kappa 自动生成的命令行。
+
+自定义命令中的网格和温度必须与 YAML 配置一致。启用后，NEP-kappa 不再自动附加其他计算参数。
+
+命令直接在结果目录中执行，不经过 shell，因此不支持管道或重定向操作。
+
+更多热输运计算方法与完整示例见 :doc:`thermal_transport`。
+
+
+``tdbte``：非平衡声子动力学
+----------------------------------------
+
+``tdbte`` 用于求解含时玻尔兹曼输运方程，
+模拟非平衡声子占据数随时间的演化和模式间能量交换。
+
+与热导率计算不同，TD-BTE 不需要预先求解稳态输运方程，
+但需要匹配的 FC2、FC3 和声子结构信息。
+
+计算路线
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+目前支持两种非平衡动力学路线：
+
+.. list-table::
    :header-rows: 1
+   :widths: 30 70
 
-   * - 选项
-     - 含义
-   * - ``layout``
-     - ``separate``、``combined`` 或 ``both``。
-   * - ``path`` / ``path-points`` / ``path-segments``
-     - 自动或自定义色散路径。
+   * - 路线
+     - 主要功能
+   * - 空间均匀 TD-BTE
+     - 求解非平衡声子占据数的时间演化，分析声子模式间的能量交换与热化。
+   * - 一维空间 TD-BTE
+     - 在一维周期实空间中同时考虑声子传播和非线性三声子碰撞。
+
+两种路线共享三声子碰撞核。
+空间输运通过可选的 ``tdbte.spatial`` 配置启用，
+声子 q 网格仍为三维。
+
+常用参数
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table:: TD-BTE 参数
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 参数
+     - 说明
+   * - ``force-constants``
+     - 已有 FC2/FC3 及匹配元数据的来源目录。
+   * - ``kernel``
+     - 已生成的碰撞核，用于避免重新构建。
+   * - ``mesh``
+     - 碰撞积分使用的声子 q 网格。
    * - ``temperature``
-     - 标准输运图中散射率所用温度；缺少精确匹配时取最近保存点并提示。
+     - 初始 Bose 分布的参考温度。
+   * - ``branches``
+     - 指定激发的声子分支，索引从零开始。
+   * - ``excitation``
+     - 选定模式占据数的相对增加幅度。
+   * - ``duration-ps``
+     - 总演化时间，单位 ps。
+   * - ``max-step-ps``
+     - 最大时间积分步长，单位 ps。
+   * - ``samples``
+     - 保存结果的时间点数量。
+   * - ``spatial``
+     - 一维空间输运的长度、网格、边界及初始条件设置。
+
+均匀 TD-BTE 中，``excitation`` 将指定分支的初始占据数乘以
+``1 + excitation``，不是温升或激光能流密度。
+
+.. note::
+
+   当前 TD-BTE 不包含四声子、Wigner 相干项或电子耦合。
+
+空间均匀动力学见 :doc:`tdbte`，
+一维空间输运见 :doc:`tdbte_spatial`。
+
+
+``plot``：计算结果绘图
+----------------------------------------
+
+``plot`` 用于控制声子性质、散射率、热导率和非平衡动力学结果的可视化。
+绘图直接读取已有数据，不会重新执行原子力或热输运计算。
+
+.. list-table:: 绘图参数
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 参数
+     - 说明
+   * - ``layout``
+     - ``separate``、``combined`` 或 ``both``，控制单图及组合图。
+   * - ``path``
+     - 声子色散的高对称路径，可使用 ``seekpath`` 自动生成。
+   * - ``path-points`` / ``path-segments``
+     - 自定义色散路径。
+   * - ``temperature``
+     - 散射率绘图所用温度，默认从已有结果中选择匹配数据。
    * - ``kappa``
-     - ``x``、``y``、``z`` 或 ``all``；``all`` 表示三个对角分量的平均。
+     - ``x``、``y``、``z`` 或 ``all``，控制热导率分量。
    * - ``tau``
-     - ``phph``、``isotope``、``total``、``normal``、``umklapp``、``nu`` 或 ``all``。
+     - 选择绘制的散射机制。
    * - ``scattering-rate-min``
-     - 仅显示层面的下限，单位 ps⁻¹；默认 0，等于下限的点保留，不改写线宽或热导率。
-   * - ``dpi`` / ``tdbte-times``
-     - PNG 分辨率 / 均匀 TD-BTE 色散快照的三个时间。
+     - 散射率显示下限，单位 ps⁻¹。
+   * - ``dpi``
+     - PNG 图像分辨率。
+   * - ``tdbte-times``
+     - 均匀 TD-BTE 色散快照的三个时间点。
 
-FC2 和匹配结构元数据足以绘制色散、DOS、体积热容和群速度。
-有热导率、线宽和模式热导率时，再分别增加对应面板，裸 FC2 数组不足以建立色散。
-``nu`` 要求 ``gamma_N``、``gamma_U`` 均存在。
-线宽转换为散射率使用 ``4*pi*gamma``；无温度轴的同位素线宽会广播到各温度。
-``total`` 比较 ph-ph、同位素和二者之和，图中的这个和不含边界散射。
-显式要求同位素但结果缺少 ``gamma_isotope`` 时，不会把不完整的和当作总散射率。
-FourPhonon 的 3ph / 4ph 散射率分别标记，不在面板中求和或额外加入同位素。
+绘图内容与数据要求
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-普通非 Wigner LBTE 数据含 ``kappa_RTA`` 时，同图比较 LBTE 实线与 RTA 虚线，应用相同几何修正。
-Wigner 读取器验证 ``kappa_intra_exact`` / ``kappa_intra`` 与 ``kappa_inter`` 的存储约定，
-不会用 RTA 粒子解代替 LBTE 粒子解。
+不同类型的图像需要不同的计算结果：
 
-禁用输运时，SSCHA 总览叠加所有采样温度的谱和群速度；热容使用各温度 FC2 的独立彩色点。
-灰色谐近似热容参考使用固定体积 FC2，QHA+SSCHA 则优先使用体积比为 1 的 QHA 扫描点。
-该热容不是完整 SSCHA 自由能对温度的导数。绘图始终不会补算原子力。
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
 
-output 与 parallel
---------------------------
+   * - 图像
+     - 所需数据
+   * - 声子色散与 DOS
+     - FC2 及匹配的结构元数据。
+   * - 体积热容与群速度
+     - FC2 及对应声子信息。
+   * - 声子散射率
+     - 声子线宽或散射率数据。
+   * - 晶格热导率
+     - 已完成的热输运计算结果。
+   * - 非平衡动力学
+     - TD-BTE 保存的时间演化结果。
 
-``output.result-dir`` 指定结果目录，``progress`` 控制活动进度显示。
-为不同材料和参数组使用独立目录。可选资源配置例如：
+``layout: both`` 同时生成单独图像和组合图。
+
+散射率绘图
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``tau`` 支持以下选项：
+
+- ``phph``：声子–声子散射。
+- ``isotope``：同位素散射。
+- ``total``：声子–声子、同位素及二者之和。
+- ``normal`` / ``umklapp``：N / U 散射。
+- ``nu``：同时展示 N 和 U 散射。
+- ``all``：绘制所有可用散射信息。
+
+程序使用 ``4*pi*gamma`` 将 phono3py 线宽转换为散射率。
+``total`` 不包含边界散射。
+使用 ``nu`` 时需要同时保存 N 和 U 散射数据。
+
+对于 FourPhonon，三声子与四声子散射率分别绘制，
+不会在图中自动求和。
+
+热导率绘图
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+普通 LBTE 结果若包含 RTA 数据，可在同一图中比较 LBTE 和 RTA。
+Wigner 输运分别展示粒子贡献、相干贡献及总热导率。
+
+``kappa: all`` 表示三个对角热导率分量的平均值，
+而不是热导率张量的全部分量。
+
+
+``output``：结果输出
+----------------------------------------
+
+``output`` 用于设置计算结果目录与运行进度显示。
+
+.. list-table:: 输出参数
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 参数
+     - 说明
+   * - ``result-dir``
+     - 计算结果保存目录。
+   * - ``progress``
+     - 是否显示动态计算进度。
+
+建议为不同材料、温度或 q 网格设置独立的结果目录，
+方便保存、比较和复用数据。
+
+运行日志保存在结果目录的 ``run.log`` 中。
+计算完成后，可通过 ``nepkappa plot`` 和 ``nepkappa report``
+读取已有数据，生成图像和计算报告。
+
+
+``parallel``：并行计算
+----------------------------------------
+
+``parallel`` 为可选模块，用于配置力常数与热输运阶段的并行资源。
+NEP-kappa 支持 Slurm 任务调度，并可分别设置不同阶段的计算资源。
+
+以下示例使用 Slurm 分配力常数任务和 phono3py 输运任务：
 
 .. code-block:: yaml
 
@@ -335,6 +594,7 @@ output 与 parallel
        backend: slurm
        jobs: 16
        submit: false
+
      kappa:
        backend: slurm
        jobs: 4
@@ -343,13 +603,28 @@ output 与 parallel
        collect-cpus-per-task: 8
        submit: false
 
-``submit: false`` 写出脚本而不调用 ``sbatch``，但执行阶段仍可能进行准备工作；例如输运需要本地发现 q 点。
-phono3py 的 RTA / LBTE 都支持 Slurm，worker 以轮转方式分配不可约 q 点。
-``jobs`` 控制子集数，``max-concurrent`` 限制并行 worker 数；各任务共享结果文件系统。
-脚本从 ``SLURM_CPUS_PER_TASK`` 设置 Rayon 与 OpenMP 线程；BLAS 线程需单独管理。
+.. list-table:: 常用 Slurm 参数
+   :header-rows: 1
+   :widths: 35 65
 
-RTA 使用 ``--write-gamma/--read-gamma``，每次准备新建 ``rta-slurm/run-*`` 工作区，避免旧整网格结果
-遮蔽 worker 输出；LBTE 使用 ``--write-pp/--read-pp``。
-只有所有 worker 成功后才收集并发布 ``kappa-m*.hdf5``，随后标记完成。
-准备或提交并不等于科学计算已完成；收集后再执行 ``plot``。
-GPU 资源可通过 ``extra-sbatch: ["--gres=gpu:1"]`` 交给目标集群，但实际语法与环境需按站点配置。
+   * - 参数
+     - 说明
+   * - ``backend``
+     - 选择计算执行方式，例如 ``slurm``。
+   * - ``jobs``
+     - 分配的工作任务数量。
+   * - ``max-concurrent``
+     - 同时运行的最大任务数。
+   * - ``cpus-per-task``
+     - 每个任务使用的 CPU 核心数。
+   * - ``collect-cpus-per-task``
+     - 结果收集阶段使用的 CPU 核心数。
+   * - ``submit``
+     - 是否自动提交 Slurm 任务。
+   * - ``extra-sbatch``
+     - 传递给 Slurm 的额外资源选项。
+
+``submit: false`` 只生成 Slurm 脚本而不调用 ``sbatch``，
+但准备阶段仍可能执行部分本地工作。
+
+phono3py 的 RTA 与 LBTE 均支持将不可约 q 点分配到多个 Slurm 任务。

@@ -1,14 +1,14 @@
-Quick start: three-phonon RTA and Wigner transport
-======================================================
+Quick start: three-phonon thermal transport
+===========================================
 
-This example uses the bundled 3C-SiC NEP model to relax the structure, generate
-FC2/FC3, and calculate three-phonon RTA and SMM19 Wigner thermal transport.
+Using the bundled 3C-SiC NEP potential, this example relaxes the structure,
+generates second- and third-order force constants (FC2/FC3), and calculates
+three-phonon RTA thermal transport.
 
-Prepare the example
------------------------
+Prepare a working directory
+---------------------------
 
-From the installed repository root, copy the structure and potential into a
-working directory:
+Run from the NEP-kappa repository root:
 
 .. code-block:: bash
 
@@ -18,71 +18,120 @@ working directory:
    cp examples/potentials/3C-SiC/nep_3C-SiC.txt ~/work/3C-SiC/
    cd ~/work/3C-SiC
 
-Paths in YAML are relative to this launch directory. Later chapters use
-``phonons/``, ``transport/`` and ``tdbte/`` subdirectories to keep results separate.
+The working directory contains the structure ``POSCAR`` and the NEP potential
+``nep_3C-SiC.txt``. Relative input paths are resolved from the launch directory.
 
-Prepare the input
----------------------
+Configure the input
+------------------------
 
-Save :download:`quickstart.yaml <inputs/quickstart.yaml>` as ``input.yaml`` in
-this directory:
+Create ``input.yaml``:
 
-.. literalinclude:: inputs/quickstart.yaml
-   :language: yaml
+.. code-block:: yaml
 
-The example uses 3×3×3 force-constant supercells, a 31×31×31 phonon mesh and
-100–1000 K in 50 K steps. ``wigner: true`` enables the particle and coherence
-contributions; ``isotope: true`` includes isotope scattering.
+   structure:
+     poscar: POSCAR
+     relaxation: true
+
+   calculator:
+     name: nep
+     model: nep_3C-SiC.txt
+
+   force-constant:
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
+
+   kappa:
+     engine: phono3py
+     mesh: [31, 31, 31]
+     temps: [100, 1000, 50]
+     method: rta
+     isotope: true
+     wigner: true
+
+   plot:
+     layout: both
+     path: seekpath
+     tau: total
+     temperature: 300
+     kappa: x
+     dpi: 300
+
+   output:
+     result-dir: results
+
+.. note::
+
+   These settings demonstrate the workflow. For research calculations, check
+   convergence with respect to the force-constant supercells ``dim-fc2`` and
+   ``dim-fc3`` and the q mesh ``mesh``.
 
 Run the calculation
------------------------
+------------------------
+
+Check the input:
 
 .. code-block:: bash
 
    nepkappa info input.yaml --for run
+
+After checking the configuration, run the complete calculation:
+
+.. code-block:: bash
+
    nepkappa run input.yaml
 
-The screen shows relaxation, force-constant generation and transport progress,
-followed by completion and result paths. To show detailed external-program
-output, use ``nepkappa run input.yaml -v`` instead. Both modes save detailed
-output in ``results/run.log``.
+The workflow performs structure relaxation, FC2/FC3 generation and thermal
+transport in sequence. Progress is shown in the terminal and the detailed log
+is saved to ``results/run.log``.
 
-For a long workstation run, use the :ref:`tmux workflow <transport-tmux>`.
-On a cluster, use an allocation or a :ref:`Slurm batch script <transport-slurm>`;
-replace its final command with ``nepkappa run input.yaml`` and configure
-resources for this phono3py calculation.
-
-Inspect results
--------------------
+Add ``-v`` for detailed terminal output:
 
 .. code-block:: bash
 
-   tail -n 20 results/run.log
-   ls -lh results/fc2.hdf5 results/fc3.hdf5 results/phono3py_disp.yaml
-   ls -lh results/kappa-m313131.hdf5
+   nepkappa run input.yaml -v
 
-``POSCAR_relaxed`` contains the optimized structure. The HDF5 force constants
-and matching ``phono3py_disp.yaml`` can be reused in later chapters.
-``kappa-m313131.hdf5`` stores conductivity and mode data for the specified mesh;
-its filename changes when the mesh changes.
+Inspect the results
+------------------------
 
-Plot and summarize
-----------------------
+After the calculation, generate plots and reports:
 
 .. code-block:: bash
 
-   nepkappa info input.yaml --for plot
    nepkappa plot input.yaml
    nepkappa report input.yaml
-   ls results/plots
 
-With ``layout: both`` and ``tau: total``, this example produces six separate
-plots and ``combined.png``. The combined figure contains dispersion, DOS,
-volumetric constant-volume heat capacity, group velocity, scattering rate and
-thermal conductivity. The conductivity panel distinguishes particle, coherence
-and total Wigner contributions. ``plot.temperature`` selects the scattering-rate
-data; the conductivity panel retains all calculated temperatures.
+The main results are saved in ``results/``:
 
-The report is saved as ``results/report.md`` and ``results/report.yaml``.
-Plotting and reporting read saved results without recalculating forces or
-transport. Further examples are listed in :doc:`examples`.
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - File
+     - Contents
+   * - ``fc2.hdf5`` / ``fc3.hdf5``
+     - Second- and third-order force constants.
+   * - ``phono3py_disp.yaml``
+     - Displacement structures and force-constant metadata.
+   * - ``kappa-m313131.hdf5``
+     - Conductivity and mode-resolved transport data.
+   * - ``plots/``
+     - Phonon-property and thermal-transport plots.
+   * - ``report.md`` / ``report.yaml``
+     - Result summaries.
+
+``layout: both`` generates individual plots and ``combined.png``, covering
+dispersion, DOS, volumetric constant-volume heat capacity, group velocities,
+phonon scattering rates and lattice thermal conductivity.
+
+Wigner conductivity plots distinguish the particle, coherence and total contributions.
+
+.. figure:: _static/quickstart_combined.png
+   :width: 90%
+   :align: center
+   :alt: 3C-SiC phonon properties and thermal conductivity
+
+   Phonon properties and thermal transport of 3C-SiC: dispersion, DOS,
+   heat capacity, group velocities, scattering rates and conductivity.
+
+See :doc:`temperature` for temperature-dependent phonons and
+:doc:`thermal_transport` for further transport examples.

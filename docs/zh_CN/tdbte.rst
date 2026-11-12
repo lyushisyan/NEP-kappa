@@ -1,205 +1,317 @@
-时变声子 BTE 与非平衡弛豫
-====================================
 
-TD-BTE 在固定声子频率下，利用非线性三声子散射演化占据数。
-本章关注空间均匀的选择性光学支激发：没有空间漂移、外部热浴或持续泵浦。
-:doc:`tdbte_spatial` 增加周期一维实空间输运，保留三维 q 网格和非线性碰撞。
+TD-BTE：非平衡声子激发与热化
+========================================
 
-.. important::
+NEP-kappa 通过求解含时声子玻尔兹曼输运方程（TD-BTE），
+模拟非平衡声子占据数的时间演化以及不同声子模式之间的能量交换。
 
-   当前实现通过离散守恒等数值检查，但生产碰撞核的绝对弛豫速率尚未完成独立物理验证。
-   2026-11-07 审计记录了小 q 声学端点的离壳差异；该诊断本身不等于在壳散射率发散，
-   也不阻止空间求解器的软件开发。详细约定、数据和限制见 :doc:`tdbte_validation`。
+本章以 3C-SiC 为例，选择性激发光学声子，
+研究激发能量如何通过三声子散射传递到声学支，以及声子系统的热化过程。
 
-.. toctree::
-   :maxdepth: 1
+本章采用空间均匀模型，只考虑声子碰撞引起的非平衡弛豫。
+空间传播与声子碰撞共同作用的模型见 :doc:`tdbte_spatial`。
 
-   tdbte_spatial
-   tdbte_validation
 
-准备力常数并执行
---------------------------
+计算方法
+------------------------
 
-复用快速开始生成的配套 ``fc2.hdf5``、``fc3.hdf5`` 和 ``phono3py_disp.yaml``。
-元数据提供结构、超胞和原胞映射，热导率结果不是前提。
+空间均匀 TD-BTE 描述声子占据数随时间的演化：
+
+.. math::
+
+   \frac{\partial n_\lambda(t)}{\partial t}
+   =\mathcal{C}^{3\mathrm{ph}}_\lambda[n(t)].
+
+其中，:math:`n_\lambda` 为声子模式 :math:`\lambda` 的占据数，
+:math:`\mathcal{C}^{3\mathrm{ph}}_\lambda` 为非线性三声子碰撞积分。
+
+与稳态热导率计算不同，TD-BTE 直接求解声子占据数的时间变化，
+不需要预先计算晶格热导率。
+
+本模型采用固定的声子频率和三声子相互作用强度，
+通过时间积分分析模式间能量重新分配。
+
+
+准备力常数
+------------------------
+
+延续第四章 :doc:`starting` 的工作目录：
 
 .. code-block:: bash
 
-   mkdir -p ~/work/3C-SiC/tdbte
-   cd ~/work/3C-SiC/tdbte
-   ls -lh ../results/fc2.hdf5 ../results/fc3.hdf5 ../results/phono3py_disp.yaml
+   conda activate nepkappa
+   cd ~/work/3C-SiC
 
-下载 :download:`tdbte.yaml <../source/inputs/tdbte.yaml>`：
+确认已有配套的 FC2、FC3 和声子元数据：
 
-.. literalinclude:: ../source/inputs/tdbte.yaml
-   :language: yaml
+.. code-block:: bash
+
+   ls results/fc2.hdf5
+   ls results/fc3.hdf5
+   ls results/phono3py_disp.yaml
+
+FC2 提供声子频率与振动模式，FC3 用于计算三声子相互作用，
+``phono3py_disp.yaml`` 提供对应的晶体结构和超胞映射。
+
+本章直接复用这些文件，不再重新计算原子力或力常数。
+
+
+选择性光学声子激发
+------------------------
+
+对于两原子原胞的 3C-SiC，共有六条声子分支，
+其中 0–2 为声学支，3–5 为光学支。
+
+本例将三个光学支的初始占据数提高 1%，
+随后通过非线性三声子碰撞积分计算能量重新分配。
+
+配置输入
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+在工作目录中创建 ``tdbte.yaml``：
+
+.. code-block:: yaml
+
+   # 非平衡声子动力学
+   tdbte:
+     force-constants: results        # 复用已有 FC2/FC3
+     mesh: [6, 6, 6]                # 碰撞积分 q 网格
+     temperature: 300               # 初始参考温度（K）
+     branches: [3, 4, 5]           # 激发光学支
+     excitation: 0.01               # 占据数增加 1%
+     duration-ps: 20                # 总演化时间（ps）
+     max-step-ps: 0.5               # 最大积分步长（ps）
+     samples: 201                   # 保存时刻数量
+
+   # 绘图设置
+   plot:
+     layout: both                   # 单图和组合图
+     path: seekpath                 # 高对称路径
+     tdbte-times: [0, 10, 20]       # 声子谱快照时间（ps）
+     dpi: 300
+
+   # 结果目录
+   output:
+     result-dir: results/tdbte-optical
+
+本例使用 6×6×6 的三维 q 网格，共包含 216 个 q 点。
+该网格用于构建三声子碰撞积分，与稳态热导率网格相互独立。
+
+``branches`` 指定需要激发的声子分支，编号从零开始，
+在各 q 点按频率排序。
+
+``excitation: 0.01`` 表示将所选模式的初始占据数乘以 1.01，
+而不是增加 1 K 温度。
+
+
+初始非平衡分布
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+激发前，声子服从 Bose-Einstein 平衡分布：
+
+.. math::
+
+   n_\lambda^0(T_0)
+   =
+   \frac{1}
+   {\exp[\hbar\omega_\lambda/(k_{\mathrm B}T_0)]-1}.
+
+选择性激发后，初始分布为：
+
+.. math::
+
+   n_\lambda(0)=
+   \begin{cases}
+   (1+A)n_\lambda^0(T_0), & \lambda\in\mathcal S,\\
+   n_\lambda^0(T_0), & \lambda\notin\mathcal S,
+   \end{cases}
+
+其中，:math:`\mathcal S` 为选定的光学声子模式，
+:math:`A=0.01` 为相对激发幅度。
+
+未被激发的模式保持初始平衡分布。
+随后系统不再接受外部能量输入，仅通过三声子碰撞进行能量交换。
+
+
+运行计算
+------------------------
+
+检查输入文件并执行 TD-BTE：
 
 .. code-block:: bash
 
    nepkappa info tdbte.yaml --for tdbte
    nepkappa tdbte tdbte.yaml
 
-示例的 6×6×6 网格包含 216 个 q 点。对于两原子 3C-SiC，0–2 为声学支、3–5 为光学支；
-编号从零开始，在各 q 点按频率排序，并不是适用于任意材料的光学支编号。
-``excitation: 0.01`` 将所选支的初始 Bose 占据数增加 1%，不等于温度增加 1 K。
+程序读取力常数并构建三声子碰撞核，
+随后初始化非平衡占据数，求解其时间演化。
 
-``samples: 201`` 决定 20 ps 内的保存时刻数，不决定内部积分步长。
-求解器采用自适应 DOP853，``max-step-ps`` 是最大步长。
-长工作站计算可使用 :ref:`tmux <transport-tmux>`，或在外层 Slurm 分配中执行相同 CLI。
+求解器采用自适应 DOP853 积分方法。
+``max-step-ps`` 限制最大积分步长，
+``samples`` 决定保存的时间点数量。
 
-从头生成力常数
---------------------------
+计算结果保存至 ``results/tdbte-optical``，
+详细日志记录在 ``run.log`` 中。
 
-仓库的 ``examples/tdbte.yaml`` 是完整六部分输入，用 ``nepkappa run`` 先生成配套 FC2/FC3，再构建碰撞核并积分。
-同一文件交给 ``nepkappa tdbte`` 时，直接读取结果目录中已经存在的力常数，不补算原子力。
-当前 TD-BTE 只使用 phono3py FC2/FC3；QHA、SSCHA、FC4 和 Wigner 设置不会自动转入该求解器。
 
-关键参数
---------------------------
+结果与分析
+------------------------
 
-.. list-table:: 均匀动力学参数
-   :header-rows: 1
-   :widths: 32 68
-
-   * - 参数
-     - 约定
-   * - ``force-constants``
-     - 已有力常数目录，不是生成原子力的请求。
-   * - ``kernel``
-     - 已完成的碰撞核；指定它时省略力常数来源和网格。
-   * - ``mesh``
-     - 碰撞积分的完整、无偏移 q 网格，与 ``kappa.mesh`` 无关。
-   * - ``temperature``
-     - 初始 Bose 参考温度，默认 300 K。
-   * - ``branches``
-     - 明确指定零起始分支编号；跨交叉不跟踪极化身份。
-   * - ``excitation``
-     - 所选初始占据数乘以 ``1 + excitation``，默认 0.01。
-   * - ``duration-ps`` / ``max-step-ps`` / ``samples``
-     - 默认 20 ps / 0.5 ps / 201 个保存时刻。
-
-三维网格三个分量均至少为 2；实验一维网格仅一个分量大于 1，另外两个为 1。
-二维网格不支持。均匀积分容差为 ``rtol=1e-11``、``atol=1e-14``，
-时间步长与 q 网格收敛应分开检查。该初态不规定激光能流密度，也不为各模式注入相同能量。
-
-碰撞核、归一化与资源
---------------------------
-
-构建器逐个母 q 点计算 phono3py 原生最短矢量三声子相互作用强度。
-三维网格单元使用六个 Freudenthal 四面体，对线性插值能量壳采用正权重、对称二次曲面求积。
-有序子模式事件系数为 ``4*pi*U*strength*surface_weight``，其中 ``U`` 为原生虚部自能单位转换。
-原生强度已包含 ``1/Nq``，碰撞积分不能再次乘相同网格归一化。
-
-频率与熵变量使用相同重心权重插值：
-
-.. math::
-
-   \eta_\lambda=\ln\frac{1+n_\lambda}{n_\lambda}.
-
-子模式占据数更新用对应的伴随沉积，保证离散能量守恒与 Bose 细致平衡。
-这个弱离散算子不等同于 phono3py 原生四面体碰撞算子，也不是 RTA 指数衰减。
-
-事件以最多 20,000 个一块写入 ``tdbte-kernel/``。每次导数计算只映射、归约和关闭一个块，
-不把全体事件或稠密的模式碰撞矩阵放进内存。可用时自动使用 Numba，并在积分前与 NumPy 参考值比较。
-审计记录实际后端，编译加速不改变物理模型。
-
-分块不能消除细网格代价。原生顶角计算约随 q 点数平方和支数立方增长，
-单个母 q 的原生强度、声子和力常数仍需内存。
-未压缩事件数组约 112 字节 / 事件，数千万事件可能占数 GB 磁盘，反复读取也可能受 I/O 限制。
-先用较小网格估计规模，必要时使用计算节点本地 scratch。
-
-稳定性与声学端点
---------------------------
-
-三维构建要求 Gamma 仅有三个近零刚性平移（阈值 1e-4 THz），并固定为零。
-其他虚频或额外近零模式被拒绝，不通过裁剪或静默对称化修复。
-这些刚性腿的熵变量和顶角固定为零，其声学极限近似仍需独立检验。
-非零耦合下的平坦共振四面体会报错。
-
-当前不支持 NAC、偏移网格和广义网格；不要删除 Born 电荷数据以绕过检查。
-
-实验性一维链 / 纳米带
---------------------------
-
-``mesh: [51,1,1]`` 沿第一倒易坐标进行一维碰撞积分，其他方向必须在物理上由足够真空隔离。
-位移分量和所有声子支仍保留。这仍是空间均匀占据数模型，不会沿纳米带传播热脉冲或施加端部热库。
-
-.. code-block:: yaml
-
-   tdbte:
-     force-constants: calculations/graphene-ribbon/force-constants
-     mesh: [51, 1, 1]
-     temperature: 300
-     branches: [4]
-     excitation: 0.01
-     duration-ps: 20
-     max-step-ps: 0.5
-     samples: 201
-   output:
-     result-dir: calculations/graphene-ribbon/tdbte-1d
-
-分支 4 只是示例，应根据实际谱选择。程序不会从 q 网格自动判断真空是否充分。
-一维路线用区间代替四面体，在分段线性能量差的简单根上使用斜率倒数与共享端点半权重。
-占据数方程不再引入横截面积因子。
-
-Gamma 允许三个刚性平移，或再加一个轴向刚性转动。质量加权近零本征子空间需在 ``1e-5`` 容差内
-匹配相应刚性运动。转动测试要求原子位置在真空两侧形成连续纳米带表示。
-额外软模、不稳定模和非刚性零空间会被拒绝。
-
-零线性顶角插值区间记入 ``zero_strength_intervals``，不代表区间内部真实散射一定为零。
-近切根、支交叉、转动和声学端点都需进一步验证；石墨烯纳米带的绝对弛豫速率尚无完整基准。
-
-复用与失败处理
---------------------------
-
-完成构建后发布 ``manifest.json``，包含源哈希、网格、模式排序、后端版本、归一化、边界假设与文件校验和。
-丢失、重复、修改或未完成的数据块会在传播前被拒绝。运行时将核文件视为不可变数据。
-
-.. code-block:: yaml
-
-   tdbte:
-     kernel: calculations/SiC/time-bte/tdbte-kernel/manifest.json
-     temperature: 300
-     branches: [3, 4, 5]
-   output:
-     result-dir: calculations/SiC/new-excitation
-
-网格属于核，不能另行指定。自动缓存复用检查来源、网格和构建 / 后端版本。
-失败构建不自动续算；保留 ``build-failure.json`` 和旧目录，修正原因后使用新目录。
-已有 ``result-dir/tdbte`` 不会被覆盖。
-
-旧的单文件 NPZ 加同名 JSON sidecar 仍可读。研究原型的 chunk manifest 不能仅改格式名冒充版本化产物。
-单文件核包含 ``frequency_THz``、``zero_modes``、``parent``、``daughter1``、``daughter2``、
-``weights``、``coefficients``；子模式数组为 (事件数, V)，三维 V=4，一维 V=2。
-权重非负且逐行和为 1；频率、系数非负，索引为整数。
-sidecar 需有 ``model``、``coefficient_time_unit: ps``、明确的 ``mode_branch_indices`` 与 ``uniform_mode_weight``。
-不支持不等权重不可约网格；读取器不能替任意外部核证明归一化声明真实可靠。
-
-输出、绘图与解释
---------------------------
+计算完成后生成图像：
 
 .. code-block:: bash
 
-   tail -n 20 results/optical-m666/run.log
-   nepkappa info tdbte.yaml --for plot
    nepkappa plot tdbte.yaml
 
-``tdbte/`` 中：
+``layout: both`` 生成六张单独图像和一张六面板组合图。
 
-* ``trajectories.npz`` 保存占据数、频率、时刻、支编号、熵和独立积分的未激发对照。
-* ``branch-energy.csv`` 保存相对初始 Bose 态的支超额能量，单位 eV / 原胞，含 ``1/Nq`` 权重。
-* ``audit.json`` 记录来源、核身份、积分设置、注入能量、能量漂移、平衡漂移和采样熵检查。
+.. figure:: ../source/_static/tdbte_combined.png
+   :width: 95%
+   :align: center
+   :alt: 3C-SiC nonequilibrium phonon relaxation
 
-均匀 TD-BTE 六面板上排是三个时间的超额能量着色色散，下排是分支超额能量、声学支与光学支能量等效温度。
-着色量为 ``h*f*(n(t)-n_Bose(T0))``，单位 eV。三张色散共用色标，频率保持固定。
-周期三线性插值只将网格上的能量映射到路径，不会额外计算路径上的动力学。
-分支温度通过各支的热能匹配 Bose 分布得到，不表示该支内部已经达到平衡。
+   3C-SiC 的选择性光学声子激发与热化过程。
+   上排展示不同时间的模式超额能量分布，
+   下排展示分支能量交换及声学、光学支的能量等效温度。
 
-默认取起点、中点和终点的最近保存时刻，``plot.tdbte-times`` 可指定递增且位于保存区间内的三个时间。
-输出包括 ``tdbte_combined.png``、六个单图、``tdbte_branch_temperature.csv`` 和绘图元数据。
-完整绘图会核对来源哈希、频率和审计；CSV-only 旧结果只支持能量图。
 
-占据数不会被静默裁剪。失败审计保留诊断文件并报错，不能作为接受的轨迹。
-守恒检查即使在错误的全局散射前因子下也可能成立，因此不能替代绝对速率和网格收敛验证。
-孤立系统不要求回到初始 300 K；有限时窗内各支温度不同也不能称为完全平衡。
-当前未实现频率 / q 窗口激发、规定能量注入、持续泵浦、checkpoint 重启或专用 TD-BTE Slurm 调度。
+模式能量分布
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+组合图上排展示 0、10 和 20 ps 的声子色散。
+声子频率保持不变，颜色表示相对于初始平衡态的模式超额能量：
+
+.. math::
+
+   \Delta E_\lambda(t)
+   =
+   \hbar\omega_\lambda
+   [n_\lambda(t)-n_\lambda^0(T_0)].
+
+正值表示该模式相对于参考平衡态获得能量，
+负值表示失去能量。
+
+三个快照使用相同色标，
+可以比较不同时间声子能量的重新分配。
+
+颜色由 q 网格上的模式能量插值到声子色散路径，
+仅用于可视化，不代表重新计算路径上的非平衡占据数。
+
+
+分支间能量交换
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+组合图左下方展示六条声子分支的超额能量：
+
+.. math::
+
+   \Delta E_s(t)
+   =
+   \frac{1}{N_q}\sum_{\mathbf q}
+   \hbar\omega_{\mathbf qs}
+   [n_{\mathbf qs}(t)-n_{\mathbf qs}^0(T_0)].
+
+其中，:math:`s` 为声子分支编号，
+能量单位为 eV / 原胞。
+
+本例中，初始光学支具有较高的超额能量。
+随着时间演化，光学支超额能量减少，
+声学支获得能量，反映三声子碰撞导致的模式间能量转移。
+
+由于系统没有外部热浴，
+各分支之间可以交换能量，但总能量保持守恒。
+
+
+声子分支的等效温度
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+组合图下排中间和右侧分别展示声学支和光学支的能量等效温度。
+
+各分支的等效温度通过能量匹配定义：
+
+.. math::
+
+   E_s(t)=E_s^{\mathrm{BE}}[T_s(t)].
+
+这里的 :math:`T_s` 表示与该分支实际能量相同的
+Bose-Einstein 分布温度，并不意味着该分支内部已达到热平衡。
+
+本例中，光学支的等效温度随时间降低，
+声学支的等效温度升高。
+这些变化反映了非平衡能量向其他声子模式重新分配的过程。
+
+由于注入的能量保留在系统内部，
+最终平衡温度由系统总能量决定，
+不要求返回初始的 300 K。
+
+在有限的 20 ps 时间窗口内，
+各分支等效温度仍可能存在差异。
+
+
+主要输出
+------------------------
+
+.. list-table:: TD-BTE 结果文件
+   :header-rows: 1
+   :widths: 38 62
+
+   * - 文件
+     - 内容
+   * - ``tdbte/trajectories.npz``
+     - 声子占据数、时间、频率和分支编号。
+   * - ``tdbte/branch-energy.csv``
+     - 各声子分支的超额能量。
+   * - ``tdbte/audit.json``
+     - 能量守恒、平衡态和熵的数值检查。
+   * - ``plots/tdbte_combined.png``
+     - 六面板非平衡动力学组合图。
+   * - ``plots/tdbte_branch_temperature.csv``
+     - 各声子分支的能量等效温度。
+
+上述路径均相对于 ``results/tdbte-optical``。
+
+
+碰撞核复用
+------------------------
+
+三声子碰撞核由力常数和 q 网格确定，
+可以在不同初始激发条件下重复使用。
+
+例如，将激发幅度从 1% 增大到 2%，
+创建 ``tdbte-reuse.yaml``：
+
+.. code-block:: yaml
+
+   tdbte:
+     kernel: results/tdbte-optical/tdbte-kernel/manifest.json
+     temperature: 300
+     branches: [3, 4, 5]
+     excitation: 0.02
+     duration-ps: 20
+     max-step-ps: 0.5
+     samples: 201
+
+   output:
+     result-dir: results/tdbte-optical-2percent
+
+执行：
+
+.. code-block:: bash
+
+   nepkappa info tdbte-reuse.yaml --for tdbte
+   nepkappa tdbte tdbte-reuse.yaml
+
+此时程序使用已有碰撞核，
+无需重新生成力常数或三声子碰撞数据。
+新的动力学结果保存在独立目录中。
+
+
+模型与计算范围
+------------------------
+
+本章采用空间均匀、固定声子频率的非线性三声子模型，
+研究声子模式之间的能量交换和非平衡弛豫。
+
+本章不包含实空间传播。
+下一章 :doc:`tdbte_spatial` 将在相同碰撞模型基础上
+加入声子群速度和一维实空间输运。

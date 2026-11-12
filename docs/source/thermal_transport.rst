@@ -1,80 +1,158 @@
 Phonon scattering and lattice thermal conductivity
-======================================================
+==================================================
 
-This chapter compares three-phonon LBTE, three-plus-four-phonon transport, and
-Wigner particle/coherence contributions. It continues from the force constants
-prepared in :doc:`starting`.
+This chapter covers advanced lattice thermal transport: the three-phonon
+linearized Boltzmann transport equation (LBTE), combined three- and four-phonon
+scattering, and Wigner particle and coherence transport.
 
-Workflow and preparation
-----------------------------
+Building on the three-phonon RTA example in Chapter 4, these routes account
+for mode coupling in collisions, higher-order anharmonic scattering, and
+coherence between vibrational modes.
+
+Methods and preparation
+------------------------
+
+NEP-kappa provides transport solvers through phono3py and FourPhonon.
+
+.. list-table:: Thermal-transport methods
+   :header-rows: 1
+   :widths: 26 50 24
+
+   * - Method
+     - Main features
+     - Engine
+   * - Three-phonon LBTE
+     - Iteratively solve the linearized BTE, retaining collision coupling between modes.
+     - phono3py
+   * - Three- and four-phonon transport
+     - Include both scattering mechanisms and compare RTA, LBTE and mixed solutions.
+     - FourPhonon
+   * - Wigner transport
+     - Calculate particle, coherence and total conductivity with three- and four-phonon scattering.
+     - FourPhonon / Wigner_Park
+
+Continue from the Chapter 4 :doc:`starting` working directory:
 
 .. code-block:: bash
 
-   mkdir -p ~/work/3C-SiC/transport
-   cd ~/work/3C-SiC/transport
-   ls -lh ../results/fc2.hdf5 ../results/fc3.hdf5 ../results/phono3py_disp.yaml
-   cp ../results/POSCAR_relaxed POSCAR
-   cp ../nep_3C-SiC.txt .
+   conda activate nepkappa
+   cd ~/work/3C-SiC
 
-The LBTE example reuses the existing FC2/FC3. The four-phonon example generates
-a matching FC2/FC3/FC4 set, which is then reused by the Wigner example.
-All force constants, cell coordinates and lattice-translation labels must
-follow the same convention; see :doc:`input_files` for reuse checks.
+Check the structure, potential and force constants:
 
-Three-phonon scattering and LBTE
-------------------------------------
+.. code-block:: bash
 
-Input and execution
-~~~~~~~~~~~~~~~~~~~~~~~
+   ls results/POSCAR_relaxed
+   ls results/fc2.hdf5 results/fc3.hdf5
+   ls results/phono3py_disp.yaml
+   ls nep_3C-SiC.txt
 
-RTA treats the departure of each mode from equilibrium independently. LBTE
-retains linear coupling between modes through the collision matrix.
-Save :download:`lbte.yaml <inputs/lbte.yaml>`:
+Use the following calculation sequence:
 
-.. literalinclude:: inputs/lbte.yaml
-   :language: yaml
+- **Three-phonon LBTE**: reuse FC2/FC3 from Chapter 4.
+- **Four-phonon transport**: generate matching FC2/FC3/FC4 and calculate both
+  pure three-phonon and combined three- and four-phonon conductivity.
+- **Wigner transport**: reuse those force constants to calculate particle and coherence contributions.
+
+Each calculation uses its own result directory.
+
+Three-phonon LBTE
+------------------------
+
+The relaxation-time approximation (RTA) treats the collisions of each mode as
+an independent relaxation process. Iterative LBTE retains linearized collision
+coupling between modes. Comparing the two reveals the contribution of mode
+coupling to conductivity, particularly collective transport associated with
+Normal scattering.
+
+Configure the input
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create ``lbte.yaml``:
+
+.. code-block:: yaml
+
+   kappa:
+     force-constants: results
+     engine: phono3py
+     method: lbte
+     mesh: [15, 15, 15]
+     temps: [100, 1000, 100]
+     isotope: true
+     wigner: false
+
+   plot:
+     layout: both
+     path: seekpath
+     tau: total
+     scattering-rate-min: 1.0e-8
+     temperature: 300
+     kappa: x
+     dpi: 300
+
+   output:
+     result-dir: results/lbte
+
+``force-constants`` selects the force-constant directory generated in Chapter 4,
+so no new atomic-force calculations are needed. This example uses a 15×15×15
+q mesh and temperatures from 100 to 1000 K in 100 K increments.
+
+Run the calculation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check the input and run iterative LBTE:
 
 .. code-block:: bash
 
    nepkappa info lbte.yaml --for kappa
    nepkappa kappa lbte.yaml
-   tail -n 20 results/lbte/run.log
-   ls -lh results/lbte/kappa-m151515.hdf5
 
-``kappa`` reuses the specified force constants and copies the matching inputs
-into the result directory for subsequent plotting. LBTE collision matrices can
-require substantially more memory than RTA; the example mesh is a demonstration
-setting, not a convergence result.
-
-Plot and compare
-~~~~~~~~~~~~~~~~~~~~
+After completion, generate plots:
 
 .. code-block:: bash
 
-   nepkappa info lbte.yaml --for plot
    nepkappa plot lbte.yaml
-   ls results/lbte/plots
 
-The saved ``kappa`` and ``kappa_RTA`` tensors provide LBTE and RTA conductivities
-from the same calculation. The conductivity panel overlays them as solid and
-dashed curves. ``plot.kappa: x`` selects the xx component; ``all`` selects the
-mean of the three diagonal components.
+Results are saved in ``results/lbte``.
 
-The six-panel combination contains four harmonic properties, the scattering
-rate at 300 K, and conductivity versus temperature. ``tau: total`` displays
-the saved ph-ph and isotope channels and their sum; boundary scattering is not
-included in that plotted sum. The display threshold is 1e-8 ps^-1. N/U plots
-require separately saved N and U linewidths, which the default LBTE command
-does not request. Cumulative conductivity requires mode-resolved conductivity.
+Results and analysis
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Four-phonon scattering and conductivity
--------------------------------------------
+phono3py's iterative LBTE calculation saves both RTA and LBTE conductivities
+for direct comparison. The main output is ``kappa-m151515.hdf5``, containing:
 
-Input and execution
-~~~~~~~~~~~~~~~~~~~~~~~
+- ``kappa_RTA``: relaxation-time approximation conductivity.
+- ``kappa``: iterative LBTE conductivity.
 
-Install Thirdorder, Fourthorder and the FourPhonon CPU executable as described
-in :doc:`installation`. Check their discovery:
+Plotting shows both conductivities together and produces dispersion, DOS,
+heat-capacity, group-velocity and scattering-rate plots.
+
+.. figure:: _static/lbte_combined.png
+   :width: 90%
+   :align: center
+   :alt: 3C-SiC three-phonon RTA and LBTE thermal conductivity
+
+   Three-phonon LBTE results for 3C-SiC, including phonon properties,
+   scattering rates, and RTA versus iterative LBTE conductivity.
+
+The difference between RTA and LBTE reflects mode coupling omitted by the
+independent-relaxation approximation. It depends on Normal scattering,
+Umklapp scattering and temperature.
+
+Three- and four-phonon transport
+--------------------------------
+
+Three-phonon scattering is described by FC3; four-phonon scattering additionally
+requires FC4. Through FourPhonon, NEP-kappa supports RTA, iterative LBTE and
+mixed solutions with both mechanisms.
+
+This example uses three-phonon LBTE plus four-phonon RTA and also calculates
+a pure three-phonon reference to isolate the effect of four-phonon scattering.
+
+Configure the input
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prepare Thirdorder, Fourthorder and FourPhonon, and check the executables:
 
 .. code-block:: bash
 
@@ -82,194 +160,289 @@ in :doc:`installation`. Check their discovery:
    command -v Fourthorder_vasp.py
    command -v ShengBTE_cpu
 
-Save :download:`fourphonon.yaml <inputs/fourphonon.yaml>`:
+Create ``fourphonon.yaml``:
 
-.. literalinclude:: inputs/fourphonon.yaml
-   :language: yaml
+.. code-block:: yaml
 
-Thirdorder generates FC3 and Fourthorder generates FC4 from NEP displacement
-forces. Negative cutoffs select neighbor shells. ``format: both`` preserves
-the ShengBTE text force constants and exports the HDF5 forms used for analysis.
-The example requests four MPI processes with one OpenMP thread each; adjust
-these to the resources available on your machine.
+   structure:
+     poscar: results/POSCAR_relaxed
+     relaxation: false
 
-``compare-3ph: true`` runs a three-phonon reference and a three-plus-four-phonon
-calculation sequentially with the same FourPhonon backend, structure, FC2/FC3,
-mesh, temperatures and isotope settings. Here the three-phonon part uses LBTE
-and the four-phonon part uses RTA.
+   calculator:
+     name: nep
+     model: nep_3C-SiC.txt
 
-.. _transport-tmux:
+   force-constant:
+     dim-fc2: [3, 3, 3]
+     dim-fc3: [3, 3, 3]
+     fc3-backend: thirdorder
+     cutoff-fc3: -3
+     format: both
 
-Long calculations in tmux
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     four-phonon:
+       enabled: true
+       compare-3ph: true
+       dim-fc4: [3, 3, 3]
+       cutoff-fc4: -2
+       command: ShengBTE_cpu
 
-Check the input, then create a session on the calculation server:
+   kappa:
+     engine: fourphonon
+     method-3ph: lbte
+     method-4ph: rta
+     mesh: [8, 8, 8]
+     temps: [300, 900, 300]
+     isotope: true
+
+   plot:
+     layout: both
+     path: seekpath
+     scattering-rate-min: 1.0e-8
+     temperature: 300
+     kappa: x
+     dpi: 300
+
+   output:
+     result-dir: results/fourphonon
+
+   parallel:
+     kappa:
+       mpi-processes: 4
+       omp-threads: 1
+
+NEP provides atomic forces, Thirdorder generates FC3, and Fourthorder generates
+FC4. ``cutoff-fc3`` and ``cutoff-fc4`` select the neighbor-shell cutoffs for
+third- and fourth-order interactions.
+
+``compare-3ph: true`` enables pure three-phonon and combined three- and
+four-phonon calculations. Both use the same structure, FC2, FC3, q mesh,
+temperatures, broadening and isotope settings. FC4 is used only in the combined case.
+
+Run the calculation
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    nepkappa info fourphonon.yaml --for run
-   tmux new -s fourphonon
-
-Inside the session, activate the environment and start the calculation:
-
-.. code-block:: bash
-
-   conda activate nepkappa
-   cd ~/work/3C-SiC/transport
    nepkappa run fourphonon.yaml
 
-Press ``Ctrl-b``, release both keys, then press ``d`` to detach. The calculation
-continues on the server when the SSH connection closes. Reconnect with:
+The workflow generates FC2, FC3 and FC4, then uses the same FourPhonon backend
+for two calculations:
+
+1. A reference conductivity including only three-phonon scattering.
+2. Conductivity including both three- and four-phonon scattering.
+
+Generate plots after completion:
 
 .. code-block:: bash
 
-   tmux ls
-   tmux attach -t fourphonon
-
-Use ``Ctrl-b`` then ``[`` to scroll earlier output, and ``q`` to leave scroll
-mode. tmux keeps the shell session alive; it does not replace a cluster scheduler
-or extend a scheduler allocation.
-
-Thirdorder, Fourthorder and FourPhonon use compact screen output by default.
-Add ``-v`` to the calculation command for detailed screen output. Details are
-retained in ``run.log``; each FourPhonon working directory also contains
-``fourphonon.log``.
-
-Results and comparison plots
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-After completion, inspect the log before running plotting:
-
-.. code-block:: bash
-
-   tail -n 20 results/fourphonon/run.log
-   ls results/fourphonon/fourphonon/threephonon
-   ls results/fourphonon/fourphonon
-   nepkappa info fourphonon.yaml --for plot
    nepkappa plot fourphonon.yaml
-   ls results/fourphonon/plots
 
-The reference directory contains ``kappa3-rta.dat`` and
-``kappa3-iterative.dat``. The combined directory contains ``kappa4-rta.dat``
-and ``kappa4-iterative.dat``. With this input, the latter stores the mixed
-3ph LBTE + 4ph RTA solution. If both ``method-3ph`` and ``method-4ph`` are
-``lbte``, it instead stores the iterative three-plus-four-phonon solution.
+Results and analysis
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-The conductivity panel overlays four curves: 3ph RTA, 3ph LBTE, 3ph+4ph RTA,
-and 3ph LBTE + 4ph RTA. Three- and four-phonon scattering rates share one panel,
-``scattering_rate_3ph_4ph.png``. Together with dispersion, DOS, heat capacity
-and group velocity, this gives six panels and seven PNG files with
-``layout: both``. The plotted 3ph and 4ph rate series do not include the isotope
-channel, although isotope scattering is enabled in the conductivity calculation.
+The following four conductivity solutions can be compared:
 
-Wigner transport with three- and four-phonon scattering
------------------------------------------------------------
+.. list-table:: Three- and four-phonon conductivities
+   :header-rows: 1
+   :widths: 35 65
 
-Prepare existing force constants
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   * - Method
+     - Physical meaning
+   * - 3ph RTA
+     - Three-phonon scattering only, using RTA.
+   * - 3ph LBTE
+     - Three-phonon scattering only, using iterative LBTE.
+   * - 3ph+4ph RTA
+     - Three- and four-phonon scattering, both using RTA.
+   * - 3ph LBTE + 4ph RTA
+     - Iterative three-phonon LBTE with four-phonon RTA.
 
-Wigner transport resolves conductivity into particle and coherence
-contributions, with their sum giving total conductivity. This example uses
-RTA for both scattering orders and the FourPhonon Wigner_Park executable.
-It runs only the combined 3ph+4ph case.
-
-Create a separate working directory on the target cluster. Transfer the
-completed force-constant set into ``inputs/``, keeping these files together:
+Pure three-phonon reference results are saved in:
 
 .. code-block:: text
 
-   inputs/
-     POSCAR_relaxed
-     FORCE_CONSTANTS_2ND
-     FORCE_CONSTANTS_3RD
-     FORCE_CONSTANTS_4TH
-     fc2.hdf5
-     fc3.hdf5
-     phono3py_disp.yaml
+   results/fourphonon/fourphonon/threephonon/
 
-Save :download:`wigner-4ph.yaml <inputs/wigner-4ph.yaml>` and replace the
-executable placeholder with the installed Wigner_Park binary:
+Combined three- and four-phonon results are saved in:
 
-.. literalinclude:: inputs/wigner-4ph.yaml
-   :language: yaml
+.. code-block:: text
+
+   results/fourphonon/fourphonon/
+
+Main conductivity files:
+
+- ``kappa3-rta.dat``: pure three-phonon RTA.
+- ``kappa3-iterative.dat``: pure three-phonon LBTE.
+- ``kappa4-rta.dat``: combined three- and four-phonon RTA.
+- ``kappa4-iterative.dat``: three-phonon LBTE plus four-phonon RTA.
+
+The first two are in ``threephonon/``; the last two are in ``fourphonon/``.
+
+.. figure:: _static/fourphonon_combined.png
+   :width: 90%
+   :align: center
+   :alt: 3C-SiC three-phonon and four-phonon thermal transport
+
+   Three- and four-phonon transport in 3C-SiC: conductivity under different
+   approximations and a comparison of three- and four-phonon scattering rates.
+
+Plotting separates the three- and four-phonon rates and compares RTA, LBTE
+and mixed conductivities. Compare pure and combined scattering to study the
+effect of four-phonon processes. Comparing RTA and LBTE separately distinguishes
+the effects of scattering mechanisms from those of the collision solver.
+
+Wigner: particle and coherence transport
+----------------------------------------
+
+Conventional phonon BTE primarily describes heat flow carried by mode
+populations. Wigner transport additionally includes coherence between
+different vibrational modes. The conductivity is:
+
+.. math::
+
+   \kappa_{\mathrm{total}}
+   = \kappa_{\mathrm{P}}+\kappa_{\mathrm{C}}.
+
+``P`` denotes the particle contribution and ``C`` the coherence contribution.
+NEP-kappa supports phono3py SMM19 Wigner calculations and combined three- and
+four-phonon Wigner transport through FourPhonon Wigner_Park.
+
+This example uses Wigner_Park with RTA for both three- and four-phonon
+scattering to calculate particle, coherence and total conductivity.
+
+Configure the input
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Reuse FC2, FC3 and FC4 from the previous section without recalculating forces
+or force constants. Create ``wigner-4ph.yaml``:
+
+.. code-block:: yaml
+
+   structure:
+     poscar: results/POSCAR_relaxed
+     relaxation: false
+
+   force-constant:
+     dim-fc2: [3, 3, 3]
+     four-phonon:
+       enabled: true
+       command: /path/to/FourPhonon-Wigner_Park/ShengBTE
+       fc2: results/fourphonon/FORCE_CONSTANTS_2ND
+       fc3: results/fourphonon/FORCE_CONSTANTS_3RD
+       fc4: results/fourphonon/FORCE_CONSTANTS_4TH
+
+   kappa:
+     engine: fourphonon
+     method-3ph: rta
+     method-4ph: rta
+     mesh: [8, 8, 8]
+     temps: [300, 900, 300]
+     isotope: true
+     wigner: true
+
+   plot:
+     layout: both
+     path: seekpath
+     tau: total
+     scattering-rate-min: 1.0e-8
+     temperature: 300
+     kappa: x
+     dpi: 300
+
+   output:
+     result-dir: results/wigner-4ph
+
+   parallel:
+     kappa:
+       mpi-processes: 4
+       omp-threads: 1
+
+``fc2``, ``fc3`` and ``fc4`` select the ShengBTE-format force constants from
+the previous section. ``wigner: true`` enables Wigner_Park coherence transport.
+This FourPhonon Wigner route currently uses RTA for both scattering orders.
+``command`` must point to the installed Wigner_Park executable.
+
+Run the calculation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check the input and calculate:
 
 .. code-block:: bash
 
    nepkappa info wigner-4ph.yaml --for kappa
-
-No calculator is needed because ``kappa`` reuses the prepared force constants.
-Automatically generated CONTROL files disable non-analytic corrections.
-Calculations requiring them need a consistent custom CONTROL with validated
-Born charges and dielectric data.
-
-.. _transport-slurm:
-
-Submit through Slurm
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Save the following as ``submit-wigner-4ph.sh``. Replace ``YOUR_PARTITION`` and
-the environment path with your site's settings. Its four tasks match
-``parallel.kappa.mpi-processes: 4`` in the downloadable YAML.
-
-.. code-block:: bash
-
-   #!/bin/bash -l
-   #SBATCH --job-name=SiC-Wigner-4ph
-   #SBATCH --partition=YOUR_PARTITION
-   #SBATCH --nodes=1
-   #SBATCH --ntasks=4
-   #SBATCH --cpus-per-task=1
-   #SBATCH --time=48:00:00
-   #SBATCH --output=logs/wigner-4ph-%j.out
-   #SBATCH --error=logs/wigner-4ph-%j.err
-
-   set -eo pipefail
-   cd "$SLURM_SUBMIT_DIR"
-   source /path/to/miniconda3/etc/profile.d/conda.sh
-   conda activate nepkappa
-   export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
    nepkappa kappa wigner-4ph.yaml
 
-Load any required compiler/MPI modules before the command, following your site's
-setup. NEP-kappa launches the MPI backend from the YAML settings; this script
-runs the NEP-kappa command once within the allocation.
+After Wigner transport completes, copy matching harmonic data for dispersion
+and other phonon-property plots:
 
 .. code-block:: bash
 
-   mkdir -p logs
-   bash -n submit-wigner-4ph.sh
-   sbatch submit-wigner-4ph.sh
-   squeue -u "$USER"
+   cp results/fourphonon/fc2.hdf5 results/wigner-4ph/
+   cp results/fourphonon/phono3py_disp.yaml results/wigner-4ph/
 
-``bash -n`` checks shell syntax. ``sbatch`` submits the calculation and prints
-its job ID. After completion, substitute that ID for ``JOB_ID`` below:
+Then generate plots:
 
 .. code-block:: bash
 
-   sacct -j JOB_ID --format=JobID,State,Elapsed,ExitCode
-   tail -n 20 results/wigner-4ph/run.log
-   ls results/wigner-4ph/fourphonon
-
-Check ``COMPLETED``, exit code ``0:0`` and ``Completed: kappa`` in the log.
-Disappearance from ``squeue`` alone does not establish success.
-
-Plot and interpret
-~~~~~~~~~~~~~~~~~~~~~~
-
-The FourPhonon stage links its text force constants into the backend working
-directory. Standard plotting also needs the matching harmonic HDF5 and cell
-metadata in ``output.result-dir``. After the calculation, copy these two files
-from the same input set before plotting:
-
-.. code-block:: bash
-
-   cp inputs/fc2.hdf5 inputs/phono3py_disp.yaml results/wigner-4ph/
-   nepkappa info wigner-4ph.yaml --for plot
    nepkappa plot wigner-4ph.yaml
-   ls results/wigner-4ph/plots
 
-The conductivity panel shows 3ph+4ph particle, coherence and total terms.
-They are exported as ``kappa4-rta.dat``, ``kappa4-rta-coherence.dat`` and
-``kappa4-rta-total.dat``. The 3ph and 4ph scattering rates share one panel,
-so ``combined.png`` again has six panels. A coherence curve close to zero on
-this scale should be checked in the numeric data before being described as zero.
+Results and analysis
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Wigner_Park calculates particle, coherence and total conductivities separately:
+
+.. list-table:: Wigner conductivity outputs
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Contribution
+     - Output file
+   * - Particle
+     - ``kappa4-rta.dat``
+   * - Coherence
+     - ``kappa4-rta-coherence.dat``
+   * - Total
+     - ``kappa4-rta-total.dat``
+
+Results are saved in ``results/wigner-4ph/fourphonon/``.
+Particle conductivity describes transport from mode populations, whereas
+coherence conductivity arises from off-diagonal coupling between vibrational modes.
+
+.. figure:: _static/wigner4ph_combined.png
+   :width: 90%
+   :align: center
+   :alt: 3C-SiC Wigner particle and coherence thermal conductivity
+
+   Three- and four-phonon Wigner transport in 3C-SiC: particle, coherence
+   and total conductivity, with corresponding phonon and scattering properties.
+
+Compare ``kappa_P``, ``kappa_C`` and ``kappa_total`` to assess the relative
+importance of particle and coherence transport at different temperatures.
+Wigner coherence depends on mode-frequency separations, off-diagonal velocity
+matrix elements and phonon linewidths, extending the description of transport
+in complex crystals.
+
+Comparing methods and results
+-----------------------------
+
+The three routes describe different aspects of thermal transport:
+
+.. list-table:: Comparison of transport methods
+   :header-rows: 1
+   :widths: 27 38 35
+
+   * - Method
+     - Main extension
+     - Analysis goal
+   * - Three-phonon LBTE
+     - Retains mode coupling in the linearized collision operator.
+     - Compare RTA and LBTE conductivities.
+   * - Three- and four-phonon transport
+     - Adds four-phonon scattering to the three-phonon model.
+     - Analyze higher-order anharmonic effects on conductivity.
+   * - Wigner transport
+     - Adds coherence contributions to particle transport.
+     - Distinguish particle and coherence heat conduction.
+
+See :doc:`input_files` for further parameters.

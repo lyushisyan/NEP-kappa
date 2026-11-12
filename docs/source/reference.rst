@@ -1,32 +1,32 @@
 References
-============
+========================
 
-If you use **NEP-kappa** in your research, please cite the following references.
+Please cite the following workflow papers when publishing research using NEP-kappa.
 
-Workflow references
--------------------
+Workflow papers
+------------------------
 
-[1] S. Liu et al.,
+[1] Shixian Liu, Bin Liu, Fei Yin, Gang Wang, Yiming Dong,
+Yangjun Qin, Alexandra V. Kosyakova, Qiang Xian,
+Alexander A. Barinov, Ke Xu, and Gang Zhang,
 *NEP-kappa 2.0: A unified framework for phonon transport and nonequilibrium thermalization with machine-learning interatomic potentials*,
-arXiv preprint (2026),
-`arXiv:2610.25477 <https://arxiv.org/abs/2610.25477>`_,
-`doi:10.48550/arXiv.2610.25477 <https://doi.org/10.48550/arXiv.2610.25477>`_.
+arXiv:2610.25477 (2026).
+`DOI: 10.48550/arXiv.2610.25477 <https://doi.org/10.48550/arXiv.2610.25477>`_
 
-[2] F. Yin, et al.,
+[2] Fei Yin, Shixian Liu, Yiming Dong, Alexander A. Barinov,
+Ke Xu, and Vladimir I. Khvesyuk,
 *Accelerated phonon transport calculations for nanostructures: Combining neuroevolution potentials and compressed sensing*,
-Journal of Applied Physics **139**, 135103 (2026),
-`doi:10.1063/5.0324012 <https://doi.org/10.1063/5.0324012>`_.
+Journal of Applied Physics **139**, 135103 (2026).
+`DOI: 10.1063/5.0324012 <https://doi.org/10.1063/5.0324012>`_
 
-NEP model for silicon nanowires
----------------------------------
 
-[3] K. Xu, et al.,
-*Critical Size Transitions in Silicon Nanowires: Amorphization, Phonon Hydrodynamics, and Thermal Conductivity*,
-J. Phys. Chem. Lett. **16**, 8580-8587 (2025).
+Citation guidance
+------------------------
 
-Citation note
----------------
+The unified NEP-kappa 2.0 framework and nonequilibrium phonon dynamics
+are primarily described in paper [1].
 
-If you use the NEP-kappa workflow, please cite Refs. [1] and [2].
+The combination of NEP and compressed sensing for force-constant calculations
+is primarily described in paper [2].
 
-If your calculation uses the Si nanowire NEP model distributed with this project, please also cite Ref. [3].
+We recommend citing both papers when using NEP-kappa in research.

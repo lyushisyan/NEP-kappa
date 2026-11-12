@@ -1,13 +1,14 @@
-快速开始：三声子 RTA 与 Wigner 输运
-============================================
 
-本例使用随仓库提供的 3C-SiC NEP 模型，依次完成结构弛豫、FC2/FC3 生成和
-三声子 RTA / SMM19 Wigner 输运。输入中的数值是流程演示设置，需要针对研究对象检查收敛。
+快速开始：三声子热输运
+========================
+
+以 3C-SiC 为例，使用仓库提供的 NEP 势函数，完成结构弛豫、二阶和三阶力常数（FC2/FC3）生成，
+以及三声子 RTA 热输运计算。
 
 准备工作目录
 ------------------------
 
-在已安装项目的仓库根目录运行：
+在 NEP-kappa 仓库根目录下执行：
 
 .. code-block:: bash
 
@@ -17,56 +18,128 @@
    cp examples/potentials/3C-SiC/nep_3C-SiC.txt ~/work/3C-SiC/
    cd ~/work/3C-SiC
 
-普通相对路径以启动命令时的目录为准。后续章节在这个目录下使用 ``phonons/``、``transport/``
-和 ``tdbte/`` 分开保存结果。
+工作目录包含晶体结构 ``POSCAR`` 和 NEP 势文件 ``nep_3C-SiC.txt``。
+输入文件中的相对路径以运行命令时的工作目录为基准。
 
-准备并检查输入
+
+配置输入文件
 ------------------------
 
-下载 :download:`quickstart.yaml <../source/inputs/quickstart.yaml>`，在工作目录保存为 ``input.yaml``：
+创建 ``input.yaml``，内容如下：
 
-.. literalinclude:: ../source/inputs/quickstart.yaml
-   :language: yaml
 
-本例采用 3×3×3 力常数超胞、31×31×31 q 网格，在 100–1000 K 范围内每隔 50 K 计算一次。
-``wigner: true`` 启用粒子与相干贡献，``isotope: true`` 包括同位素散射。
+.. code-block:: yaml
+
+   # 晶体结构与弛豫
+   structure:
+     poscar: POSCAR                 # 晶体结构文件
+     relaxation: true               # 是否进行结构弛豫
+
+   # 原子力计算
+   calculator:
+     name: nep                      # 计算器类型：NEP、VASP、MACE 等
+     model: nep_3C-SiC.txt          # NEP 势函数文件
+
+   # 力常数生成
+   force-constant:
+     dim-fc2: [3, 3, 3]             # 二阶力常数超胞
+     dim-fc3: [3, 3, 3]             # 三阶力常数超胞
+
+   # 晶格热输运
+   kappa:
+     engine: phono3py               # 热输运计算引擎
+     mesh: [31, 31, 31]             # 声子 q 网格
+     temps: [100, 1000, 50]         # 温度：起点、终点、间隔（K）
+     method: rta                    # 求解方法：RTA 或 LBTE
+     isotope: true                  # 考虑同位素散射
+     wigner: true                   # 计算 Wigner 相干贡献
+
+   # 绘图设置
+   plot:
+     layout: both                   # 生成单独图像和组合图
+     path: seekpath                 # 自动生成高对称路径
+     tau: total                     # 绘制总散射率及其组成
+     temperature: 300               # 散射率绘图温度（K）
+     kappa: x                       # 绘制 x 方向热导率
+     dpi: 300                       # 图像分辨率
+
+   # 结果输出
+   output:
+     result-dir: results            # 结果保存目录
+
+
+.. note::
+
+   示例参数用于演示计算流程。正式研究需要检查力常数超胞 ``dim-fc2`` 和 ``dim-fc3``，
+   以及 q 网格密度 ``mesh`` 的收敛性。
+
+
+运行计算
+------------------------
+
+首先检查输入文件：
 
 .. code-block:: bash
 
    nepkappa info input.yaml --for run
+
+确认配置正确后，执行完整计算：
+
+.. code-block:: bash
+
    nepkappa run input.yaml
 
-第一条命令仅检查输入，第二条才开始计算。加 ``-v`` 可查看详细终端输出：
-``nepkappa run input.yaml -v``。两种输出模式都将完整诊断写入 ``results/run.log``。
+程序将依次完成结构弛豫、FC2/FC3 生成和热输运计算。
+终端显示计算进度，详细日志保存至 ``results/run.log``。
 
-长时间工作站计算可使用 :ref:`tmux <transport-tmux>`；集群计算应在合适的
-:ref:`Slurm 资源分配 <transport-slurm>` 内运行，并匹配 MPI / 线程数。
-
-检查结果
-------------------------
+如需查看详细终端输出，可添加 ``-v``：
 
 .. code-block:: bash
 
-   tail -n 20 results/run.log
-   ls -lh results/fc2.hdf5 results/fc3.hdf5 results/phono3py_disp.yaml
-   ls -lh results/kappa-m313131.hdf5
+   nepkappa run input.yaml -v
 
-``POSCAR_relaxed`` 是弛豫后的结构。HDF5 力常数和 ``phono3py_disp.yaml`` 必须配套使用。
-``kappa-m313131.hdf5`` 保存指定网格上的热导率及模式数据；网格变化时文件名也变化。
 
-绘图与报告
+查看结果
 ------------------------
+
+计算完成后，生成图像和报告：
 
 .. code-block:: bash
 
-   nepkappa info input.yaml --for plot
    nepkappa plot input.yaml
    nepkappa report input.yaml
-   ls results/plots
 
-``layout: both`` 生成各单图和 ``combined.png``。标准六面板包括色散、DOS、体积定容热容、群速度、
-散射率和热导率。Wigner 热导率区分粒子项、相干项与总和。
-``plot.temperature`` 选择散射率所用温度，热导率图保留全部计算温度。
+主要结果保存在 ``results/`` 目录中：
 
-报告保存为 ``results/report.md`` 和 ``results/report.yaml``。
-绘图与报告读取已有数据，不重新计算力或热导率。完整输入目录见 :doc:`examples`。
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - 文件
+     - 内容
+   * - ``fc2.hdf5`` / ``fc3.hdf5``
+     - 二阶和三阶力常数。
+   * - ``phono3py_disp.yaml``
+     - 位移结构及力常数相关信息。
+   * - ``kappa-m313131.hdf5``
+     - 热导率与模式分辨输运数据。
+   * - ``plots/``
+     - 声子性质与热输运图像。
+   * - ``report.md`` / ``report.yaml``
+     - 计算结果摘要。
+
+
+``layout: both`` 生成单独图像和组合图 ``combined.png``，
+包含声子色散、态密度（DOS）、体积定容热容、群速度、声子散射率和晶格热导率。
+
+Wigner 热导率图分别展示粒子项、相干项和总热导率。
+
+.. figure:: ../source/_static/quickstart_combined.png
+   :width: 90%
+   :align: center
+   :alt: 3C-SiC phonon properties and thermal conductivity
+
+   3C-SiC 的声子性质与热输运计算结果，包括声子色散、
+   态密度、热容、群速度、散射率及晶格热导率。
+
+温度相关声子计算参见 :doc:`temperature`，更多热输运示例参见 :doc:`thermal_transport`。

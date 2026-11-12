@@ -1,74 +1,351 @@
-空间非均匀非线性 TD-BTE
-====================================
 
-适用范围与输入
---------------------------
+TD-BTE：非平衡声子输运
+========================================
 
-``tdbte.spatial`` 启用一维周期实空间网格，每个单元使用相同的非线性三声子碰撞积分。
-声子 q 网格仍是三维。省略该映射即使用 :doc:`tdbte` 的均匀路线。
-这里不采用 RTA、Callaway 或线性化时间演化，也没有四声子或电子耦合。
+上一章通过空间均匀 TD-BTE 研究声子模式之间的能量交换。
+本章进一步引入一维实空间坐标，
+同时考虑声子传播与非线性三声子碰撞。
 
-从仓库根目录可检查完整示例，随后按需要计算：
+NEP-kappa 使用三维声子 q 网格和一维周期实空间网格，
+模拟温度、热流和声子分布的时空演化。
+
+本章以 3C-SiC 的瞬态热光栅（TTG）为例，
+介绍空间 TD-BTE 的输入、计算方法和结果分析。
+
+
+计算方法
+------------------------
+
+空间 TD-BTE 同时包含声子漂移和碰撞：
+
+.. math::
+
+   \frac{\partial n_\lambda(x,t)}{\partial t}
+   +
+   v_{\lambda,x}
+   \frac{\partial n_\lambda(x,t)}{\partial x}
+   =
+   \mathcal C_\lambda^{3\mathrm{ph}}[n(x,t)].
+
+其中：
+
+- :math:`n_\lambda(x,t)` 为声子占据数的时空分布。
+- :math:`v_{\lambda,x}` 为群速度在输运方向上的分量。
+- :math:`\mathcal C_\lambda^{3\mathrm{ph}}` 为非线性三声子碰撞积分。
+
+与空间均匀 TD-BTE 相比，
+这里增加了声子漂移项，
+用于描述声子携带能量在不同空间位置之间传播。
+
+.. note::
+
+   本章的“一维”指实空间输运方向只有一个，
+   声子仍然使用完整三维 q 网格。
+
+   这与一维纳米线所用的 ``mesh: [N, 1, 1]``
+   碰撞积分模型不同。
+
+
+瞬态热光栅
+------------------------
+
+瞬态热光栅（Transient Thermal Grating, TTG）
+使用空间周期性的初始温度分布：
+
+.. math::
+
+   T(x,0)
+   =
+   T_0+\Delta T
+   \cos\left(\frac{2\pi x}{L}\right).
+
+其中，:math:`T_0` 为背景温度，
+:math:`\Delta T` 为初始温度调制幅度，
+:math:`L` 为温度调制周期。
+
+初始时，各空间单元中的声子服从对应局部温度的 Bose-Einstein 分布。
+随后系统在没有持续外部加热的条件下自由演化。
+
+声子传播和碰撞共同作用，
+使初始温度分布随时间改变。
+
+
+准备计算
+------------------------
+
+延续前一章的工作目录：
 
 .. code-block:: bash
 
-   nepkappa info examples/tdbte-spatial.yaml --for run
-   nepkappa run examples/tdbte-spatial.yaml
-   nepkappa plot examples/tdbte-spatial.yaml
-   nepkappa report calculations/3C-SiC/tdbte-spatial
+   conda activate nepkappa
+   cd ~/work/3C-SiC
 
-``run`` 先生成 FC2/FC3。已有力常数使用下面的精简输入和 ``nepkappa tdbte``，不重新生成原子力。
+确认已有 FC2、FC3 和声子元数据：
+
+.. code-block:: bash
+
+   ls results/fc2.hdf5
+   ls results/fc3.hdf5
+   ls results/phono3py_disp.yaml
+
+空间 TD-BTE 使用这些数据计算声子频率、
+群速度与三声子碰撞核。
+
+与空间均匀模型一样，
+本章不需要预先计算晶格热导率。
+
+
+配置输入
+------------------------
+
+创建 ``tdbte-spatial.yaml``：
 
 .. code-block:: yaml
 
+   # 空间非平衡声子动力学
    tdbte:
-     force-constants: calculations/3C-SiC/fc
-     mesh: [3, 3, 3]
-     temperature: 300
-     duration-ps: 0.1
-     max-step-ps: 0.01
-     samples: 6
+     force-constants: results        # 复用已有 FC2/FC3
+     mesh: [3, 3, 3]                # 三维声子 q 网格
+     temperature: 300               # 背景温度（K）
+     duration-ps: 0.1               # 总演化时间（ps）
+     max-step-ps: 0.01              # 最大时间步长（ps）
+     samples: 6                     # 保存时刻数量
+
+     # 一维实空间输运
      spatial:
-       length-nm: 64
-       cells: 16
-       direction: [1, 0, 0]
-       boundary: periodic
-       cfl: 0.8
-       batch-size: 8
+       length-nm: 64                # 空间周期长度（nm）
+       cells: 16                    # 实空间网格单元数
+       direction: [1, 0, 0]        # 笛卡尔输运方向
+       boundary: periodic           # 周期边界条件
+       cfl: 0.8                     # CFL 数
+       batch-size: 8                # 碰撞计算的单元批大小
+
+       # 初始温度分布：瞬态热光栅
        initial:
          kind: ttg
-         delta-temperature-K: 10
+         delta-temperature-K: 10   # 初始温度调制幅度
+
+   # 绘图设置
+   plot:
+     layout: both
+     dpi: 150
+
+   # 结果目录
    output:
-     result-dir: calculations/3C-SiC/spatial-ttg
+     result-dir: results/tdbte-spatial
 
-来源目录需要匹配的 ``phono3py_disp.yaml``、``fc2.hdf5`` 和 ``fc3.hdf5``。
-也可用已有 ``kernel`` 并省略来源和网格，但计算群速度仍需其记录的匹配力常数。
-``spatial.phonons`` 可指向迁移后的来源目录，三份文件的哈希都要一致。
-缺少原生网格 / 来源身份的旧核不足以准备空间速度；NAC、偏移 / 广义网格和一 / 二维 q 网格均不支持。
-示例设置不代表收敛，已有 ``result-dir/tdbte`` 会被拒绝覆盖。
+本例使用 3×3×3 的三维声子 q 网格，
+同时沿 x 方向建立长度为 64 nm 的一维周期实空间。
 
-初态
---------------------------
+实空间包含 16 个单元，网格间距为：
 
-.. list-table:: ``spatial.initial`` 支持的模式
+.. math::
+
+   \Delta x=\frac{L}{N_x}=4\ \mathrm{nm}.
+
+初始温度在 300 K 附近呈余弦分布，
+调制幅度为 10 K。
+
+该输入使用较小的 q 网格和较短的演化时间，
+用于展示空间 TD-BTE 的计算流程。
+
+
+主要空间参数
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table:: 空间 TD-BTE 参数
    :header-rows: 1
-   :widths: 24 76
+   :widths: 36 64
 
-   * - ``kind``
-     - 定义与参数
+   * - 参数
+     - 说明
+   * - ``length-nm``
+     - 一维周期空间的长度，单位 nm。
+   * - ``cells``
+     - 实空间网格单元数。
+   * - ``direction``
+     - 输运方向的笛卡尔向量。
+   * - ``boundary``
+     - 空间边界条件，目前使用 ``periodic``。
+   * - ``cfl``
+     - 控制漂移积分稳定性的 CFL 数。
+   * - ``batch-size``
+     - 碰撞积分的空间单元处理批大小。
+   * - ``initial``
+     - 初始温度或声子占据数的空间分布。
+
+``length-nm`` 与 ``cells`` 决定实空间网格，
+而 ``mesh`` 决定声子碰撞积分所用的 q 网格。
+两者分别控制空间分辨率与声子模式分辨率。
+
+
+运行计算
+------------------------
+
+检查输入并执行空间 TD-BTE：
+
+.. code-block:: bash
+
+   nepkappa info tdbte-spatial.yaml --for tdbte
+   nepkappa tdbte tdbte-spatial.yaml
+
+程序读取力常数和声子群速度，
+构建三声子碰撞核并设置初始温度分布。
+
+随后在各空间单元之间进行声子输运，
+同时计算每个单元内部的非线性三声子碰撞。
+
+计算结果保存至 ``results/tdbte-spatial``。
+
+
+时间推进方法
+------------------------
+
+空间 TD-BTE 使用算子分裂方法，
+分别处理碰撞和漂移两个过程。
+
+一个时间步按照以下顺序执行：
+
+1. 半个时间步的非线性三声子碰撞。
+2. 一个完整时间步的空间漂移。
+3. 半个时间步的非线性三声子碰撞。
+
+碰撞部分使用 DOP853 时间积分，
+空间漂移使用守恒的一阶迎风格式。
+
+时间步长同时受到 ``max-step-ps`` 和 CFL 条件限制：
+
+.. math::
+
+   \max_\lambda |v_{\lambda,x}|
+   \frac{\Delta t}{\Delta x}
+   \leq \mathrm{cfl}\leq1.
+
+当前漂移格式为一阶迎风格式，
+因此整体方法具有一阶时间与空间精度。
+计算时应检查网格和 CFL 引起的数值扩散。
+
+
+结果与分析
+------------------------
+
+完成计算后生成图像和报告：
+
+.. code-block:: bash
+
+   nepkappa plot tdbte-spatial.yaml
+   nepkappa report results/tdbte-spatial
+
+图像保存在 ``results/tdbte-spatial/plots`` 目录。
+
+.. .. figure:: ../source/_static/tdbte_spatial.png
+..    :width: 95%
+..    :align: center
+..    :alt: 3C-SiC spatial TD-BTE transient thermal grating
+
+..    3C-SiC 的空间 TD-BTE 计算结果，
+..    展示瞬态热光栅中温度、热流和声子分布的时空演化。
+
+
+温度的时空演化
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+空间 TD-BTE 输出每个位置和时刻的声子占据数。
+程序根据各单元中的总声子热能反演能量等效温度：
+
+.. math::
+
+   E(x,t)=E_{\mathrm{BE}}[T(x,t)].
+
+其中，:math:`T(x,t)` 为局部能量等效温度，
+并不要求每个空间单元内部的声子分布已经达到局部平衡。
+
+对于 TTG 初始条件，可以观察周期性温度扰动如何随时间演化。
+
+温度调制的衰减受到声子传播、模式碰撞
+以及空间尺度的共同影响。
+
+
+热流与能量输运
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+空间 TD-BTE 同时计算声子热流的时空分布。
+
+不同声子模式根据其频率、群速度与占据数
+对热流产生贡献。
+
+通过分析温度和热流的空间分布，
+可以研究非平衡声子输运与普通扩散行为的差异。
+
+程序还保存各声子分支的能量密度和热流，
+用于区分不同分支的输运贡献。
+
+
+TTG 温度谐波
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+初始 TTG 为单一空间余弦扰动。
+随着时间演化，程序对温度分布进行 Fourier 分解，
+记录各空间谐波的时间变化。
+
+对于基频：
+
+.. math::
+
+   A_1(t)
+   =
+   \frac{2}{L}
+   \int_0^L
+   [T(x,t)-\overline T(t)]
+   \cos\left(\frac{2\pi x}{L}\right)\,dx.
+
+通过分析 :math:`A_1(t)`，
+可以研究不同空间周期下温度调制的衰减过程。
+
+在扩散极限且热扩散率恒定时，
+TTG 基频满足：
+
+.. math::
+
+   A_1(t)
+   =
+   A_1(0)
+   \exp\left[
+   -\alpha\left(\frac{2\pi}{L}\right)^2t
+   \right].
+
+其中，:math:`\alpha` 为热扩散率。
+
+这一表达式可作为扩散行为的参考，
+而空间 TD-BTE 可用于研究偏离简单扩散的输运过程。
+
+
+其他初始条件
+------------------------
+
+除 TTG 外，空间 TD-BTE 还支持热高斯脉冲、
+选择性声子激发和均匀温度初态。
+
+.. list-table:: 初始条件
+   :header-rows: 1
+   :widths: 25 75
+
+   * - 类型
+     - 物理含义
    * - ``ttg``
-     - 瞬态热光栅：局部温度为 T₀ + ΔT cos(2πx/L)，各单元初始化为该温度的 Bose 分布。
-       用 ``delta-temperature-K`` 指定 ΔT；至少四个单元，且 :math:`|\Delta T| < T_0`。
+     - 空间周期性温度扰动。
    * - ``gaussian``
-     - 热高斯脉冲。指定温升、``sigma-nm`` 和可选 ``center-nm``，中心默认 L/2。
-       使用周期镜像求和，使宽脉冲在周期接缝处仍平滑。
+     - 局部高斯温度脉冲。
    * - ``selective``
-     - 仅将指定 ``branches`` 的参考占据数乘以 1 + δg(x)。``amplitude`` 是相对占据数增加，
-       不是开尔文或激光能流密度。默认高斯包络，也可 ``profile: uniform``。
+     - 指定声子分支的空间选择性占据数激发。
    * - ``uniform``
-     - 所有单元采用 ``temperature + delta-temperature-K`` 的 Bose 分布，用作静止数值对照。
+     - 空间均匀 Bose 分布，用于数值对照。
 
-例如热脉冲的初态：
+
+热高斯脉冲
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+将 ``spatial.initial`` 改为：
 
 .. code-block:: yaml
 
@@ -78,7 +355,15 @@
      sigma-nm: 8
      center-nm: 32
 
-两原子 3C-SiC 的选择性光学支脉冲示例：
+该配置在 64 nm 周期空间中设置中心位于 32 nm 的热脉冲，
+随后研究温度和热流在空间中的传播。
+
+
+选择性声子激发
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+也可以只激发指定声子分支，
+例如 3C-SiC 的三个光学支：
 
 .. code-block:: yaml
 
@@ -89,122 +374,50 @@
      sigma-nm: 8
      center-nm: 32
 
-分支编号仍按原生频率排序，不跨支交叉跟踪极化；激发简并组中单独一个成员可能依赖本征矢基。
+``amplitude: 0.2`` 表示将选定分支的参考占据数
+按空间包络最多提高 20%，并非提高 20 K。
 
-速度、时间推进与单位
---------------------------
+该计算同时包含模式间非平衡能量交换
+和实空间声子输运。
 
-``direction`` 是笛卡尔三维向量，内部归一化，与原胞晶轴不同。
-群速度由 FC2 动力学矩阵的解析导数给出，投影到与碰撞后端相同的原生本征矢基中。
-倒易格矢平移会改变本征矢相位，因此不能把原生本征矢与仅取模的网格坐标任意混用。
-输出同时保存索引地址和原生分数 q 坐标，模式排序为 q 在前、支在后。
+与上一章的均匀选择性激发相比，
+这里还可以分析激发能量如何从局部区域向周围传播。
 
-原生 THz·Å 导数转换到 nm/ps 的因子是 0.1。固定 Gamma 平移的占据数和漂移速度均为零。
-原胞体积使用 nm³；此体相三维 q 方程不引入真空厚度或横截面积修正。
 
-每步先执行半步非线性碰撞，再执行整步迎风漂移，最后再执行半步碰撞。
-实际步长同时受 ``max-step-ps`` 和 CFL 限制：
+主要输出
+------------------------
 
-.. math::
+空间 TD-BTE 将时空分辨结果保存为：
 
-   \max |v_x|\,\Delta t/\Delta x \leq \mathrm{cfl} \leq 1.
+.. code-block:: text
 
-迎风漂移采用守恒凸组合，在 CFL 条件下保持非负。
-``spatial.collisions: false`` 仅关闭碰撞，可作为弹道对照。
-碰撞采用 DOP853，默认 ``rtol=1e-11``、``atol=1e-14``。
-若产生非正的活动占据数，从原状态以更小内部步长重试，最多八次减半；失败报错，不裁剪占据数或重标度速率。
-刚性碰撞可能使显式积分昂贵，当前没有隐式刚性求解器。
+   results/tdbte-spatial/tdbte/spatial.hdf5
 
-.. note::
-
-   半碰撞—漂移—半碰撞的 Strang 排列，并不会使当前完整方法成为二阶。
-   漂移采用前向 Euler 一阶迎风步，总体时间和空间误差仍为一阶，应检查网格和 CFL 引起的数值扩散。
-
-``samples`` 决定保存时刻；``snapshot-times-ps`` 可显式指定从 0 到 ``duration-ps`` 的递增列表。
-推进会落在保存时刻，密集输出可能缩短实际分裂步；时间步收敛比较应采用相同保存时刻。
-
-所有单元共用不可变事件核。每次 RHS 计算将各单元分批处理，每个事件块只打开一次。
-``batch-size`` 约束临时数组，不改变模型；状态和 DOP853 中间数组仍随单元数 × 模式数增长。
-
-HDF5 输出与能量连续性
---------------------------
-
-``tdbte/spatial.hdf5`` 只写请求的快照：
-
-.. list-table:: 主要数据集
+.. list-table:: 主要输出数据
    :header-rows: 1
-   :widths: 49 51
+   :widths: 43 57
 
-   * - 名称
-     - 形状 / 物理意义
+   * - 数据集
+     - 内容
    * - ``occupation``
-     - (时间, 单元, 模式)，无量纲占据数。
+     - 各位置、时刻和声子模式的占据数。
    * - ``temperature_K``
-     - (时间, 单元)，由局部热能反演的等效温度。
+     - 局部能量等效温度。
    * - ``heat_flux_eV_nm2_ps``
-     - 单元中心物理声子热流，单位 eV/(nm²·ps)。
+     - 空间分辨声子热流。
    * - ``branch_energy_eV_nm3``
-     - (时间, 单元, 分支)，热能密度，不含零点能。
+     - 各声子分支的能量密度。
    * - ``branch_heat_flux_eV_nm2_ps``
-     - 各分支的单元中心物理热流。
+     - 各声子分支的热流。
    * - ``branch_collision_power_eV_nm3_ps``
-     - 非线性碰撞导致的瞬时分支能量交换。
-   * - ``branch_face_flux_integral_eV_nm2``
-     - 自前一快照起累计的数值右界面通量。
-   * - ``branch_collision_energy_integral_eV_nm3``
-     - 两次碰撞半步产生的实际累计能量变化。
-   * - ``branch_continuity_residual_eV_nm3``
-     - 保存区间的离散分支能量收支残差。
-   * - ``departure_from_local_BE``
-     - 相对局部等能 Bose 态的能量加权 L1 偏差，除以局部能量。
-   * - ``temperature_harmonics_real_K`` / ``temperature_harmonics_imag_K``
-     - 前四个复 Fourier 系数，掩码排除 Nyquist 或混叠谐波。
+     - 三声子碰撞引起的分支间能量交换率。
    * - ``ttg_cosine_amplitude_K``
-     - 基频系数实部的两倍，对应 TTG 余弦温度幅值。
+     - TTG 基频余弦温度幅值。
+   * - ``departure_from_local_BE``
+     - 与局部等能 Bose 分布的偏离程度。
 
-物理常数、单位转换、坐标、模式身份、速度、本征矢和来源均存入文件。
-热流乘 1.602176634×10¹¹ 得 W/m²，能量密度乘 1.602176634×10⁸ 得 J/m³。
+此外，``audit.json`` 记录能量守恒、分支能量收支、
+熵、占据数正性和 CFL 等数值检查。
 
-分支预算使用漂移实际采用的界面通量：
-
-.. math::
-
-   e_s(t_j)-e_s(t_{j-1})
-   +\nabla_x\cdot\int_{t_{j-1}}^{t_j}F_s^{\mathrm{upwind}}\,dt
-   =\int_{t_{j-1}}^{t_j}P_s^{3\mathrm{ph}}\,dt.
-
-因此局部散射与空间输运由同一离散收支分开，而不是从稀疏输出的两个差分导数相减得到。
-单元中心物理热流和数值迎风界面热流是不同数据集。
-``audit.json`` 记录能量、连续性、碰撞能量、熵、正性、CFL、RHS 次数和重试次数。
-``plot`` 读取场量生成温度 / 热流时空图、分支能量和温度谐波，不加载全部占据数快照。
-
-验证与已记录结果
---------------------------
-
-可选本地脚本 ``tools/validate_spatial_tdbte.py`` 检查六模式非线性代数模型的弹道、网格 / 时间步收敛、
-弱激发长波 Fourier 极限、脉冲和不同 TTG 幅值。``tools/`` 被 Git 忽略，新克隆中不包含该脚本。
-模型系数任意，不是 SiC；其 Fourier 参考由 Bose 多项式和热容独立推导，不是拟合时间演化得到。
-
-.. code-block:: bash
-
-   OMP_NUM_THREADS=1 RAYON_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
-     python tools/validate_spatial_tdbte.py \
-     --output calculations/spatial-tdbte-validation
-
-已有三维 SiC 核时可添加 ``--kernel`` 做材料数值演示；``--material-only`` 跳过代数模型。
-
-:download:`2026-11-07 空间验证 JSON <../source/_static/tdbte-spatial-validation-20261107.json>` 记录：
-
-* 弹道传播误差在 32 / 64 / 128 个单元上近似一阶下降。
-* 固定空间网格、相对 0.00125 ps 参考，0.04 / 0.02 / 0.01 ps 的占据数 L2 误差为
-  0.01089 / 0.005514 / 0.002871，显示整体一阶时间误差。
-* 代数模型 300 K 的独立 Fourier 热扩散率为 0.507074 nm²/ps。
-  64 nm、0.01 K 的 TTG 演化 20 ps，128 / 256 / 512 单元的衰减率误差为 41.86% / 17.26% / 4.95%。
-* 热高斯、选择性高斯与 1 / 30 / 90 K TTG 均配置无碰撞对照，通过守恒、熵与正性检查。
-* 八个 SiC 短算例使用 3×3×3 q 网格、162 模式、833,976 个能量壳事件、8 单元和 0.02 ps。
-  最大相对总能漂移约 1.36e-16，连续性残差约 1.70e-16；这不代表材料输运已经收敛。
-
-原生 SiC 沿输运方向的简并速度非对角诊断值为 0.527 nm/ps，输出记录该数值，标量占据数模型不包含对应相干。
-所有算例仍标记 ``validated_for_physical_dynamics: false``。
-绝对速率、q 网格、力常数超胞、空间 / 时间收敛及简并基近似仍需独立验证。
-不能把无关的稳态热导率直接当作这个离散算子的 Fourier 极限参考。
+程序生成温度、热流、分支能量及温度谐波的图像，
+用于分析空间非平衡输运过程。

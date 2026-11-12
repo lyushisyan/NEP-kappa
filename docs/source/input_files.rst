@@ -1,157 +1,42 @@
 Input files and parameters
-==============================
+==========================
 
-YAML organization
----------------------
-
-``nepkappa run`` requires six sections for its complete calculation workflow.
-Phonon-property and thermal-transport calculations use:
-``structure``, ``calculator``, ``force-constant``, ``kappa``, ``plot``, and
-``output``. TD-BTE replaces ``kappa`` with ``tdbte``. All six section names
-must appear; a section without options may be written as ``{}``. Optional
-force-job execution resources may be placed in a seventh ``parallel`` section.
-Direct commands accept only the sections needed by their stage. For example,
-``kappa``/``output`` reuses existing force constants with ``nepkappa kappa``,
-and ``tdbte``/``output`` reuses force constants or kernels with ``nepkappa tdbte``.
-These compact inputs cannot be executed with ``run``. Do not combine ``kappa``
-and ``tdbte`` in one input.
-
-A compact 3C-SiC phonon/transport input is:
-
-.. code-block:: yaml
-
-   structure:
-     poscar: examples/structures/3C-SiC/POSCAR_primitive
-     relaxation: true
-   calculator:
-     name: nep
-     model: examples/potentials/3C-SiC/nep_3C-SiC.txt
-   force-constant:
-     dim-fc2: [3, 3, 3]
-     dim-fc3: [3, 3, 3]
-   kappa:
-     engine: phono3py
-     mesh: [31, 31, 31]
-     temps: [100, 1000, 50]
-     method: rta
-   plot:
-     layout: both
-   output:
-     result-dir: calculations/example-runs/3c-sic-nep-rta
-
-These numerical settings demonstrate the workflow; they are not converged
-parameters. ``nepkappa info input.yaml`` parses and checks the configuration
-without starting a calculation. It does not validate the physical quality of
-a potential, external executables, or convergence.
-
-Single-stage inputs
------------------------
-
-.. code-block:: text
-
-   nepkappa info input.yaml     check and show the input
-   nepkappa run input.yaml      run the input-selected calculation
-   nepkappa relax input.yaml    relax the structure
-   nepkappa fc2 input.yaml      generate FC2, or scan QHA volumes when enabled
-   nepkappa fc2fc3 input.yaml   generate FC2 and FC3
-   nepkappa fc2fc3fc4 input.yaml generate FC2, FC3 and FC4 without transport
-   nepkappa kappa input.yaml    run the selected transport route
-   nepkappa tdbte input.yaml    run nonequilibrium phonon dynamics
-   nepkappa plot input.yaml     plot completed phonon/transport results
-   nepkappa report input.yaml   write a result summary
-
-``run`` requires all six sections. A direct command accepts a reduced input
-or a complete input, and runs only its named part:
-
-* ``relax``: ``structure`` and ``calculator``.
-* ``fc2`` / ``fc2fc3`` / ``fc2fc3fc4``: ``structure``, ``calculator``, ``force-constant``.
-* Ordinary phono3py ``kappa``: ``kappa``; optionally set
-  ``kappa.force-constants`` to the existing FC2/FC3 directory.
-* ``tdbte``: ``tdbte``; optionally set ``tdbte.force-constants`` to the
-  existing FC2/FC3 directory, or ``tdbte.kernel`` to an existing collision kernel.
-* ``plot``: ``plot`` and ``output``; ``output`` alone uses default plot settings.
-  Add ``kappa`` for mesh/temperature choices or ``structure`` for geometry
-  normalization. With a plot-only input, saved ``tdbte/branch-energy.csv``
-  selects TD-BTE plots; ``tdbte: {}`` also explicitly selects this route.
-* ``report``: ``output.result-dir``, or pass a result directory directly.
-
-Except for report inputs, ``output`` is optional and defaults to ``result``
-below the launch directory. Explicit paths are recommended. Nested QHA,
-SSCHA and FourPhonon settings still belong in ``force-constant``; coupled
-transport that computes new forces also requires ``structure`` and ``calculator``.
-Optional ``parallel`` settings can accompany a reduced input.
-Use ``nepkappa info input.yaml --for <command>`` to check a stage input;
-``info`` without ``--for`` checks the six-section ``run`` form. ``report`` is
-also accepted as an ``info --for`` target.
-
-For direct phono3py ``kappa`` and ``tdbte``, ``force-constants`` in the
-corresponding section selects the input directory; ``output.result-dir``
-selects where new results are written. Without an explicit source (or a
-TD-BTE kernel), both commands read force constants from ``output.result-dir``.
-Neither command computes new atomic forces when reusing these inputs.
-The source must contain ``phono3py_disp.yaml``, ``fc2.hdf5`` and ``fc3.hdf5``;
-missing files cause an error. Relative paths are resolved from the launch
-directory, and ``~`` in the source path expands to the user's home directory.
-
-For example, save this input and run ``nepkappa kappa kappa.yaml``:
-
-.. code-block:: yaml
-
-   kappa:
-     force-constants: calculations/3C-SiC/fc
-     method: rta
-     mesh: [5, 5, 5]
-     temps: [300]
-   output:
-     result-dir: calculations/3C-SiC/kappa-reuse
-
-When the directories differ, ``kappa`` copies the three required inputs and
-an optional ``BORN`` file into the result directory for phono3py and subsequent
-plotting. It leaves the source unchanged and refuses conflicting destination
-inputs; identical copies can be reused. This also applies to custom phono3py
-commands and Slurm RTA/LBTE preparation. TD-BTE reads its source directly.
-The explicit ``kappa.force-constants`` option is for ordinary phono3py reuse,
-not FourPhonon or coupled QHA/SSCHA transport. Omit explicit force-constant
-sources for ``run``, which generates and passes on its own force constants.
-
-If ``structure.relaxation`` is enabled, run
-``nepkappa relax`` before a separate ``fc2``, ``fc2fc3`` or ``fc2fc3fc4`` command; these
-commands then read ``POSCAR_relaxed``. ``nepkappa run`` carries out the whole
-input-selected sequence. QHA, SSCHA, and four-phonon settings are switches
-within that one run; they select additional stages and their supported
-dependencies. ``plot`` is run separately after the necessary data exist.
-Internal FC4, SSCHA, bubble, and coupled-transport steps are selected by input
-switches; they have no separate public command.
-``fc2fc3fc4`` explicitly runs the existing FC2/FC3 and FC4 stages in order,
-without relaxation, QHA/SSCHA or transport. It accepts compact force-constant
-inputs and ordinary four-phonon inputs; enabling ``force-constant.four-phonon``
-is optional for this direct command. FC4 uses Fourthorder and writes
-``FORCE_CONSTANTS_4TH``. The FC2/FC3 backend and output formats follow the input.
-When FC2/FC3 force jobs are prepared or submitted to Slurm, the command pauses;
-the generated collection script continues with FC4 after collecting those forces.
-
-.. code-block:: bash
-
-   nepkappa info input.yaml --for fc2fc3fc4
-   nepkappa fc2fc3fc4 input.yaml
-
-For a QHA-only calculation, set ``force-constant.qha.enabled: true`` and
-``force-constant.qha.run-transport: false``, then execute
-``nepkappa fc2 input.yaml``. This scans the configured volumes and generates
-their FC2 and static energies; it does not calculate conductivity. For
-QHA+SSCHA, enable both sections and use ``nepkappa run input.yaml`` so QHA
-finishes before SSCHA reads its temperature-dependent equilibrium volumes.
-
-structure: crystal structure
+``structure``: crystal structure
 --------------------------------
 
-``structure`` sets ``poscar`` and ``relaxation``. For a VASP relaxation with
-custom stages, ``relaxation`` may be a mapping:
+``structure`` specifies the crystal structure, relaxation and geometric
+normalization for low-dimensional systems.
+
+.. list-table:: Structure parameters
+   :header-rows: 1
+   :widths: 38 62
+
+   * - Parameter
+     - Description
+   * - ``poscar``
+     - Crystal structure in VASP POSCAR format.
+   * - ``relaxation``
+     - Enable structure relaxation using a boolean or detailed settings.
+   * - ``dimensionality``
+     - System dimensionality: ``1``, ``2`` or ``3``; default ``3``.
+   * - ``effective-thickness``
+     - Effective thickness of a two-dimensional system, in Å.
+   * - ``effective-area``
+     - Effective cross-sectional area of a one-dimensional system, in Å².
+   * - ``vacuum-axis``
+     - Optional vacuum direction for a two-dimensional system.
+   * - ``periodic-axis``
+     - Optional periodic direction for a one-dimensional system.
+
+Structure relaxation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``relaxation: true`` to enable relaxation. VASP also supports multiple stages:
 
 .. code-block:: yaml
 
    structure:
-     poscar: examples/structures/3C-SiC/POSCAR_primitive
+     poscar: POSCAR
      relaxation:
        enabled: true
        workdir: vasp-relax
@@ -159,41 +44,73 @@ custom stages, ``relaxation`` may be a mapping:
          coarse: {ediffg: -0.05, prec: Normal}
          fine: {ediffg: -0.01, prec: Accurate}
 
-``dimensionality`` is 1, 2, or 3. For films set ``effective-thickness`` in
-Angstrom and optionally ``vacuum-axis``; for wires set ``effective-area`` in
-Angstrom squared and optionally ``periodic-axis``. These geometry factors
-correct plotted heat capacity and conductivity. They do not modify the original
-phono3py HDF5 file. QHA reads the specified POSCAR directly and therefore
-requires ``relaxation: false`` in this input.
+.. note::
 
-The present QHA, SSCHA, and FourPhonon implementations accept only
-``dimensionality: 3``. This is a capability limit of those stages, independent
-of whether ``run`` orchestrates them: the QHA scan scales the full cell volume,
-and the current SSCHA/FourPhonon routes have not been validated with effective
-film thickness or wire area. Setting a low-dimensional geometry factor alone
-does not establish a physically consistent low-dimensional calculation.
+   ``nepkappa run`` performs relaxation and subsequent calculations in order.
+   For direct ``fc2``, ``fc2fc3`` or ``fc2fc3fc4`` calculations with relaxation
+   enabled, first run ``nepkappa relax`` to generate ``POSCAR_relaxed``.
+   QHA reads the specified input structure and requires ``relaxation: false``.
 
-calculator: energies and forces
------------------------------------
+Geometric normalization for low-dimensional systems
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``calculator`` selects the force and energy backend. Both NEP and MACE use
-``model``: ``name: nep`` selects an NEP potential file, while ``name: mace``
-selects a MACE checkpoint or a model identifier accepted by its foundation
-factory. The default calculator is NEP, regardless of YAML key order.
-The legacy NEP key ``nep-model`` is still accepted, but it cannot appear
-together with ``model`` (even when both values are identical).
-VASP uses ``name: vasp``, a ``vasp-command`` or ``vasp-path``, and
-``potcar-path``. The executable and licensed POTCAR files must exist on the
-execution host. Native MACE accepts ``model``, ``foundation``, ``device``, and
-``dtype``. Another ASE-compatible calculator can use ``name: ase`` with
-``factory``, ``kwargs``, and optional ``model-files``. An installed calculator
-plugin may supply a short name. An input check does not launch these programs.
+For films and nanowires containing vacuum, normalize the physical volume
+using an effective thickness or cross-sectional area.
 
-NEP GPU force batches
-~~~~~~~~~~~~~~~~~~~~~~
+.. list-table:: Low-dimensional settings
+   :header-rows: 1
+   :widths: 20 72 38
 
-For native phono3py FC2/FC3 or HiPhive, NEP displacement forces can be
-evaluated in GPU batches using Calorine 3.5 or newer:
+   * - System
+     - Required settings
+     - Optional settings
+   * - Two-dimensional film
+     - ``dimensionality: 2`` and ``effective-thickness``
+     - ``vacuum-axis``
+   * - One-dimensional nanowire
+     - ``dimensionality: 1`` and ``effective-area``
+     - ``periodic-axis``
+
+These settings normalize volumetric heat capacity and conductivity during
+plotting. They do not modify the original phono3py HDF5 data.
+
+.. note::
+
+   QHA, SSCHA and FourPhonon currently support only three-dimensional systems
+   (``dimensionality: 3``). Geometric normalization does not extend their scope.
+
+``calculator``: interatomic interactions
+----------------------------------------
+
+``calculator`` selects the energy and atomic-force method. NEP-kappa supports
+NEP, VASP, MACE and other ASE-compatible calculators.
+
+.. list-table:: Calculator types
+   :header-rows: 1
+   :widths: 16 16 64
+
+   * - Calculator
+     - ``name``
+     - Main settings
+   * - NEP
+     - ``nep``
+     - Set the potential with ``model``; CPU evaluation is the default.
+   * - MACE
+     - ``mace``
+     - Select ``model`` or ``foundation``; ``device`` and ``dtype`` control the device and numerical precision.
+   * - VASP
+     - ``vasp``
+     - Configure ``vasp-command``, ``vasp-path`` and ``potcar-path``.
+   * - ASE
+     - ``ase``
+     - Configure other calculators with ``factory``, ``kwargs`` and ``model-files``.
+
+.. _nep-gpu-force-batches:
+
+NEP GPU acceleration
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use GPU batches to evaluate forces for many displaced structures:
 
 .. code-block:: yaml
 
@@ -202,417 +119,432 @@ evaluated in GPU batches using Calorine 3.5 or newer:
      model: /path/to/nep.txt
      nep-force-backend: gpu-batch
      nep-batch-size: 128
-     nep-command: /path/to/GPUMD/src/nep
+     nep-command: /path/to/nep
 
-``nep-force-backend`` defaults to ``cpu`` (the existing CPUNEP path).
-``nep-batch-size`` is the maximum number of uncached structures per GPU call;
-reduce it if a batch exceeds GPU memory. ``nep-command`` defaults to ``nep``
-on PATH and must identify one executable, not a shell command or ``gpumd``.
-The standard ``python -m pip install -e .`` installation includes Calorine >= 3.5
-for both CPU and GPU. Install GPUMD's ``nep`` GPU executable separately.
+Main settings:
 
-The batch path preserves displacement and atom ordering and rejects incorrect
-shapes or non-finite forces. It never falls back to CPU on failure. Force
-caches distinguish this backend from CPUNEP and record the model, executable
-hash, Calorine version and configured batch size. Existing CPU forces are not
-silently reused as GPU forces. Only cache misses are predicted; each result is
-published with its input marker last, allowing interrupted batches to recover.
-The existing force-constant fitting and transport algorithms are unchanged.
+- ``nep-force-backend``: ``cpu`` or ``gpu-batch``.
+- ``nep-batch-size``: maximum number of structures per batch.
+- ``nep-command``: path to GPUMD's ``nep`` executable.
 
-Structure relaxation still uses CPUNEP; this option controls displacement-force
-evaluation, not geometry optimization. QHA, SSCHA, Thirdorder and Fourthorder
-workflows currently reject ``gpu-batch`` instead of partly executing on CPU.
-This does not enable GPU RTA/LBTE or change TD-BTE methods.
+GPU batches support native phono3py FC2/FC3 and HiPhive displacement forces.
+QHA, SSCHA, Thirdorder and Fourthorder are currently unsupported.
 
-Run the ordinary ``nepkappa fc2`` or ``nepkappa fc2fc3`` command inside a GPU
-allocation. The same option works in force-array workers. For example, append
-the following to an existing force input and replace the partition with the
-site's GPU partition:
+.. note::
+
+   GPU batches require Calorine 3.5 or later, GPUMD's ``nep`` executable
+   and a compatible GPU environment.
+
+``force-constant``: force constants
+-----------------------------------
+
+``force-constant`` controls second-, third- and fourth-order force-constant
+generation. It supports finite displacements, HiPhive fitting and different backends.
+
+.. list-table:: Force-constant parameters
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Parameter
+     - Description
+   * - ``dim-fc2`` / ``dim-fc3`` / ``dim-fc4``
+     - Supercell dimensions for FC2, FC3 and FC4, respectively.
+   * - ``fc3-backend``
+     - Defaults to phono3py; ``thirdorder`` is also supported.
+   * - ``cutoff-fc3``
+     - Third-order displacement cutoff; its meaning depends on the backend.
+   * - ``cutoff-fc4``
+     - Fourthorder interaction cutoff.
+   * - ``use-hiphive``
+     - Enable HiPhive force-constant fitting.
+   * - ``format``
+     - Output format: ``phono3py``, ``shengbte`` or ``both``.
+   * - ``thirdorder-command`` / ``fourthorder-command``
+     - Executable paths or launch commands for Thirdorder and Fourthorder.
+   * - ``qha`` / ``sscha`` / ``four-phonon``
+     - Enable and configure the corresponding calculation modules.
+
+Supercells and cutoffs
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``dim-fc2``, ``dim-fc3`` and ``dim-fc4`` independently control the supercells
+for each order. Supercell size affects cost and convergence; test it for your material.
+
+``cutoff-fc3`` depends on the FC3 backend:
+
+- **phono3py**: distance cutoff for displaced-atom pairs, in Å.
+- **Thirdorder**: a negative integer selects a neighbor shell; a positive value is a distance cutoff in nm.
+
+``cutoff-fc4`` is passed to Fourthorder; negative integers select neighbor shells.
+HiPhive uses ``n-structures``, ``rattle-std``, ``cutoffs`` and ``min-dist``
+to control training structures and fitting. ``cutoffs`` is in Å.
+
+QHA and SSCHA
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+NEP-kappa supports QHA, fixed-volume SSCHA and SSCHA at QHA equilibrium volumes.
+
+.. list-table:: Temperature-dependent phonons
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Method
+     - Calculations
+   * - QHA
+     - Volume scans and equation-of-state fits give temperature-dependent equilibrium volumes and thermal-expansion effects.
+   * - SSCHA
+     - Finite-temperature sampling at fixed volume self-consistently updates auxiliary harmonic force constants.
+   * - QHA + SSCHA
+     - QHA determines equilibrium volumes before fixed-volume SSCHA is run at each volume.
+
+Main settings:
+
+- ``qha.volume-ratios``: volume scan range.
+- ``qha.temps``: QHA temperature range.
+- ``sscha.temps``: SSCHA sampling temperatures.
+- ``sscha.snapshots``: sampled structures per iteration.
+- ``sscha.iterations``: self-consistency iterations.
+- ``run-transport``: calculate conductivity at the corresponding temperatures.
+
+See :doc:`temperature` for methods and complete examples.
+
+``kappa``: phonon scattering and conductivity
+---------------------------------------------
+
+``kappa`` configures phonon scattering, BTE solvers and lattice conductivity.
+NEP-kappa supports phono3py and FourPhonon, with different scattering mechanisms
+and solver combinations.
+
+Common parameters
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table:: Thermal-transport parameters
+   :header-rows: 1
+   :widths: 36 64
+
+   * - Parameter
+     - Description
+   * - ``engine``
+     - Calculation engine: ``phono3py`` or ``fourphonon``.
+   * - ``mesh``
+     - Brillouin-zone q mesh, for example ``[31, 31, 31]``.
+   * - ``temps``
+     - Calculation temperatures, in K.
+   * - ``method``
+     - phono3py solver: ``rta`` or ``lbte``.
+   * - ``method-3ph`` / ``method-4ph``
+     - Three- and four-phonon solvers in FourPhonon.
+   * - ``isotope``
+     - Include isotope scattering.
+   * - ``bfmp``
+     - Boundary-scattering mean free path, in μm.
+   * - ``wigner``
+     - Enable Wigner coherence transport.
+   * - ``force-constants``
+     - Existing force-constant source directory; ordinary direct phono3py transport only.
+   * - ``command``
+     - Custom phono3py launch command.
+
+Engines and solvers
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+phono3py primarily handles three-phonon transport; FourPhonon includes
+three- and four-phonon scattering. Both support RTA and iterative LBTE,
+with different allowed combinations.
+
+.. list-table:: Supported transport methods
+   :header-rows: 1
+   :widths: 25 30 45
+
+   * - Engine
+     - Solver
+     - Calculations
+   * - phono3py
+     - ``rta``
+     - Three-phonon relaxation-time approximation.
+   * - phono3py
+     - ``lbte``
+     - Iterative solution of the three-phonon linearized BTE.
+   * - FourPhonon
+     - ``rta / rta``
+     - RTA for both three- and four-phonon scattering.
+   * - FourPhonon
+     - ``lbte / rta``
+     - Iterative three-phonon solution with four-phonon RTA.
+   * - FourPhonon
+     - ``lbte / lbte``
+     - Iterative solution for both three- and four-phonon scattering.
+
+RTA approximates collisions using a relaxation time for each mode; iterative
+LBTE includes linear coupling between modes. FourPhonon selects the two
+solvers using ``method-3ph`` and ``method-4ph``. ``rta / lbte`` is unsupported.
+
+Wigner coherence transport
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``wigner: true`` enables Wigner transport, separating conductivity into
+particle and coherence contributions:
+
+.. math::
+
+   \kappa_{\mathrm{total}}
+   = \kappa_{\mathrm{P}} + \kappa_{\mathrm{C}}.
+
+The particle term describes transport from phonon populations; the coherence
+term describes off-diagonal contributions between vibrational modes.
+Wigner is not a separate BTE solver; its supported scope depends on the engine:
+
+- **phono3py**: three-phonon RTA or LBTE, with SMM19 coherence contributions.
+- **FourPhonon**: requires Wigner_Park; currently RTA for both three- and four-phonon scattering.
+
+See :doc:`thermal_transport` for inputs and examples.
+
+Calculation temperatures
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``temps`` accepts a single temperature or an equally spaced range:
+
+.. list-table:: Temperature settings
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Format
+     - Example
+   * - Single temperature ``[T]``
+     - ``temps: [300]``
+   * - Range ``[Tmin, Tmax, step]``
+     - ``temps: [100, 1000, 50]``
+
+Temperatures are in K and must be positive. Ranges include both endpoints;
+the positive step must land exactly on the upper endpoint. Arbitrary lists
+of unequally spaced temperatures are not supported.
+
+For coupled QHA or SSCHA transport, conductivity temperatures must also meet
+the sampling-range requirements described in :doc:`temperature`.
+
+Reusing force constants
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+With FC2/FC3 already generated, skip atomic-force calculations and use phono3py
+to calculate conductivity at different temperatures or q meshes. For example:
 
 .. code-block:: yaml
 
-   parallel:
-     force-constant:
-       backend: slurm
-       partition: YOUR_GPU_PARTITION
-       jobs: 4
-       max-concurrent: 2
-       nodes: 1
-       ntasks: 1
-       cpus-per-task: 1
-       extra-sbatch: ["--gres=gpu:1"]
-       submit: false
-
-GPU allocation syntax depends on the cluster. Generated workers inherit
-Slurm's GPU visibility; NEP-kappa does not override it. Each array worker
-batches its own structures. The existing ``extra-sbatch`` settings also apply
-to the collection job. All nodes must see the same Python environment, NEP
-executable, model and shared result directory. Validate with
-``nepkappa info input.yaml --for fc2fc3``; this does not check GPU availability.
-Use ``submit: true`` when ready to submit. Many short NEP jobs can be slower
-than one larger batch because of scheduling and file I/O overhead; measure
-end-to-end time on the target GPU before choosing the number of jobs.
-
-force-constant: force constants and temperature effects
------------------------------------------------------------
-
-``force-constant`` sets ``dim-fc2`` and ``dim-fc3`` independently. By default,
-phono3py finite displacements create compact HDF5 FC2/FC3; ``use-hiphive``
-selects fitting instead. ``fc3-backend: thirdorder`` selects Thirdorder for
-FC3. ``cutoff-fc3`` is a positive displaced-pair cutoff in Angstrom for native
-phono3py, or a negative integer neighbor shell / positive nm cutoff for
-Thirdorder. HiPhive accepts ``n-structures``, ``rattle-std``, ``cutoffs``, and
-``min-dist``. ``format`` may be ``phono3py``, ``shengbte``, or ``both``.
-Phono3py transport needs HDF5 FC2/FC3; FourPhonon needs ShengBTE-format FC2/FC3
-and FC4. The FC4 supercell and cutoff are ``dim-fc4`` and ``cutoff-fc4``.
-VASP force calculations can use ``workdir`` and ``vasp-kwargs`` inside this
-section.
-
-QHA, SSCHA, and four-phonon work are switches inside ``force-constant``. Each
-is ``false``, ``true``, or a mapping with ``enabled`` and options. For example:
-
-.. code-block:: yaml
-
-   force-constant:
-     dim-fc2: [3, 3, 3]
-     dim-fc3: [3, 3, 3]
-     qha:
-       enabled: true
-       volume-ratios: [0.94, 0.97, 1.00, 1.03, 1.06]
-       temps: [0, 1000, 10]
-     sscha:
-       enabled: true
-       run-transport: true
-       temps: [300, 900, 300]
-       snapshots: 200
-       iterations: 4
-     four-phonon: false
    kappa:
+     force-constants: calculations/3C-SiC/fc
      engine: phono3py
-     temps: [300, 900, 300]
+     mesh: [41, 41, 41]
+     temps: [300]
      method: rta
 
-QHA scans isotropically scaled volumes, fits an equation of state, and reports
-thermal expansion. Its options include ``dim-fc2``, ``mesh``, ``eos``,
-``pressure``, ``relax-internal``, and optional VASP relaxation/static kwargs.
-For QHA-derived conductivity, set ``force-constant.qha.run-transport: true``:
-NEP-kappa
-regenerates FC2 and FC3 at each requested temperature's QHA equilibrium volume
-and runs phono3py RTA there. With QHA enabled and SSCHA disabled, this route
-supports phono3py RTA only. Leave ``run-transport: false`` to finish after QHA.
-QHA alone does not add explicit anharmonic frequency renormalization.
-
-For a QHA phonon overview, set
-``force-constant.qha.equilibrium-phonons: true`` (default: false). After the
-volume fit, ``nepkappa fc2 input.yaml`` also recalculates FC2 at every output
-temperature's equilibrium volume, with the same internal-coordinate relaxation
-setting. This adds force calculations; it does not interpolate the scanned FC2.
-The files are stored under ``qha-phonons/T.../``, with a completed index in
-``qha-phonons.yaml``. An equilibrium volume outside the scanned range is rejected.
-
-Then ``nepkappa plot input.yaml`` creates four QHA panels: free energy versus
-volume with fitted minima, equilibrium volume versus temperature, volumetric
-thermal expansion, and temperature-dependent dispersion with DOS. It only reads
-completed data and never starts a force calculation. ``plot.layout`` supports
-``separate``, ``combined``, and ``both``; PNG and PDF files are written under
-``plots/`` as ``qha_free_energy``, ``qha_volume``, ``qha_thermal_expansion``,
-``qha_phonons``, and ``qha_combined``. Dispersion uses the existing ``plot.path``
-and custom-path parameters, and DOS uses the mesh saved by the QHA phonon run.
-Up to ten evenly spaced available temperature indices, including both endpoints,
-are selected for the colored free-energy and phonon curves. The volume and
-expansion panels retain all output temperatures; derivative-only auxiliary
-temperatures are excluded. If the scan includes volume ratio 1, its phonons are
-shown as a dashed static-volume reference. The curves describe volume-induced
-frequency changes, not explicit SSCHA renormalization.
-
-Pure-QHA results are recognized by ``qha-summary.yaml``, so a later plot-only
-input can contain just ``plot`` and ``output``. QHA transport and SSCHA inputs
-retain their existing temperature-specific plot routing. Existing QHA runs
-without equilibrium FC2 must be rerun with the switch enabled before generating
-this four-panel overview. Already generated QHA PDF files remain usable.
-
-SSCHA uses the configured NEP/MACE/ASE calculator to refit an auxiliary
-harmonic FC2 at each requested temperature. Common options are ``snapshots``,
-``iterations``, ``transient``, ``sscha-mesh``, and ``initial-fc2``.
-When QHA and SSCHA are combined, set
-``force-constant.sscha.run-transport: true`` to use both the QHA volume and
-the SSCHA FC2 for thermal transport. An explicit opposing QHA switch is rejected.
-SSCHA transport, including QHA-SSCHA, must finish synchronously at each
-temperature. With ``force-constant.sscha.run-transport: true``,
-``kappa.parallel.backend: slurm`` (or ``parallel.kappa.backend: slurm``) is
-rejected before calculations begin, even with ``submit: false`` or a single
-temperature. This intentionally removes the previously accepted but unsupported
-nested Slurm transport combination. Use ``backend: none`` for RTA or LBTE within the
-temperature loop; the whole workflow may run inside an outer batch allocation.
-Alternatively, run direct ``nepkappa kappa`` Slurm RTA/LBTE jobs separately on
-completed force constants using a dedicated transport input. Serial SSCHA and
-QHA-SSCHA, and direct Slurm RTA/LBTE, remain supported. Pure-QHA transport also
-requires synchronous execution and rejects nested Slurm transport.
-
-Enabling ``bubble`` saves separate diagonal on-shell
-frequency shifts from the input FC3; those shifts do not update the exported
-FC2 or conductivity. See :doc:`harmonic_temperature` for fixed-volume and
-QHA+SSCHA inputs. The latter runs SSCHA at each QHA equilibrium volume. This sequential
-route does not minimize volume using SSCHA free energy. FC3/FC4 are regenerated
-at that volume, but are not themselves temperature-renormalized.
-
-With ``four-phonon`` enabled, ``nepkappa run`` generates FC4 and computes
-three-plus-four-phonon transport through FourPhonon. Its mapping accepts
-``command``, ``control``, ``harmonic-format``, ``sample-*`` settings, and solver
-resources. Automatically generated CONTROL files disable non-analytic
-corrections; polar crystals such as SiC need validated dielectric and Born-charge
-inputs when those corrections matter. A FourPhonon executable and Fourthorder
-are external dependencies. The ``Wigner_Park`` executable is required for the
-four-phonon Wigner mode. Its coherence term uses combined three-phonon,
-isotope, and four-phonon linewidths; ``nepkappa report`` records population,
-coherence, and total conductivity separately. See
-``examples/nep-rta-wigner-3ph-4ph.yaml`` for a complete configuration.
-
-kappa: scattering and thermal conductivity
-----------------------------------------------
-
-``kappa`` sets the transport engine, q mesh, temperatures, and solver. It does
-not choose whether QHA or SSCHA corrections are used: their ``run-transport``
-switches do that. Ordinary three-phonon and enabled four-phonon inputs run
-transport by default. An enabled QHA or SSCHA section defaults to
-``run-transport: false``. When QHA and SSCHA are both enabled, either true
-switch selects their combined transport route; explicitly conflicting values
-are rejected.
-``temps`` accepts ``[T]`` or
-``[minimum, maximum, step]``. For phono3py, use
-``engine: phono3py`` and ``method: rta`` or ``lbte``. Optional ``isotope``,
-``bfmp`` (micrometers), and ``wigner`` select scattering and SMM19 coherence.
-For FourPhonon, use ``engine: fourphonon`` and set ``method-3ph`` and
-``method-4ph`` separately. Supported pairs are ``rta/rta``, ``lbte/rta``, and
-``lbte/lbte``; ``rta/lbte`` is unavailable. Four-phonon Wigner currently needs
-``rta/rta`` and an appropriate Wigner_Park executable.
-
-For a controlled three-phonon versus three-plus-four-phonon comparison, set
-``force-constant.four-phonon.compare-3ph: true``. The same FourPhonon executable
-runs twice in sequence, with identical FC2/FC3, structure, mesh, temperatures,
-broadening, isotope and parallel settings. The first run disables four-phonon
-scattering and writes under ``fourphonon/threephonon/``; the second uses FC4 and
-writes under ``fourphonon/``. With ``method-3ph: lbte`` and ``method-4ph: rta``,
-plotting overlays ``3ph RTA``, ``3ph LBTE``, ``3ph+4ph RTA`` and
-``3ph LBTE + 4ph RTA``. The RTA/iterative tensors within a single run are not
-the three-phonon/four-phonon pair. Any enabled isotope contribution is included
-in both cases. ``compare-3ph`` defaults to false and currently requires ordinary
-transport with generated CONTROL (not custom CONTROL, Wigner or only-harmonic).
-Local runs and Slurm scripts execute both cases sequentially with the requested
-resources, rather than doubling the MPI allocation. Use a fresh result directory;
-existing comparison tensors are not overwritten. Collection checks that the
-staged force constants, CONTROL settings and temperature lists match before
-publishing the comparison summary.
-
-``fc3-backend: thirdorder`` generates the ShengBTE FC3 directly from Thirdorder
-displacements and the chosen calculator's forces. ``format: both`` preserves
-this original ``FORCE_CONSTANTS_3RD`` for FourPhonon and additionally exports HDF5.
-It requires a working ``thirdorder_vasp.py`` command (or ``thirdorder-command``);
-the filename does not require VASP when NEP supplies the forces. The negative
-``cutoff-fc3`` convention selects neighbor shells and must be converged separately
-from the FC4 cutoff and transport mesh.
-
-FC2, Thirdorder FC3, Fourthorder FC4 and generated CONTROL use the same
-canonical unit-cell coordinates. Periodic coordinates are folded into [0, 1)
-and floating-point noise within 1e-10 of a boundary is snapped to zero before
-generating any displacements. Atom order and lattice vectors are retained.
-This matters because equivalent atomic positions in different cells require
-different IFC lattice-translation labels. Changing CONTROL alone does not
-convert existing force constants. For reused ShengBTE FC2, adjacent phono3py
-unit-cell metadata is checked against the generated CONTROL convention;
-inconsistent legacy inputs are rejected. Regenerate a matched set in a new
-result directory, or explicitly remap the IFCs using their original metadata.
-An explicitly supplied CONTROL retains the user's external convention.
-
-Temperature settings have distinct purposes and are validated together:
-
-* ``force-constant.qha.temps`` is the QHA volume-scan grid, written as
-  ``[Tmin, Tmax, step]`` with ``0 <= Tmin < Tmax``.
-* ``force-constant.sscha.temps`` is the SSCHA sampling grid, written as
-  ``[Tmin, Tmax, step]`` with ``0 <= Tmin <= Tmax``. A single SSCHA point can
-  be written ``[T, T, step]`` with a positive step.
-* ``kappa.temps`` is the set of conductivity temperatures: ``[T]`` or
-  ``[Tmin, Tmax, step]``, with temperatures strictly above 0 K. An arbitrary
-  list of unevenly spaced temperatures is not currently accepted.
-
-Every step must be positive and divide its interval exactly, including the
-end point. With QHA and SSCHA enabled, the SSCHA range must fit inside the
-QHA range; SSCHA points may lie between QHA grid points because equilibrium
-volumes are interpolated. When transport is selected, all conductivity
-temperatures must lie inside the QHA range (if QHA is enabled). If SSCHA is
-also enabled, every conductivity temperature must be one of the SSCHA sampling
-points. Thus ``kappa.temps`` may be a subset of ``sscha.temps``: SSCHA runs at
-all its points, and transport runs only at selected points. For example, QHA
-``[0, 1000, 10]``, SSCHA ``[300, 900, 100]``, and conductivity
-``[300, 900, 300]`` are compatible. For QHA or SSCHA transport,
-``kappa.temps`` must be written explicitly. If transport is disabled, ``kappa.temps``
-does not constrain the QHA or SSCHA temperature range. FourPhonon transport
-uses ``kappa.temps`` too; any legacy ``four-phonon.temps`` value must match it.
-
-tdbte: nonequilibrium dynamics
-----------------------------------
-
-Optional ``tdbte.spatial`` enables periodic one-dimensional real-space transport
-with a three-dimensional q mesh and the same nonlinear three-phonon operator.
-See :doc:`tdbte_spatial` for the spatial schema, TTG/Gaussian/selective excitation,
-time-step controls and HDF5 output. Omitting it preserves homogeneous behavior.
-
-For a new calculation, TD-BTE uses six sections. ``nepkappa run`` generates
-matching FC2, FC3, and displacement metadata before building the collision
-kernel and evolving the excitation. It does not calculate conductivity:
-
-.. code-block:: yaml
-
-   structure:
-     poscar: examples/structures/3C-SiC/POSCAR_primitive
-     relaxation: false
-   calculator:
-     name: nep
-     model: examples/potentials/3C-SiC/nep_3C-SiC.txt
-   force-constant:
-     dim-fc2: [3, 3, 3]
-     dim-fc3: [3, 3, 3]
-   tdbte:
-     mesh: [5, 5, 5]
-     temperature: 300
-     branches: [3, 4, 5]
-     duration-ps: 10
-   plot:
-     layout: both
-     dpi: 300
    output:
-     result-dir: calculations/3C-SiC/tdbte-from-scratch
+     result-dir: calculations/3C-SiC/kappa-m41
 
-``tdbte.mesh`` selects the collision-integral dimension: all three entries
-at least 2 for 3D, or one entry at least 2 and two ones for experimental 1D
-ribbon/chain relaxation. Two-dimensional grids are unsupported. See
-:doc:`tdbte` for the 1D rigid-mode checks, acoustic-boundary approximation and
-physical-validation limits.
+Check the input and run:
 
-Only phono3py FC2/FC3 are supported in this route; QHA, SSCHA, FC4, and
-FourPhonon settings do not feed the present TD-BTE solver. ``plot`` accepts
-``layout``, ``dpi``, ``path`` and ``tdbte-times`` for the six-panel overview;
-run ``nepkappa plot`` after the calculation. See :doc:`tdbte` for the
-energy-colored snapshots and branch temperatures. ``nepkappa tdbte`` with the same
-six-section file uses the already generated files in ``output.result-dir``
-without recalculating forces.
+.. code-block:: bash
 
-For existing force constants, the compact two-section input remains available:
+   nepkappa info kappa.yaml --for kappa
+   nepkappa kappa kappa.yaml
 
-.. code-block:: yaml
+``force-constants`` selects the source directory and ``output.result-dir``
+the new result directory. The source must contain matching files:
 
-   tdbte:
-     force-constants: calculations/3C-SiC/fc
-     mesh: [5, 5, 5]
-     branches: [3, 4, 5]
-   output:
-     result-dir: calculations/3C-SiC/tdbte-reuse
+- ``fc2.hdf5``: second-order force constants.
+- ``fc3.hdf5``: third-order force constants.
+- ``phono3py_disp.yaml``: structure, displacements and associated metadata.
 
-The ``force-constants`` directory must contain mutually matching FC2, FC3,
-and phono3py displacement metadata. A previously built ``kernel`` may be
-used instead. A prior conductivity result is never a prerequisite.
-``excitation``, ``max-step-ps``, and ``samples`` control the initial perturbation
-and time integration. See :doc:`tdbte` for the numerical model and audits.
+When source and output directories differ, required inputs are copied to the
+output directory and the original files are preserved.
 
-plot: figures and analysis
-------------------------------
+Custom phono3py commands
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-``plot`` configures later plotting. ``layout`` is ``separate``, ``combined``,
-or ``both``; ``path`` selects the dispersion path; ``tau`` selects the
-scattering-rate channel; ``temperature`` and ``kappa`` choose the displayed
-transport data; ``dpi`` controls PNG resolution. With FC2 and matching cell
-metadata, ``nepkappa plot`` makes dispersion, DOS, heat-capacity, and
-group-velocity plots. With conductivity data it adds conductivity; linewidth
-data also enables scattering rate, and mode conductivity enables cumulative
-conductivity. RTA output can show
-normal and Umklapp rates; Wigner output shows particle, coherence, and total
-conductivity. FourPhonon output adds separate 3ph/4ph rates and compares the
-available conductivity solutions. A bare FC2 array without cell metadata is
-insufficient for dispersion plotting.
+Advanced users can set ``kappa.command`` to a complete phono3py launch command
+instead of the automatically generated command line.
+Its mesh and temperatures must agree with the YAML settings. When a custom
+command is used, NEP-kappa does not append other calculation arguments.
 
-For phono3py results, ``plot.tau: phph`` plots the three-phonon sum of
-Normal and Umklapp processes, while ``nu`` plots N and U separately and
-requires both ``gamma_N`` and ``gamma_U``. ``total`` compares ph-ph,
-isotope, and their sum when ``gamma_isotope`` is present; without isotope
-data it shows only ph-ph. ``isotope`` selects just the isotope channel;
-``all`` adds any available N/U channels to the total comparison. The legacy
-``normal`` and ``umklapp`` selections remain supported.
-Both linewidth contributions are converted to rates with ``4*pi*gamma``;
-temperature-independent isotope linewidths are broadcast across temperatures.
-Saved HDF5 data determine the available channels, even if the current YAML
-omits ``isotope`` or sets it to false. If YAML explicitly enables isotope
-scattering but the result lacks ``gamma_isotope``, ``total``/``all`` refuse
-to present an incomplete total; use ``phph`` or supply the missing result.
-This plotted total excludes boundary scattering. FourPhonon's 3ph and 4ph
-rates are overlaid as separately labelled series in one panel, without
-summing them or adding isotope scattering. The separate image is named
-``scattering_rate_3ph_4ph.png``. With the four harmonic panels and one
-conductivity panel, this gives a 2-by-3 combined figure; optional N/U or
-mode-resolved data may add further panels.
+The command runs directly in the result directory without a shell, so pipes
+and redirection are unsupported. See :doc:`thermal_transport` for further examples.
 
-``plot.scattering-rate-min`` sets a display-only lower cutoff in ps^-1,
-for example ``1.0e-8`` to hide extremely small rates on logarithmic axes.
-The default ``0`` retains all positive rates. Points equal to the cutoff
-are retained. The cutoff applies separately to each plotted channel after
-conversion to scattering rates, including FourPhonon rate panels, and to
-both separate and combined figures. It does not change saved linewidths,
-channel sums or thermal conductivity. State any cutoff in figure captions.
+``tdbte``: nonequilibrium phonon dynamics
+-----------------------------------------
 
-For ordinary non-Wigner LBTE files containing ``kappa_RTA``, both ``kappa``
-(LBTE, solid line) and ``kappa_RTA`` (RTA, dashed line) are plotted together in
-``kappa.png`` and the combined figure. The tensors must have matching shapes
-and finite values, and receive the same geometry correction. With
-``plot.kappa: all``, this comparison shows the mean of the three diagonal
-components for each method; ``x``, ``y``, or ``z`` selects the corresponding
-component for both. Without ``kappa_RTA``, the existing single-solution plot
-is retained. Scattering rates and cumulative conductivity are unchanged;
-this does not substitute RTA mode contributions for LBTE ones.
+``tdbte`` solves the time-dependent BTE for the evolution of nonequilibrium
+phonon populations and energy exchange between modes. It does not require a
+prior steady-state transport solution, but needs matching FC2, FC3 and phonon
+structure metadata.
 
-Standalone SSCHA generates FC2 only when both transport and bubble
-postprocessing are disabled. Enabling either also generates FC3.
+Calculation routes
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Without transport enabled, SSCHA plotting overlays all temperatures requested
-by ``sscha.temps`` in dispersion, DOS, and group velocity panels. Each heat
-capacity point uses the FC2 and volume of that same temperature. All requested
-SSCHA results must be complete. ``plot.temperature`` does not select these
-overview data. ``kappa.temps`` sets only the fixed-volume harmonic heat-capacity
-reference grid (for example ``[100, 1000, 50]``); ``kappa.mesh`` sets the integration mesh.
-The four individual PNGs and ``combined.png`` are written to the top-level
-``output.result-dir/plots`` directory. This heat capacity is an auxiliary
-harmonic-model estimate, not the temperature derivative of full SSCHA free energy.
+Two routes are supported:
 
-When initial harmonic FC2 and matching metadata are available, the overview
-also displays harmonic references. Fixed-volume SSCHA uses one gray reference;
-QHA+SSCHA uses temperature-colored dashed reference curves (open markers for
-group velocities) at each corresponding QHA volume. In both routes, the heat-capacity
-reference is a gray dashed curve evaluated with one fixed-volume harmonic FC2,
-while the SSCHA values are colored points without connecting lines. For QHA+SSCHA,
-this curve uses the completed QHA scan point with volume ratio 1, not the
-temperature-dependent equilibrium volumes. If that point or its FC2/metadata
-is unavailable, the curve is omitted with a message; no expanded-volume reference
-is substituted. Reference cells and atomic mappings must match for the spectral overlays.
-Reference FC2 comes from the SSCHA run's base directory (or
-``sscha.initial-fc2`` for fixed-volume SSCHA). Plotting never computes forces.
-With transport enabled, ``plot.temperature`` retains the single-temperature
-selection for the standard transport plotting route.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-Wigner plots and reports use a shared conductivity reader. In phono3py LBTE
-files, ``kappa`` can contain the particle solution also stored as
-``kappa_intra_exact``; the total is that solution plus ``kappa_inter``.
-The reader checks the stored convention and does not substitute
-``kappa_intra_RTA`` for the LBTE particle solution.
+   * - Route
+     - Purpose
+   * - Homogeneous TD-BTE
+     - Time evolution of nonequilibrium populations, energy exchange and thermalization.
+   * - One-dimensional spatial TD-BTE
+     - Phonon propagation and nonlinear three-phonon collisions in periodic one-dimensional real space.
 
-output: result files
-------------------------
+Both routes share the three-phonon collision kernel. The optional
+``tdbte.spatial`` settings enable spatial transport; the phonon q mesh remains
+three-dimensional.
 
-``output`` sets ``result-dir`` and optional ``progress``. Use a distinct result
-directory for each material and parameter set so that outputs are not mixed.
+Common parameters
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Parallel execution
-----------------------
+.. list-table:: TD-BTE parameters
+   :header-rows: 1
+   :widths: 35 65
 
-An optional ``parallel`` section keeps site-specific execution resources out
-of the six scientific sections:
+   * - Parameter
+     - Description
+   * - ``force-constants``
+     - Directory containing existing FC2/FC3 and matching metadata.
+   * - ``kernel``
+     - Existing collision kernel to reuse without rebuilding.
+   * - ``mesh``
+     - Phonon q mesh used for the collision integral.
+   * - ``temperature``
+     - Reference temperature for the initial Bose distribution.
+   * - ``branches``
+     - Excited phonon branches, indexed from zero.
+   * - ``excitation``
+     - Relative increase in the selected modes' populations.
+   * - ``duration-ps``
+     - Total evolution time, in ps.
+   * - ``max-step-ps``
+     - Maximum integration step, in ps.
+   * - ``samples``
+     - Number of saved time points.
+   * - ``spatial``
+     - Length, mesh, boundary and initial conditions for one-dimensional spatial transport.
+
+In homogeneous TD-BTE, ``excitation`` multiplies the selected branches' initial
+populations by ``1 + excitation``. It is not a temperature increase or laser fluence.
+
+.. note::
+
+   Current TD-BTE excludes four-phonon scattering, Wigner coherence and electron coupling.
+
+See :doc:`tdbte` for homogeneous dynamics and :doc:`tdbte_spatial` for spatial transport.
+
+``plot``: plotting results
+--------------------------
+
+``plot`` controls visualization of phonon properties, scattering, conductivity
+and nonequilibrium dynamics. It reads saved data without repeating force or
+thermal-transport calculations.
+
+.. list-table:: Plot parameters
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Parameter
+     - Description
+   * - ``layout``
+     - ``separate``, ``combined`` or ``both`` for individual and combined plots.
+   * - ``path``
+     - High-symmetry dispersion path; ``seekpath`` generates it automatically.
+   * - ``path-points`` / ``path-segments``
+     - Custom dispersion path.
+   * - ``temperature``
+     - Scattering-rate plot temperature; matching saved data are selected by default.
+   * - ``kappa``
+     - Conductivity component: ``x``, ``y``, ``z`` or ``all``.
+   * - ``tau``
+     - Scattering mechanisms to plot.
+   * - ``scattering-rate-min``
+     - Lower scattering-rate display limit, in ps⁻¹.
+   * - ``dpi``
+     - PNG image resolution.
+   * - ``tdbte-times``
+     - Three snapshot times for homogeneous TD-BTE dispersion plots.
+
+Plot contents and required data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Different plots require different calculation outputs:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Plot
+     - Required data
+   * - Dispersion and DOS
+     - FC2 and matching structure metadata.
+   * - Volumetric heat capacity and group velocities
+     - FC2 and corresponding phonon data.
+   * - Phonon scattering rates
+     - Phonon linewidths or scattering-rate data.
+   * - Lattice thermal conductivity
+     - Completed transport results.
+   * - Nonequilibrium dynamics
+     - Saved TD-BTE trajectories.
+
+``layout: both`` generates individual and combined plots.
+
+Scattering-rate plots
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``tau`` supports:
+
+- ``phph``: phonon–phonon scattering.
+- ``isotope``: isotope scattering.
+- ``total``: phonon–phonon scattering, isotope scattering and their sum.
+- ``normal`` / ``umklapp``: N / U scattering.
+- ``nu``: show both N and U scattering.
+- ``all``: all available scattering information.
+
+phono3py linewidths are converted to scattering rates using ``4*pi*gamma``.
+``total`` excludes boundary scattering. ``nu`` requires both N and U data.
+For FourPhonon, three- and four-phonon rates are plotted separately rather than
+automatically summed.
+
+Conductivity plots
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ordinary LBTE results containing RTA data allow both solutions to be compared
+in one plot. Wigner results show particle, coherence and total conductivity.
+``kappa: all`` selects the mean of the three diagonal components, not all
+components of the conductivity tensor.
+
+``output``: result output
+-------------------------
+
+``output`` configures the result directory and progress display.
+
+.. list-table:: Output parameters
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Parameter
+     - Description
+   * - ``result-dir``
+     - Directory for calculation outputs.
+   * - ``progress``
+     - Enable dynamic progress output.
+
+Use separate result directories for different materials, temperatures or q
+meshes to organize, compare and reuse data. The log is saved as ``run.log``
+inside the result directory. After completion, ``nepkappa plot`` and
+``nepkappa report`` generate plots and reports from the saved results.
+
+.. _parallel-execution:
+
+``parallel``: parallel execution
+--------------------------------
+
+The optional ``parallel`` section configures resources for force-constant and
+transport stages. NEP-kappa supports Slurm scheduling with separate resources
+for each stage. For example, distribute force jobs and phono3py transport:
 
 .. code-block:: yaml
 
@@ -621,6 +553,7 @@ of the six scientific sections:
        backend: slurm
        jobs: 16
        submit: false
+
      kappa:
        backend: slurm
        jobs: 4
@@ -629,70 +562,27 @@ of the six scientific sections:
        collect-cpus-per-task: 8
        submit: false
 
-``parallel.force-constant`` controls displacement-force jobs.
-``parallel.kappa`` controls phono3py RTA/LBTE or FourPhonon jobs according to the
-engine. ``submit: false`` writes scripts for review without calling ``sbatch``.
-MPI/OpenMP settings for FourPhonon may also be specified there. QHA-coupled
-calculations should be submitted as a whole allocation; nested force-job arrays
-are not supported. Force-job caches and Slurm collection state are kept under
-``output.result-dir``.
+.. list-table:: Common Slurm settings
+   :header-rows: 1
+   :widths: 35 65
 
-For phono3py, ``kappa.method: rta`` and ``kappa.method: lbte`` both support
-this Slurm backend. Each worker receives a round-robin subset of the
-irreducible q points. ``jobs`` sets the number of subsets (capped by the
-number of q points), ``max-concurrent`` limits simultaneous workers, and
-``cpus-per-task`` selects cores per worker. Generated transport scripts set
-both ``RAYON_NUM_THREADS`` (the default Rust backend) and ``OMP_NUM_THREADS``
-(the legacy C backend) from ``SLURM_CPUS_PER_TASK``. ``preamble`` commands
-run afterwards and may override them. NumPy/SciPy BLAS threads are configured
-separately through the BLAS library's environment variables.
+   * - Parameter
+     - Description
+   * - ``backend``
+     - Execution backend, for example ``slurm``.
+   * - ``jobs``
+     - Number of worker tasks.
+   * - ``max-concurrent``
+     - Maximum number of simultaneously running tasks.
+   * - ``cpus-per-task``
+     - CPU cores per task.
+   * - ``collect-cpus-per-task``
+     - CPU cores for the collection stage.
+   * - ``submit``
+     - Automatically submit Slurm jobs.
+   * - ``extra-sbatch``
+     - Additional Slurm resource options.
 
-The pipeline prepares shared phonon eigenvectors, runs the worker array,
-and collects after every worker succeeds. RTA workers use ``--write-gamma``
-with the complete temperature range, N/U separation, isotope, boundary and
-Wigner settings; collection uses ``--read-gamma`` with the same settings.
-LBTE retains the ``--write-pp`` / ``--read-pp`` route. ``submit: false`` still
-runs q-point discovery locally, but does not submit any jobs.
-
-RTA scripts, logs and the submission manifest are stored under
-``<result-dir>/rta-slurm/``; LBTE retains ``lbte-slurm/``. RTA uses a fresh
-``rta-slurm/run-*`` workspace for each preparation so old full-grid results
-cannot mask the workers' gamma files. Its input links point to the staged
-force constants and optional BORN in the result directory; keep those inputs
-unchanged while jobs run. Successful collection copies the final
-``kappa-m*.hdf5`` back into ``output.result-dir`` before marking the manifest
-complete. All jobs must share the same result filesystem and Python environment.
-Preparing or submitting transport defers subsequent local workflow stages;
-run ``nepkappa plot input.yaml`` after collection finishes if plots are needed.
-
-Custom phono3py command sampling
-------------------------------------
-
-``kappa.command`` replaces the complete phono3py command. Sampling can be
-written once, inside the command:
-
-.. code-block:: yaml
-
-   kappa:
-     engine: phono3py
-     command: >-
-       phono3py phono3py_disp.yaml --br --nu --mesh 31 31 31
-       --tmin 100 --tmax 1000 --tstep 50
-       --isotope --boundary-mfp 1000000 --tt smm19
-   output:
-     result-dir: results
-
-NEP-kappa reads three positive mesh dimensions from ``--mesh`` and temperatures
-from ``--ts`` (alias ``--temperature``) or the complete
-``--tmin/--tmax/--tstep`` range. ``--ts`` accepts a single temperature or an
-increasing, equally spaced list; it is interpreted as actual temperature
-points, not the YAML range convention. Quoted values and ``--option=value``
-forms are supported. The inferred settings also apply to ``info`` and ``plot``.
-If ``kappa.mesh`` or ``kappa.temps`` is also provided, it must agree with the
-command; conflicts are errors. Other calculation flags are not appended to
-the custom command.
-
-Settings hidden in external scripts or phono3py configuration files are not
-read automatically; specify the corresponding YAML mesh and temperatures
-when using those mechanisms. The command runs in ``output.result-dir``
-without a shell, so shell pipes and redirection are not interpreted.
+``submit: false`` generates scripts without calling ``sbatch``, but preparation
+may still perform local work. Both phono3py RTA and LBTE support distributing
+irreducible q points across multiple Slurm jobs.

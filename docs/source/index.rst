@@ -1,42 +1,41 @@
-NEP-kappa documentation
-===========================
+NEP-kappa
+========================
 
-NEP-kappa connects atomic-force calculations, force constants, phonon properties,
-and lattice thermal transport in a YAML-driven workflow. These pages follow the
-seven chapters of the user manual, from installation to nonequilibrium relaxation.
+NEP-kappa uses a unified YAML input to connect atomic-force calculations,
+force-constant generation, phonon properties, lattice thermal transport and
+nonequilibrium phonon dynamics.
 
-Begin with :doc:`installation` and the :doc:`3C-SiC quick start <starting>`.
-Use :doc:`input_files` to look up parameters, or continue directly to the chapter
-for your calculation. Numerical examples illustrate the workflow; converge the
-settings for your material before quantitative analysis.
+- **Calculation backends**: NEP, VASP, MACE and other ASE-compatible calculators.
+- **Phonons and transport**: integrates Phonopy, phono3py and FourPhonon.
+- **Nonequilibrium dynamics**: supports spatially homogeneous and periodic
+  one-dimensional time-dependent BTE calculations.
+
+New users should first complete the two examples in Chapters 3 and 4, then
+consult the parameter reference and topic-specific chapters as needed.
 
 .. toctree::
    :maxdepth: 1
    :numbered: 2
-   :caption: User manual
+   :caption: User guide
 
    introduction
    installation
+   starting_phonons
    starting
+   workflow
    input_files
-   harmonic_temperature
+   temperature
    thermal_transport
    tdbte
+   tdbte_spatial
 
 .. toctree::
    :maxdepth: 1
-   :caption: Additional resources
+   :caption: Project and support
 
-   examples
-   tutorial
-   requirements
-   input_assistant
-   troubleshooting
    reference
+   contact
+   Releases <https://github.com/lyushisyan/NEP-kappa/releases>
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Development
-
-   development
-   architecture
+`GitHub source <https://github.com/lyushisyan/NEP-kappa>`_ ·
+`Online English documentation <https://nep-kappa.readthedocs.io/en/latest/>`_
