@@ -39,5 +39,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz fonts-noto-cjk
-          python -m sphinx -b html -W --keep-going docs/source docs/build/html
+          python -m sphinx -b html -W --keep-going docs/source docs/build/en
           python -m sphinx -b html -W --keep-going docs/zh_CN docs/build/zh_CN

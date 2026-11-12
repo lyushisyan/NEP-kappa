@@ -12,7 +12,7 @@ clean:
 	rm -rf "$(BUILDDIR)"
 
 html:
-	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	@$(SPHINXBUILD) -b html -W --keep-going "$(SOURCEDIR)" "$(BUILDDIR)/en" $(SPHINXOPTS)
 
 html-zh:
 	@$(SPHINXBUILD) -b html -W --keep-going zh_CN "$(BUILDDIR)/zh_CN" $(SPHINXOPTS)

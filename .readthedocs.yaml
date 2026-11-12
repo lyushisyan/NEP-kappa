@@ -7,6 +7,15 @@ build:
   apt_packages:
     - graphviz
     - fonts-noto-cjk
+  jobs:
+    build:
+      html:
+        - |
+          NEPKAPPA_DOC_SOURCE=docs/source
+          case "$READTHEDOCS_LANGUAGE" in
+            zh-cn|zh_CN) NEPKAPPA_DOC_SOURCE=docs/zh_CN ;;
+          esac
+          python -m sphinx -b html -W --keep-going "$NEPKAPPA_DOC_SOURCE" "$READTHEDOCS_OUTPUT/html"
 
 sphinx:
   configuration: docs/source/conf.py
