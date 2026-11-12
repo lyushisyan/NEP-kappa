@@ -15,7 +15,7 @@ working directory:
    conda activate nepkappa
    mkdir -p ~/work/3C-SiC
    cp examples/structures/3C-SiC/POSCAR_primitive ~/work/3C-SiC/POSCAR
-   cp potentials/3C-SiC/nep_3C-SiC.txt ~/work/3C-SiC/
+   cp examples/potentials/3C-SiC/nep_3C-SiC.txt ~/work/3C-SiC/
    cd ~/work/3C-SiC
 
 Paths in YAML are relative to this launch directory. Later chapters use

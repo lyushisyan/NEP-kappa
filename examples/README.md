@@ -1,7 +1,7 @@
 # Examples
 
-This directory contains nine phonon/transport 3C-SiC inputs and one time-dependent
-BTE input. Run commands from the repository root. The bundled supercells and
+This directory contains nine phonon/transport 3C-SiC inputs and two time-dependent
+BTE inputs (homogeneous and spatial). Run commands from the repository root. The bundled supercells and
 meshes demonstrate the workflow; they are not converged research settings.
 Keep a separate `output.result-dir` for each calculation.
 
@@ -17,6 +17,7 @@ Keep a separate `output.result-dir` for each calculation.
 | [nep-qha-rta-3ph.yaml](nep-qha-rta-3ph.yaml) | NEP, QHA volume at each temperature + 3ph RTA | Check volume and temperature ranges |
 | [nep-qha-sscha-rta-3ph.yaml](nep-qha-sscha-rta-3ph.yaml) | NEP, QHA-volume SSCHA + 3ph RTA | Converge SSCHA sampling |
 | [tdbte.yaml](tdbte.yaml) | NEP FC2/FC3, then time-dependent BTE | Check the SiC model, supercells, and q-mesh |
+| [tdbte-spatial.yaml](tdbte-spatial.yaml) | Nonlinear TD-BTE with periodic 1D spatial streaming and a 3D q mesh | Converge spatial grid, split step and collision kernel |
 
 For a first read-only check:
 
@@ -57,6 +58,12 @@ plus the excitation settings and `output`. After TD-BTE finishes,
 colored by mode excess energy at 0, 10 and 20 ps, branch excess energies,
 acoustic branch temperatures, and optical branch temperatures.
 
+`tdbte-spatial.yaml` adds `tdbte.spatial` for a transient thermal grating.
+`nepkappa plot` then draws spatial temperature/heat-flux fields, branch energies
+and temperature harmonics. See [the spatial guide](../docs/source/tdbte_spatial.rst)
+for periodic Gaussian and selective-branch initial conditions, HDF5 units and
+independent numerical benchmarks. Absolute material rates remain unvalidated.
+
 Server-specific Slurm resources can stay in an external batch script. Add the
 optional top-level `parallel.force-constant` or `parallel.kappa` section for
 stage-specific execution resources. FourPhonon MPI/OpenMP settings also use
@@ -66,7 +73,7 @@ and dielectric data for non-analytic corrections. Generated FourPhonon CONTROL
 files disable those corrections; supply a validated custom CONTROL if needed.
 
 Structure files under `structures/` support inputs and documentation. The
-material-specific NEP is in `../potentials/3C-SiC/`.
+material-specific NEP is in `potentials/3C-SiC/`.
 
 ## Plotting and comparisons
 

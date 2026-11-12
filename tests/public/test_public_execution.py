@@ -3,7 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from nepkappa.application import CommandExecution, WorkflowStageRunner, execute_workflow_plan
+from nepkappa.application import (
+    CommandExecution, WorkflowStageRunner, execute_workflow_command, execute_workflow_plan,
+)
 
 
 @pytest.mark.parametrize('backend,hiphive,expected', [
@@ -53,6 +55,44 @@ def test_failed_stage_propagates_and_records_timing():
         execution.run_stage('FC2', fail)
     assert execution.stage_timings[0][0] == 'FC2'
     assert execution.stage_timings[0][1] >= 0
+
+
+@pytest.mark.parametrize('status', ['complete', 'prepared', 'submitted', 'failed'])
+def test_fc2fc3fc4_reuses_stages_and_stops_before_fc4_when_deferred_or_failed(monkeypatch, status):
+    for key in ['NEPKAPPA_FORCE_COLLECT', 'NEPKAPPA_RESUME_AFTER']:
+        monkeypatch.delenv(key, raising=False)
+    events = []
+
+    def forces(self, *, include_fc3):
+        assert include_fc3
+        events.append(('fc2fc3', self))
+        def operation():
+            if status == 'failed':
+                raise RuntimeError('FC3 failed')
+            return {'status': status}
+        return self.execution.run_stage('FC2/FC3', operation)
+
+    monkeypatch.setattr(WorkflowStageRunner, 'force_constants', forces)
+    monkeypatch.setattr(WorkflowStageRunner, 'fourth_order', lambda self: events.append(('fc4', self)))
+    cfg = SimpleNamespace(workflow_steps=['relax', 'fc2fc3', 'fc4', 'kappa4'])
+    if status == 'failed':
+        with pytest.raises(RuntimeError, match='FC3 failed'):
+            execute_workflow_command('fc2fc3fc4', cfg)
+    else:
+        assert execute_workflow_command('fc2fc3fc4', cfg).status == status
+    assert [stage for stage, _ in events] == (
+        ['fc2fc3', 'fc4'] if status == 'complete' else ['fc2fc3']
+    )
+    assert all(runner is events[0][1] for _, runner in events)
+
+
+def test_fc2fc3fc4_can_resume_at_fc4(monkeypatch):
+    monkeypatch.setenv('NEPKAPPA_RESUME_AFTER', 'fc2fc3')
+    monkeypatch.delenv('NEPKAPPA_FORCE_COLLECT', raising=False)
+    events = []
+    monkeypatch.setattr(WorkflowStageRunner, 'run', lambda self, step: events.append(step))
+    execute_workflow_command('fc2fc3fc4', SimpleNamespace(workflow_steps=['fc2fc3', 'fc4', 'kappa4']))
+    assert events == ['fc4']
 
 
 def test_force_worker_still_uses_shared_context(tmp_path, monkeypatch):

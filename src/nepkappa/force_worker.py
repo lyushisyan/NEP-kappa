@@ -7,9 +7,12 @@ import json
 from pathlib import Path
 
 from ase.io import read
+from ase.io.jsonio import decode
 
 from nepkappa.config import parse_workflow_args
 from nepkappa.workflow import NEPPhononWorkflow
+from nepkappa.identity import file_sha256
+from nepkappa.run_state import RunStateStore
 
 
 def build_parser():
@@ -28,6 +31,15 @@ def run_task_file(config_path, task_path):
     tasks = json.loads(task_path.read_text(encoding="utf-8"))
     if not isinstance(tasks, list) or not tasks:
         raise ValueError(f"Force task file is empty or invalid: {task_path}")
+    scopes = {task.get('reuse_scope') for task in tasks if isinstance(task, dict)}
+    if len(scopes) != 1:
+        raise ValueError("Force tasks must belong to one calculation")
+    scope = scopes.pop()
+    if scope is not None:
+        state = RunStateStore(workflow.output_dir / 'force-slurm' / 'submission.yaml').read()
+        if state and scope != state.get('reuse_scope'):
+            raise ValueError("Force tasks belong to a different Slurm submission")
+        workflow._force_reuse_scope = scope
 
     jobs = []
     for task in tasks:
@@ -44,6 +56,14 @@ def run_task_file(config_path, task_path):
                 f"Force task POSCAR does not match its cache location: {poscar}"
             )
         atoms = read(str(poscar), format="vasp")
+        if "atoms_sha256" in task:
+            state = poscar.with_name("atoms.json")
+            if file_sha256(state) != task["atoms_sha256"]:
+                raise ValueError("Staged ASE state checksum mismatch")
+            exact = decode(state.read_text(encoding="utf-8"))
+            if not workflow._make_force_store().structures_match(atoms, exact):
+                raise ValueError("Staged ASE state differs from its POSCAR")
+            atoms = exact
         if cfg.nep_force_backend == "gpu-batch":
             jobs.append((atoms, label, index))
         else:

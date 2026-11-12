@@ -39,8 +39,8 @@ Install and check
    nepkappa info examples/nep-rta-wigner-3ph.yaml
 
 The editable installation uses this checkout directly. Python dependencies
-for the standard NEP/Phonopy/phono3py workflow are installed from
-``pyproject.toml``, including Calorine >= 3.5 for both CPU and GPU use.
+for NEP, MACE, Phonopy and phono3py are installed from
+``pyproject.toml``, including mace-torch and Calorine >= 3.5 for both CPU and GPU use.
 ``info`` checks configuration without starting a calculation.
 
 Choose additional backends
@@ -58,8 +58,8 @@ Choose additional backends
      - Provide GPUMD's ``nep`` executable on a compatible GPU node.
        Python dependencies are included in the standard installation. See below.
    * - MACE
-     - Install ``python -m pip install -e '.[mace]'`` and supply a checkpoint
-       or configured foundation model. CPU is supported.
+     - Included in the standard installation; supply a checkpoint or configure
+       a foundation model. CPU is supported.
    * - VASP
      - Configure your licensed executable, MPI launcher, and POTCAR library.
        These are not distributed by this project.

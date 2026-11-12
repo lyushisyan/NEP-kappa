@@ -1,6 +1,7 @@
 """Derive scientific stages from input switches without executing calculations."""
 
 from nepkappa.config_schema import normalize_yaml_key, raise_unknown_yaml_key, str2bool, yaml_input_sections
+from nepkappa.command_registry import calculation_steps
 
 
 THERMAL_SECTIONS = {
@@ -15,6 +16,7 @@ STAGE_REQUIRED_SECTIONS = {
     "relax": {"structure", "calculator"},
     "fc2": {"structure", "calculator", "force_constant"},
     "fc2fc3": {"structure", "calculator", "force_constant"},
+    "fc2fc3fc4": {"structure", "calculator", "force_constant"},
     "fc4": {"structure", "calculator", "force_constant"},
     "qha": {"structure", "calculator", "force_constant"},
     "scph": {"structure", "calculator", "force_constant"},
@@ -164,7 +166,7 @@ def expand_input_modes(data, command=None):
             **data,
             keys["kappa"]: {**kappa, "enabled": True},
             "workflow": {"steps": (
-                [command] if command in STAGE_REQUIRED_SECTIONS
+                list(calculation_steps(command)) if command in STAGE_REQUIRED_SECTIONS
                 and not (command == "plot" and explicit_kappa)
                 else ["relax", "fc2fc3", "kappa"]
             )},

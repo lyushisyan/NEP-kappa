@@ -220,6 +220,7 @@ class TDBTEConfig:
     excitation: float
     branches: Tuple[int, ...]
     samples: int
+    spatial: Optional[Mapping[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -252,6 +253,7 @@ class WorkflowSections:
                 excitation=cfg.tdbte_excitation,
                 branches=tuple(cfg.tdbte_branches or []),
                 samples=cfg.tdbte_samples,
+                spatial=getattr(cfg, 'tdbte_spatial', None),
             ),
             workflow=WorkflowPlanConfig(
                 steps=_tuple(cfg.workflow_steps),

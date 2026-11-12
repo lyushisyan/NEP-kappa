@@ -77,7 +77,7 @@ and POTCAR source. ``potcar-path`` can be a combined file or a library directory
 entries are assembled in POSCAR species order. Check stage-specific INCAR
 settings and converge the electronic parameters before generating forces.
 
-For MACE, install the optional dependency and supply a checkpoint in a copied
+For MACE, use the included backend and supply a checkpoint in a copied
 six-section input. Use ``calculator.device: cuda`` only
 when the selected environment supports it. External ASE calculators can be
 configured with ``factory`` and ``kwargs``; see :doc:`input_files`.

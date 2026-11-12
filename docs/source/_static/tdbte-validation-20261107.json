@@ -1,0 +1,750 @@
+{
+  "command": [
+    "tools/validate_tdbte_kernel.py",
+    "--source",
+    "calculations/3C-SiC/manual-stages",
+    "--output",
+    "calculations/3C-SiC/tdbte-validation-20261107-final",
+    "--meshes",
+    "2",
+    "3",
+    "4",
+    "--surface-levels",
+    "0",
+    "1"
+  ],
+  "source": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/manual-stages",
+  "input_sha256": {
+    "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+    "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+    "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+  },
+  "python_version": "3.12.9",
+  "numpy_version": "2.4.4",
+  "phono3py_version": "4.1.0",
+  "phonopy_version": "4.1.0",
+  "temperature_K": 300.0,
+  "physical_constants": {
+    "solver_h_eV_per_THz": 0.004135667696923859,
+    "solver_kB_eV_per_K": 8.617333262145179e-05,
+    "native_h_eV_per_THz": 0.00413566733,
+    "native_kB_eV_per_K": 8.617338256808316e-05
+  },
+  "conventions": {
+    "frequency": "THz (cycles/ps)",
+    "time": "ps",
+    "gamma_to_inverse_lifetime": "1/tau = 4*pi*gamma_THz",
+    "native_strength": "includes 1/Nq; ordered daughters, no additional factor 1/2",
+    "shell_comparison": "parent-decay loss only vs class-2 native linewidth; total Jacobian diagonal is a different observable",
+    "integration": "Production Freudenthal entropy shells vs native tetrahedra differ; Gaussian control alone uses identical quadrature"
+  },
+  "meshes": [
+    {
+      "mesh": [
+        2,
+        2,
+        2
+      ],
+      "kernel_sha256": "00b444449203d1ffc17dc9188fbeb87d9a39fa712adccab75bd4e1c2f8489357",
+      "rates_sha256": "4128baebd6db8966728f054382977c8679eeadcfbd2090788d45401bea655847",
+      "invariants": {
+        "equilibrium": [
+          {
+            "temperature_K": 100.0,
+            "rhs_max_per_ps": 1.405855274486833e-20
+          },
+          {
+            "temperature_K": 300.0,
+            "rhs_max_per_ps": 8.100218951438214e-18
+          },
+          {
+            "temperature_K": 1000.0,
+            "rhs_max_per_ps": 8.432076910261411e-17
+          }
+        ],
+        "nonequilibrium": [
+          {
+            "amplitude_log_occupation": 0.01,
+            "relative_energy_residual": 7.387227162575906e-16,
+            "entropy_production_kB_per_ps_unweighted": 9.763241219187617e-06
+          },
+          {
+            "amplitude_log_occupation": 0.5,
+            "relative_energy_residual": 9.807586238969479e-16,
+            "entropy_production_kB_per_ps_unweighted": 0.01905236131490217
+          },
+          {
+            "amplitude_log_occupation": 2.0,
+            "relative_energy_residual": 1.3621521821027433e-15,
+            "entropy_production_kB_per_ps_unweighted": 0.316909561825575
+          }
+        ],
+        "finite_difference": [
+          {
+            "relative_step": 0.001,
+            "relative_Jv_error": 3.743787639107461e-08
+          },
+          {
+            "relative_step": 0.0001,
+            "relative_Jv_error": 3.7485533529842044e-10
+          },
+          {
+            "relative_step": 1e-05,
+            "relative_Jv_error": 2.5287823186180595e-11
+          }
+        ],
+        "finite_amplitude_departure_from_doubled_rhs": 0.04691333126680498,
+        "numerical_invariants_passed": true
+      },
+      "matched_gaussian_control": {
+        "sigma_THz": 0.3,
+        "sigma_cutoff": 4,
+        "tagged_total_relative_l2": 1.1824774488722331e-15,
+        "tagged_decay_relative_l2": 1.3666128256119934e-16,
+        "repeated_daughter_records": 18
+      },
+      "surface_refinement": [
+        {
+          "level": 0,
+          "parent_decay_relative_l2_to_native": 0.23750308199929468,
+          "relative_change_from_previous_level": null,
+          "gamma_optical_parent_decay_per_ps": [
+            0.24826981426955883,
+            0.24826981426955883,
+            0.24826981426955883
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.21230273034176972,
+            0.21230273034176972,
+            0.21230273034176972
+          ]
+        },
+        {
+          "level": 1,
+          "parent_decay_relative_l2_to_native": 0.23761865227721954,
+          "relative_change_from_previous_level": 0.00011815520394313661,
+          "gamma_optical_parent_decay_per_ps": [
+            0.24826728864413727,
+            0.24826728864413727,
+            0.24826728864413727
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.21230273034176972,
+            0.21230273034176972,
+            0.21230273034176972
+          ]
+        }
+      ],
+      "source_sum_rule_diagnostics": {
+        "fc2_sum_second_atom_max": 1.6209256159527285e-14,
+        "fc3_sum_second_atom_max": 3.5887959271008185e-14,
+        "fc3_sum_third_atom_max": 3.5887959271008185e-14,
+        "note": "Compact-array partial checks; inputs are not modified or symmetrized"
+      },
+      "acoustic_boundary": {
+        "make_r0_average": true,
+        "native_vertex_sum_relative_error": 1.4924784888319276e-16,
+        "parent_fractional": [
+          0.2,
+          0.1,
+          0.15
+        ],
+        "samples": [
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278888474,
+              0.24958045278912788,
+              0.4634790831677065
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1285674943167504e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.024961721059470157,
+              0.02496172106295498,
+              0.046348829827225296
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.8602212164773564e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757310145998,
+              0.002496175794598416,
+              0.0046348838908646505
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00037899350069582177
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961763978984295,
+              0.00024961788371596916,
+              0.00046348835414269587
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.0037897049894622
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278859065,
+              0.24958045278928756,
+              0.46347908316772124
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1516368563683932e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.0249617210567409,
+              0.024961721063951798,
+              0.0463488298253547
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.5698921641294345e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757420079484,
+              0.002496175791757698,
+              0.004634883871472378
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00034951735723465834
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961719136985696,
+              0.0002496174696341869,
+              0.0004634883748239106
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.003494981437807295
+          }
+        ],
+        "small_q_log_slopes": [
+          -0.9959966050796069,
+          -0.9953948879733373
+        ],
+        "permutation_max_min_ratio": 1.0000000000006986,
+        "sampled_zero_endpoint_check_passed": false,
+        "scope": "Off-shell vertex check at one parent, two directions; not a linewidth or proof of convergence"
+      }
+    },
+    {
+      "mesh": [
+        3,
+        3,
+        3
+      ],
+      "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+      "rates_sha256": "93c092f28762c364b9eeb8123ceb9aaa4643adac1527f0ddadbfef7d43eee2bf",
+      "invariants": {
+        "equilibrium": [
+          {
+            "temperature_K": 100.0,
+            "rhs_max_per_ps": 1.418517126629024e-20
+          },
+          {
+            "temperature_K": 300.0,
+            "rhs_max_per_ps": 7.393696780996147e-18
+          },
+          {
+            "temperature_K": 1000.0,
+            "rhs_max_per_ps": 2.443132817708706e-16
+          }
+        ],
+        "nonequilibrium": [
+          {
+            "amplitude_log_occupation": 0.01,
+            "relative_energy_residual": 5.612454285797047e-16,
+            "entropy_production_kB_per_ps_unweighted": 3.841283836063811e-05
+          },
+          {
+            "amplitude_log_occupation": 0.5,
+            "relative_energy_residual": 3.0891851596246944e-16,
+            "entropy_production_kB_per_ps_unweighted": 0.08605216400001792
+          },
+          {
+            "amplitude_log_occupation": 2.0,
+            "relative_energy_residual": 5.748118043573033e-16,
+            "entropy_production_kB_per_ps_unweighted": 1.884834673500269
+          }
+        ],
+        "finite_difference": [
+          {
+            "relative_step": 0.001,
+            "relative_Jv_error": 7.703519502185452e-08
+          },
+          {
+            "relative_step": 0.0001,
+            "relative_Jv_error": 7.700848668881484e-10
+          },
+          {
+            "relative_step": 1e-05,
+            "relative_Jv_error": 2.4860030256940693e-11
+          }
+        ],
+        "finite_amplitude_departure_from_doubled_rhs": 0.04957248262134109,
+        "numerical_invariants_passed": true
+      },
+      "matched_gaussian_control": {
+        "sigma_THz": 0.3,
+        "sigma_cutoff": 4,
+        "tagged_total_relative_l2": 4.615282698288618e-16,
+        "tagged_decay_relative_l2": 2.0754546473379082e-16,
+        "repeated_daughter_records": 16
+      },
+      "surface_refinement": [
+        {
+          "level": 0,
+          "parent_decay_relative_l2_to_native": 0.04361662974287803,
+          "relative_change_from_previous_level": null,
+          "gamma_optical_parent_decay_per_ps": [
+            0.5017806007965885,
+            0.5017806007965885,
+            0.5017806007965885
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.47694658019525027,
+            0.47694658019525027,
+            0.47694658019525027
+          ]
+        },
+        {
+          "level": 1,
+          "parent_decay_relative_l2_to_native": 0.04361672732033694,
+          "relative_change_from_previous_level": 1.347983876525106e-06,
+          "gamma_optical_parent_decay_per_ps": [
+            0.5017805838728961,
+            0.5017805838728961,
+            0.5017805838728961
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.47694658019525027,
+            0.47694658019525027,
+            0.47694658019525027
+          ]
+        }
+      ],
+      "source_sum_rule_diagnostics": {
+        "fc2_sum_second_atom_max": 1.6209256159527285e-14,
+        "fc3_sum_second_atom_max": 3.5887959271008185e-14,
+        "fc3_sum_third_atom_max": 3.5887959271008185e-14,
+        "note": "Compact-array partial checks; inputs are not modified or symmetrized"
+      },
+      "acoustic_boundary": {
+        "make_r0_average": true,
+        "native_vertex_sum_relative_error": 0.0,
+        "parent_fractional": [
+          0.2,
+          0.1,
+          0.15
+        ],
+        "samples": [
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278888474,
+              0.24958045278912788,
+              0.4634790831677065
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1285674943167504e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.024961721059470157,
+              0.02496172106295498,
+              0.046348829827225296
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.8602212164773564e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757310145998,
+              0.002496175794598416,
+              0.0046348838908646505
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00037899350069582177
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961763978984295,
+              0.00024961788371596916,
+              0.00046348835414269587
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.0037897049894622
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278859065,
+              0.24958045278928756,
+              0.46347908316772124
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1516368563683932e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.0249617210567409,
+              0.024961721063951798,
+              0.0463488298253547
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.5698921641294345e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757420079484,
+              0.002496175791757698,
+              0.004634883871472378
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00034951735723465834
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961719136985696,
+              0.0002496174696341869,
+              0.0004634883748239106
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.003494981437807295
+          }
+        ],
+        "small_q_log_slopes": [
+          -0.9959966050796069,
+          -0.9953948879733373
+        ],
+        "permutation_max_min_ratio": 1.0000000000006986,
+        "sampled_zero_endpoint_check_passed": false,
+        "scope": "Off-shell vertex check at one parent, two directions; not a linewidth or proof of convergence"
+      }
+    },
+    {
+      "mesh": [
+        4,
+        4,
+        4
+      ],
+      "kernel_sha256": "4c0277e6968449f8e509656231b5b02a51349f96c58196e8feba51543cfd4cd5",
+      "rates_sha256": "ea84652a1d37ba0387b61f663d3cff821416ee1dae919d790154947b7cf400ee",
+      "invariants": {
+        "equilibrium": [
+          {
+            "temperature_K": 100.0,
+            "rhs_max_per_ps": 1.477739198041375e-20
+          },
+          {
+            "temperature_K": 300.0,
+            "rhs_max_per_ps": 1.0771013763499531e-17
+          },
+          {
+            "temperature_K": 1000.0,
+            "rhs_max_per_ps": 2.4568701863789853e-16
+          }
+        ],
+        "nonequilibrium": [
+          {
+            "amplitude_log_occupation": 0.01,
+            "relative_energy_residual": 1.0610192178299478e-15,
+            "entropy_production_kB_per_ps_unweighted": 8.833405929772789e-05
+          },
+          {
+            "amplitude_log_occupation": 0.5,
+            "relative_energy_residual": 3.1984736063828954e-16,
+            "entropy_production_kB_per_ps_unweighted": 0.2020928505850063
+          },
+          {
+            "amplitude_log_occupation": 2.0,
+            "relative_energy_residual": 3.3182323123605634e-16,
+            "entropy_production_kB_per_ps_unweighted": 4.576831026514999
+          }
+        ],
+        "finite_difference": [
+          {
+            "relative_step": 0.001,
+            "relative_Jv_error": 8.332383181894173e-08
+          },
+          {
+            "relative_step": 0.0001,
+            "relative_Jv_error": 8.33192957723853e-10
+          },
+          {
+            "relative_step": 1e-05,
+            "relative_Jv_error": 2.6664653806330187e-11
+          }
+        ],
+        "finite_amplitude_departure_from_doubled_rhs": 0.04842942625707954,
+        "numerical_invariants_passed": true
+      },
+      "matched_gaussian_control": {
+        "sigma_THz": 0.3,
+        "sigma_cutoff": 4,
+        "tagged_total_relative_l2": 1.0357252751759249e-15,
+        "tagged_decay_relative_l2": 8.554841422861604e-16,
+        "repeated_daughter_records": 130
+      },
+      "surface_refinement": [
+        {
+          "level": 0,
+          "parent_decay_relative_l2_to_native": 0.02611754650886468,
+          "relative_change_from_previous_level": null,
+          "gamma_optical_parent_decay_per_ps": [
+            0.5493594084232712,
+            0.5493594084232712,
+            0.5493594084232712
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.5337752613506965,
+            0.5337752613506965,
+            0.5337752613506965
+          ]
+        },
+        {
+          "level": 1,
+          "parent_decay_relative_l2_to_native": 0.026117875428446038,
+          "relative_change_from_previous_level": 1.4738718289752653e-06,
+          "gamma_optical_parent_decay_per_ps": [
+            0.5493594365225838,
+            0.5493594365225838,
+            0.5493594365225838
+          ],
+          "native_gamma_optical_decay_per_ps": [
+            0.5337752613506965,
+            0.5337752613506965,
+            0.5337752613506965
+          ]
+        }
+      ],
+      "source_sum_rule_diagnostics": {
+        "fc2_sum_second_atom_max": 1.6209256159527285e-14,
+        "fc3_sum_second_atom_max": 3.5887959271008185e-14,
+        "fc3_sum_third_atom_max": 3.5887959271008185e-14,
+        "note": "Compact-array partial checks; inputs are not modified or symmetrized"
+      },
+      "acoustic_boundary": {
+        "make_r0_average": true,
+        "native_vertex_sum_relative_error": 2.897623149766981e-16,
+        "parent_fractional": [
+          0.2,
+          0.1,
+          0.15
+        ],
+        "samples": [
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278888474,
+              0.24958045278912788,
+              0.4634790831677065
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1285674943167504e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.024961721059470157,
+              0.02496172106295498,
+              0.046348829827225296
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.8602212164773564e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757310145998,
+              0.002496175794598416,
+              0.0046348838908646505
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00037899350069582177
+          },
+          {
+            "direction_fractional": [
+              1,
+              0,
+              0
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961763978984295,
+              0.00024961788371596916,
+              0.00046348835414269587
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.0037897049894622
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.01,
+            "soft_frequencies_THz": [
+              0.24958045278859065,
+              0.24958045278928756,
+              0.46347908316772124
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 1.1516368563683932e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.001,
+            "soft_frequencies_THz": [
+              0.0249617210567409,
+              0.024961721063951798,
+              0.0463488298253547
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 3.5698921641294345e-05
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 0.0001,
+            "soft_frequencies_THz": [
+              0.0024961757420079484,
+              0.002496175791757698,
+              0.004634883871472378
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.00034951735723465834
+          },
+          {
+            "direction_fractional": [
+              1,
+              1,
+              1
+            ],
+            "epsilon": 1e-05,
+            "soft_frequencies_THz": [
+              0.00024961719136985696,
+              0.0002496174696341869,
+              0.0004634883748239106
+            ],
+            "soft_acoustic_strength_sum_without_mesh_conversion": 0.003494981437807295
+          }
+        ],
+        "small_q_log_slopes": [
+          -0.9959966050796069,
+          -0.9953948879733373
+        ],
+        "permutation_max_min_ratio": 1.0000000000006986,
+        "sampled_zero_endpoint_check_passed": false,
+        "scope": "Off-shell vertex check at one parent, two directions; not a linewidth or proof of convergence"
+      }
+    }
+  ],
+  "validated_for_physical_dynamics": false,
+  "stage_1_acceptance_passed": false,
+  "source_unchanged": true,
+  "blocking_findings": [
+    "Sampled finite-small-q vertices do not support the zero-strength Gamma endpoint used by the production interpolant",
+    "Absolute production-shell total rates and q-mesh convergence are not established by the parent-decay comparison"
+  ],
+  "next_stages": "blocked at Stage 1; do not bypass the physical gate"
+}

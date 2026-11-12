@@ -464,16 +464,16 @@ def _calculate_order_forces(workflow, patterns, *, backend, label):
             (job_dir / "job-input.sha256").unlink(missing_ok=True)
             if backend == "thirdorder" and calculator == "vasp":
                 vasprun_path = workflow._run_vasp_thirdorder_job(
-                    atoms, job_dir, index
+                    atoms, job_dir
                 )
             elif backend == "fourthorder" and calculator == "vasp":
-                vasprun_path = workflow._run_vasp_fc4_job(atoms, job_dir, index)
+                vasprun_path = workflow._run_vasp_fc4_job(atoms, job_dir)
             elif backend == "thirdorder" and calculator == "nep":
                 vasprun_path = workflow._run_nep_thirdorder_job(
-                    atoms, job_dir, index
+                    atoms, job_dir
                 )
             elif backend == "fourthorder" and calculator == "nep":
-                vasprun_path = workflow._run_nep_fc4_job(atoms, job_dir, index)
+                vasprun_path = workflow._run_nep_fc4_job(atoms, job_dir)
             else:
                 vasprun_path = workflow._run_external_order_job(atoms, job_dir)
             workflow._record_job_inputs(job_dir, digest, payload)

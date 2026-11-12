@@ -19,19 +19,19 @@ from nepkappa.qha import (
     validate_temperature_range,
 )
 from nepkappa.runtime import ase_to_phonopy
+from nepkappa.temperatures import temperature_directory_name, temperature_points
 from nepkappa.sscha import (
     load_full_force_constants,
-    temperature_directory_name,
-    temperature_points,
 )
 
 
 class QHASSCHAWorkflow:
     """Couple isotropic QHA expansion to independent Phonopy SSCHA runs."""
 
-    def __init__(self, config, *, execution):
+    def __init__(self, config, *, execution, runner_factory=None):
         self.cfg = config
         self.execution = execution
+        self.runner_factory = runner_factory
         self.output_dir = Path(config.result_dir).expanduser().resolve()
         self.workdir = self.output_dir / "qha-sscha"
 
@@ -110,8 +110,10 @@ class QHASSCHAWorkflow:
         return summary
 
     def _run_temperature(self, base, temperature, primitive_volume, multiplicity):
-        from nepkappa.application import WorkflowStageRunner
         from nepkappa.qha import QHAWorkflow
+
+        if self.runner_factory is None:
+            raise ValueError("A runner_factory is required to execute temperature cases.")
 
         label = temperature_directory_name(temperature)
         case_dir = self.workdir / label
@@ -154,7 +156,7 @@ class QHASSCHAWorkflow:
         case_config.scph_run_transport = three_phonon_here
         case_config.temps = [temperature]
 
-        runner = WorkflowStageRunner(case_config, self.execution)
+        runner = self.runner_factory(case_config)
         if self.cfg.qha_relax_internal:
             atoms = QHAWorkflow(case_config, workflow=runner.core)._relax_internal(
                 atoms, case_dir

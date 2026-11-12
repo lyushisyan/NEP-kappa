@@ -147,7 +147,7 @@ def test_qha_never_accepts_unexpected_deferred_rta(tmp_path, monkeypatch, status
     cfg.qha_relax_internal = False
     base = Atoms("Si", cell=[5, 5, 5], pbc=True)
     with pytest.raises(RuntimeError, match="cannot continue from a deferred kappa job"):
-        QHA3PhWorkflow(cfg, execution=None)._run_temperature(base, 300, 125, 1)
+        QHA3PhWorkflow(cfg, execution=None, runner_factory=lambda case: Runner(case, None))._run_temperature(base, 300, 125, 1)
 
 
 @pytest.fixture(scope="module")
@@ -159,7 +159,7 @@ def real_force_constants(tmp_path_factory):
     path.write_text(yaml.safe_dump({
         "structure": {"poscar": str(root / "examples/structures/3C-SiC/POSCAR_primitive"),
                       "relaxation": False},
-        "calculator": {"name": "nep", "model": str(root / "potentials/3C-SiC/nep_3C-SiC.txt")},
+        "calculator": {"name": "nep", "model": str(root / "examples/potentials/3C-SiC/nep_3C-SiC.txt")},
         "force-constant": {"dim-fc2": [2, 2, 2], "dim-fc3": [2, 2, 2]},
         "output": {"result-dir": str(directory / "forces"), "progress": False},
     }))

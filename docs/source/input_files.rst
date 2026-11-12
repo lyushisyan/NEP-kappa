@@ -25,7 +25,7 @@ A compact 3C-SiC phonon/transport input is:
      relaxation: true
    calculator:
      name: nep
-     model: potentials/3C-SiC/nep_3C-SiC.txt
+     model: examples/potentials/3C-SiC/nep_3C-SiC.txt
    force-constant:
      dim-fc2: [3, 3, 3]
      dim-fc3: [3, 3, 3]
@@ -54,6 +54,7 @@ Single-stage inputs
    nepkappa relax input.yaml    relax the structure
    nepkappa fc2 input.yaml      generate FC2, or scan QHA volumes when enabled
    nepkappa fc2fc3 input.yaml   generate FC2 and FC3
+   nepkappa fc2fc3fc4 input.yaml generate FC2, FC3 and FC4 without transport
    nepkappa kappa input.yaml    run the selected transport route
    nepkappa tdbte input.yaml    run nonequilibrium phonon dynamics
    nepkappa plot input.yaml     plot completed phonon/transport results
@@ -63,7 +64,7 @@ Single-stage inputs
 or a complete input, and runs only its named part:
 
 * ``relax``: ``structure`` and ``calculator``.
-* ``fc2`` / ``fc2fc3``: ``structure``, ``calculator``, ``force-constant``.
+* ``fc2`` / ``fc2fc3`` / ``fc2fc3fc4``: ``structure``, ``calculator``, ``force-constant``.
 * Ordinary phono3py ``kappa``: ``kappa``; optionally set
   ``kappa.force-constants`` to the existing FC2/FC3 directory.
 * ``tdbte``: ``tdbte``; optionally set ``tdbte.force-constants`` to the
@@ -114,13 +115,26 @@ not FourPhonon or coupled QHA/SSCHA transport. Omit explicit force-constant
 sources for ``run``, which generates and passes on its own force constants.
 
 If ``structure.relaxation`` is enabled, run
-``nepkappa relax`` before a separate ``fc2`` or ``fc2fc3`` command; these
+``nepkappa relax`` before a separate ``fc2``, ``fc2fc3`` or ``fc2fc3fc4`` command; these
 commands then read ``POSCAR_relaxed``. ``nepkappa run`` carries out the whole
 input-selected sequence. QHA, SSCHA, and four-phonon settings are switches
 within that one run; they select additional stages and their supported
 dependencies. ``plot`` is run separately after the necessary data exist.
 Internal FC4, SSCHA, bubble, and coupled-transport steps are selected by input
 switches; they have no separate public command.
+``fc2fc3fc4`` explicitly runs the existing FC2/FC3 and FC4 stages in order,
+without relaxation, QHA/SSCHA or transport. It accepts compact force-constant
+inputs and ordinary four-phonon inputs; enabling ``force-constant.four-phonon``
+is optional for this direct command. FC4 uses Fourthorder and writes
+``FORCE_CONSTANTS_4TH``. The FC2/FC3 backend and output formats follow the input.
+When FC2/FC3 force jobs are prepared or submitted to Slurm, the command pauses;
+the generated collection script continues with FC4 after collecting those forces.
+
+.. code-block:: bash
+
+   nepkappa info input.yaml --for fc2fc3fc4
+   nepkappa fc2fc3fc4 input.yaml
+
 For a QHA-only calculation, set ``force-constant.qha.enabled: true`` and
 ``force-constant.qha.run-transport: false``, then execute
 ``nepkappa fc2 input.yaml``. This scans the configured volumes and generates
@@ -438,6 +452,11 @@ uses ``kappa.temps`` too; any legacy ``four-phonon.temps`` value must match it.
 tdbte: nonequilibrium dynamics
 ----------------------------------
 
+Optional ``tdbte.spatial`` enables periodic one-dimensional real-space transport
+with a three-dimensional q mesh and the same nonlinear three-phonon operator.
+See :doc:`tdbte_spatial` for the spatial schema, TTG/Gaussian/selective excitation,
+time-step controls and HDF5 output. Omitting it preserves homogeneous behavior.
+
 For a new calculation, TD-BTE uses six sections. ``nepkappa run`` generates
 matching FC2, FC3, and displacement metadata before building the collision
 kernel and evolving the excitation. It does not calculate conductivity:
@@ -449,7 +468,7 @@ kernel and evolving the excitation. It does not calculate conductivity:
      relaxation: false
    calculator:
      name: nep
-     model: potentials/3C-SiC/nep_3C-SiC.txt
+     model: examples/potentials/3C-SiC/nep_3C-SiC.txt
    force-constant:
      dim-fc2: [3, 3, 3]
      dim-fc3: [3, 3, 3]

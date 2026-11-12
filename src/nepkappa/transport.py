@@ -12,8 +12,9 @@ from types import SimpleNamespace
 
 import phono3py as phono3py_module
 
+from nepkappa.command_sampling import expected_kappa_name
 from nepkappa.output import activity_status, print_detail
-from nepkappa.provenance import file_sha256
+from nepkappa.identity import file_sha256
 
 
 FORCE_CONSTANT_FILES = ("phono3py_disp.yaml", "fc2.hdf5", "fc3.hdf5")
@@ -212,11 +213,6 @@ def phono3py_needs_fc_flags():
     except (AttributeError, TypeError, ValueError):
         return True
     return major < 4
-
-
-def expected_kappa_name(mesh):
-    """Return phono3py's conventional conductivity filename for a mesh."""
-    return "kappa-m" + "".join(str(value) for value in mesh) + ".hdf5"
 
 
 def temperature_flags(temperatures):

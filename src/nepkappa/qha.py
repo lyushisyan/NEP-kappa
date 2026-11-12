@@ -68,7 +68,7 @@ class QHAWorkflow:
 
     def _calculate_equilibrium_phonons(self, base, points):
         """Calculate actual FC2 at each fitted volume, without FC interpolation."""
-        from nepkappa.sscha import temperature_directory_name
+        from nepkappa.temperatures import temperature_directory_name
 
         equilibrium = np.loadtxt(self.output_dir / "volume-temperature.dat", ndmin=2)
         if equilibrium.shape[1] != 2 or not np.isfinite(equilibrium).all():

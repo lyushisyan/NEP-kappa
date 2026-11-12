@@ -47,17 +47,6 @@ class RunStateStore:
         state.update(changes)
         return self.write(state)
 
-    def mark_submitted(self, job_ids):
-        return self.update(
-            submitted=True,
-            status="submitted",
-            submitted_at=utc_now(),
-            job_ids={str(name): str(value) for name, value in job_ids.items()},
-        )
-
-    def mark_submission_failed(self, error):
-        return self.update(status="submission-failed", submission_error=str(error))
-
     def mark_complete(self):
         return self.update(status="complete", completed_at=utc_now())
 

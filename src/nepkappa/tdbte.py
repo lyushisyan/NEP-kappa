@@ -103,6 +103,10 @@ class ShellKernel:
             raise ValueError('Nonfinite accumulated collision derivative')
         return rhs, flux
 
+    def collision_batch(self, occupation, batch_size=16):
+        from .tdbte_accumulate import collision_batch
+        return collision_batch(self, occupation, batch_size)
+
 
 def validate_options(config):
     source = getattr(config, 'tdbte_force_constants', None)
@@ -121,44 +125,26 @@ def validate_options(config):
             raise ValueError(f'tdbte.{key} must be finite and positive')
     if not 2 <= config.tdbte_samples <= 100001:
         raise ValueError('tdbte.samples must be between 2 and 100001')
-    if not config.tdbte_branches or min(config.tdbte_branches) < 0 or len(set(config.tdbte_branches)) != len(config.tdbte_branches):
+    spatial = getattr(config, 'tdbte_spatial', None)
+    if spatial is not None:
+        from .tdbte_spatial import spatial_options
+        spatial_options(config)
+    if (spatial is None or config.tdbte_branches) and (not config.tdbte_branches or min(config.tdbte_branches) < 0 or len(set(config.tdbte_branches)) != len(config.tdbte_branches)):
         raise ValueError('tdbte.branches requires unique zero-based branch indices')
 
 
 def run_tdbte(config):
     """Build/load a kernel and evolve it with an independent equilibrium control."""
-    from .tdbte_storage import ChunkedKernel, sha256
+    if getattr(config, 'tdbte_spatial', None) is not None:
+        from .tdbte_spatial import run_spatial_tdbte
+        return run_spatial_tdbte(config)
+    from .tdbte_storage import sha256
 
     validate_options(config)
     out = Path(config.result_dir)/'tdbte'
     if out.exists():
         raise FileExistsError(f'Refusing to overwrite TD-BTE results: {out}')
-    if getattr(config, 'tdbte_force_constants', None):
-        from .tdbte_builder import build_kernel
-        source = build_kernel(config.tdbte_force_constants, config.tdbte_mesh,
-                              Path(config.result_dir)/'tdbte-kernel',
-                              excited_branches=config.tdbte_branches)
-    else:
-        source = Path(config.tdbte_kernel)
-    if source.suffix.lower() not in ('.json', '.npz'):
-        raise ValueError('tdbte.kernel must be an NPZ kernel or a JSON chunk manifest')
-    # Sidecar provides mode ordering; never infer a six-branch SiC convention.
-    metadata_path = source if source.suffix.lower() == '.json' else source.with_suffix('.json')
-    metadata = json.loads(metadata_path.read_text())
-    branch_ids = np.asarray(metadata.get('mode_branch_indices', []))
-    if source.suffix.lower() == '.json':
-        kernel = ChunkedKernel(source)
-    else:
-        kernel = ShellKernel.load(source)
-    if branch_ids.shape != kernel.frequency.shape or branch_ids.dtype.kind not in 'iu' or np.any(branch_ids < 0):
-        raise ValueError('Kernel JSON requires explicit mode_branch_indices for every mode')
-    if not set(config.tdbte_branches) <= set(branch_ids.tolist()):
-        raise ValueError('Excited branch index is absent from kernel')
-    if metadata.get('coefficient_time_unit') != 'ps' or not metadata.get('model'):
-        raise ValueError('Kernel JSON requires model and coefficient_time_unit: ps')
-    weight = metadata.get('uniform_mode_weight')
-    if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not np.isfinite(weight) or weight <= 0:
-        raise ValueError('Kernel JSON requires a positive uniform_mode_weight; reduced weighted grids are unsupported')
+    kernel, metadata, source, metadata_path, branch_ids, weight = load_tdbte_kernel(config)
     n0 = kernel.bose(config.tdbte_temperature)
     initial = n0.copy()
     initial[np.isin(branch_ids,config.tdbte_branches)] *= 1+config.tdbte_excitation
@@ -243,3 +229,35 @@ def run_tdbte(config):
         raise RuntimeError('tdbte numerical audit failed; diagnostic artifacts saved, not accepted results')
     print('TD-BTE: numerical checks passed; physical rate validation remains incomplete.')
     return report
+
+
+def load_tdbte_kernel(config):
+    """Shared artifact loading; homogeneous integration remains unchanged."""
+    from .tdbte_storage import ChunkedKernel
+    if getattr(config, 'tdbte_force_constants', None):
+        from .tdbte_builder import build_kernel
+        source = build_kernel(config.tdbte_force_constants, config.tdbte_mesh,
+                              Path(config.result_dir)/'tdbte-kernel',
+                              excited_branches=config.tdbte_branches)
+    else:
+        source = Path(config.tdbte_kernel)
+    if source.suffix.lower() not in ('.json', '.npz'):
+        raise ValueError('tdbte.kernel must be an NPZ kernel or a JSON chunk manifest')
+    # Sidecar provides mode ordering; never infer a six-branch SiC convention.
+    metadata_path = source if source.suffix.lower() == '.json' else source.with_suffix('.json')
+    metadata = json.loads(metadata_path.read_text())
+    branch_ids = np.asarray(metadata.get('mode_branch_indices', []))
+    if source.suffix.lower() == '.json':
+        kernel = ChunkedKernel(source)
+    else:
+        kernel = ShellKernel.load(source)
+    if branch_ids.shape != kernel.frequency.shape or branch_ids.dtype.kind not in 'iu' or np.any(branch_ids < 0):
+        raise ValueError('Kernel JSON requires explicit mode_branch_indices for every mode')
+    if not set(config.tdbte_branches or []) <= set(branch_ids.tolist()):
+        raise ValueError('Excited branch index is absent from kernel')
+    if metadata.get('coefficient_time_unit') != 'ps' or not metadata.get('model'):
+        raise ValueError('Kernel JSON requires model and coefficient_time_unit: ps')
+    weight = metadata.get('uniform_mode_weight')
+    if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not np.isfinite(weight) or weight <= 0:
+        raise ValueError('Kernel JSON requires a positive uniform_mode_weight; reduced weighted grids are unsupported')
+    return kernel, metadata, source, metadata_path, branch_ids, weight

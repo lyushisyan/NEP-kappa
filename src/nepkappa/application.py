@@ -11,6 +11,7 @@ import os
 import time
 
 from nepkappa.output import print_detail, format_duration
+from nepkappa.command_registry import calculation_steps
 
 
 @dataclass
@@ -154,7 +155,10 @@ class WorkflowStageRunner:
 
         return self.execution.run_stage(
             "QHA-volume three-phonon kappa",
-            QHA3PhWorkflow(self.config, execution=self.execution).run,
+            QHA3PhWorkflow(
+                self.config, execution=self.execution,
+                runner_factory=lambda case: WorkflowStageRunner(case, self.execution),
+            ).run,
         )
 
     def scph(self):
@@ -179,7 +183,10 @@ class WorkflowStageRunner:
 
         return self.execution.run_stage(
             "QHA-volume SSCHA",
-            QHASSCHAWorkflow(self.config, execution=self.execution).run,
+            QHASSCHAWorkflow(
+                self.config, execution=self.execution,
+                runner_factory=lambda case: WorkflowStageRunner(case, self.execution),
+            ).run,
         )
 
     def kappa(self):
@@ -207,8 +214,9 @@ class WorkflowStageRunner:
         from pathlib import Path
 
         trajectory = Path(self.config.result_dir) / "tdbte" / "branch-energy.csv"
+        spatial = Path(self.config.result_dir) / "tdbte" / "spatial.hdf5"
         if "tdbte" in self.config.workflow_steps or (
-            self.config.workflow_steps == ["plot"] and trajectory.is_file()
+            self.config.workflow_steps == ["plot"] and (trajectory.is_file() or spatial.is_file())
         ):
             from nepkappa.tdbte_plot import plot_tdbte_results
 
@@ -235,7 +243,7 @@ class WorkflowStageRunner:
                 "Plot QHA results", lambda: plot_qha_results(config)
             )
         if config.scph_enabled or (config.qha_enabled and config.qha_volumes):
-            from nepkappa.sscha import temperature_directory_name
+            from nepkappa.temperatures import temperature_directory_name
 
             config = copy.copy(config)
             temperature_dir = temperature_directory_name(config.plot_temperature)
@@ -267,6 +275,8 @@ def execute_workflow_command(command, config) -> CommandExecution:
     """Execute one validated workflow command through its application handler."""
     if command == "run":
         return execute_workflow_plan(config)
+    if command == "fc2fc3fc4":
+        return execute_workflow_plan(config, steps=calculation_steps(command))
 
     execution = CommandExecution()
     WorkflowStageRunner(config, execution).run(command)
@@ -274,10 +284,10 @@ def execute_workflow_command(command, config) -> CommandExecution:
     return execution
 
 
-def execute_workflow_plan(config) -> CommandExecution:
-    """Run the stages selected by input switches behind ``nepkappa run``."""
+def execute_workflow_plan(config, *, steps=None) -> CommandExecution:
+    """Run an ordered stage sequence, pausing when scheduler work is deferred."""
     execution = CommandExecution()
-    steps = list(config.workflow_steps)
+    steps = list(config.workflow_steps if steps is None else steps)
     resume_after = os.environ.get("NEPKAPPA_RESUME_AFTER")
     if resume_after:
         if resume_after not in steps:

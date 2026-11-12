@@ -15,7 +15,7 @@ from nepkappa.qha import (
     scale_atoms_to_primitive_volume,
     validate_temperature_range,
 )
-from nepkappa.sscha import temperature_directory_name
+from nepkappa.temperatures import temperature_directory_name
 
 
 def _temperatures(values):
@@ -28,9 +28,10 @@ def _temperatures(values):
 class QHA3PhWorkflow:
     """Regenerate FC2/FC3 and run phono3py RTA at each expanded volume."""
 
-    def __init__(self, config, *, execution):
+    def __init__(self, config, *, execution, runner_factory=None):
         self.cfg = config
         self.execution = execution
+        self.runner_factory = runner_factory
         self.output_dir = Path(config.result_dir).expanduser().resolve()
         self.workdir = self.output_dir / "qha-kappa"
 
@@ -73,8 +74,10 @@ class QHA3PhWorkflow:
         return summary
 
     def _run_temperature(self, base, temperature, primitive_volume, multiplicity):
-        from nepkappa.application import WorkflowStageRunner
         from nepkappa.qha import QHAWorkflow
+
+        if self.runner_factory is None:
+            raise ValueError("A runner_factory is required to execute temperature cases.")
 
         case_dir = self.workdir / temperature_directory_name(temperature)
         case_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +90,7 @@ class QHA3PhWorkflow:
         case.do_relax = False
         case.workflow_steps = ["fc2fc3", "kappa"]
         case.temps = [temperature]
-        runner = WorkflowStageRunner(case, self.execution)
+        runner = self.runner_factory(case)
         if self.cfg.qha_relax_internal:
             atoms = QHAWorkflow(case, workflow=runner.core)._relax_internal(
                 atoms, case_dir

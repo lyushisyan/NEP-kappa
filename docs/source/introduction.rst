@@ -71,6 +71,8 @@ Common commands
      - Generate harmonic force constants or perform an enabled QHA scan.
    * - ``nepkappa fc2fc3 input.yaml``
      - Generate second- and third-order force constants.
+   * - ``nepkappa fc2fc3fc4 input.yaml``
+     - Generate second-, third- and fourth-order force constants without transport.
    * - ``nepkappa kappa input.yaml``
      - Calculate thermal conductivity from prepared inputs.
    * - ``nepkappa tdbte input.yaml``

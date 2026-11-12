@@ -52,7 +52,7 @@ def load_sscha_series(config):
         phonon = make_phonopy(data, fc2)
         if not cases:
             anchor_phonon = phonon
-        current = build_plot_data(phonon, data.unitcell, None, selected)
+        current = build_plot_data(phonon, None, selected)
         reference = build_harmonic_reference(phonon, selected)
         cases.append({'temperature': float(temperature), 'data': current,
                       'reference': reference, 'primitive_numbers': phonon.primitive.numbers})

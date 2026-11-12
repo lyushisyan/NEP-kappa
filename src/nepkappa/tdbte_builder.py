@@ -303,3 +303,76 @@ def build_kernel(source, mesh, directory, *, chunk_events=CHUNK_EVENTS, excited_
             'complete': False, 'error': str(exc), 'input_sha256': hashes,
             'mesh': mesh.tolist(), 'completed_chunks': len(writer.chunks)})
         raise
+
+
+def prepare_spatial_modes(metadata, kernel, direction, source=None):
+    """Analytic group velocities in the collision backend's native eigenbasis.
+
+    Use addresses and grg2bzg, never frequency matching or a separately rotated
+    GroupVelocity degeneracy basis. Scalar populations retain diagonal velocity
+    expectations in this same basis. Off-diagonal degenerate velocity elements
+    are recorded as a limitation of the population (no coherence) model.
+    """
+    import phono3py
+    from phonopy.harmonic.derivative_dynmat import DerivativeOfDynamicalMatrix
+    from phonopy.phonon.degeneracy import degenerate_sets
+
+    mesh = validate_mesh(metadata.get('mesh'))
+    if np.any(mesh < 2):
+        raise ValueError('Spatial TD-BTE requires a 3D phonon q mesh; the real-space domain is 1D')
+    source = source or metadata.get('source')
+    if source is None or not metadata.get('input_sha256'):
+        raise ValueError('Spatial TD-BTE requires kernel FC2/FC3 source hashes and native grid metadata')
+    source = Path(source).expanduser().resolve()
+    if source_hashes(source) != metadata['input_sha256']:
+        raise ValueError('Spatial phonon source hashes differ from the collision kernel')
+    if metadata.get('phono3py_version') != phono3py.__version__:
+        raise ValueError('Spatial velocity preparation requires the kernel native backend version')
+    ph = phono3py.load(source / INPUT_FILES[0], fc2_filename=source / INPUT_FILES[1],
+        fc3_filename=source / INPUT_FILES[2], produce_fc=False, symmetrize_fc=False,
+        is_mesh_symmetry=False, log_level=0)
+    if ph.nac_params is not None or (source / 'BORN').exists():
+        raise ValueError('Spatial TD-BTE does not support NAC/BORN data')
+    ph.mesh_numbers = mesh
+    ph.init_phph_interaction()
+    pp = ph.phph_interaction
+    addresses, frequency, zero, _ = _prepare_modes(pp, mesh)
+    nq, nb = frequency.shape
+    if not np.isclose(metadata.get('uniform_mode_weight', 0), 1/nq, rtol=1e-14, atol=0):
+        raise ValueError('Spatial kernel mode weight must be 1/Nq on the full 3D grid')
+    if (not np.array_equal(addresses, metadata.get('grid_addresses'))
+            or not np.array_equal(np.tile(np.arange(nb), nq), metadata.get('mode_branch_indices'))
+            or not np.allclose(frequency.ravel(), kernel.frequency, rtol=1e-12, atol=1e-10)
+            or not np.array_equal(zero.ravel(), kernel.zero)):
+        raise ValueError('Spatial phonon q ordering, branches or frequencies differ from the kernel')
+    eigenvectors = pp.get_phonons()[1][pp.bz_grid.grg2bzg].copy()
+    derivative = DerivativeOfDynamicalMatrix(pp.dynamical_matrix)
+    velocity = np.zeros((nq, nb, 3))
+    offdiagonal = 0.
+    native_q = pp.bz_grid.addresses[pp.bz_grid.grg2bzg] / mesh
+    for iq, q in enumerate(native_q):
+        derivative.run(q)
+        # dD/dq_cart uses reciprocal Angstrom without 2*pi. d(nu)/dq_cart
+        # has the physical group-velocity numerical value in Angstrom/ps.
+        projected = np.array([eigenvectors[iq].conj().T @ d @ eigenvectors[iq]
+                              for d in derivative.d_dynamical_matrix])
+        active = ~zero[iq]
+        factor = np.zeros(nb)
+        factor[active] = .1 * pp.frequency_factor_to_THz**2 / (2 * frequency[iq, active])
+        velocity[iq] = np.real(np.diagonal(projected, axis1=1, axis2=2)).T * factor[:, None]
+        transport = np.einsum('a,aij->ij', direction, projected)
+        for group in degenerate_sets(frequency[iq]):
+            if len(group) > 1 and not np.any(zero[iq, group]):
+                block = transport[np.ix_(group, group)] * factor[group[0]]
+                offdiagonal = max(offdiagonal, float(np.linalg.norm(block - np.diag(np.diag(block)))))
+    if not np.isfinite(velocity).all():
+        raise ValueError('Nonfinite phonon group velocity')
+    if source_hashes(source) != metadata['input_sha256']:
+        raise ValueError('Spatial phonon source changed during velocity preparation')
+    return {'velocity_nm_ps': velocity.reshape(-1, 3), 'grid_addresses': addresses,
+            'native_q_fractional': native_q,
+            'primitive_cell_nm': np.asarray(ph.primitive.cell) * .1,
+            'primitive_volume_nm3': float(ph.primitive.volume) * .001,
+            'eigenvectors': eigenvectors,
+            'velocity_basis': 'diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected',
+            'max_degenerate_offdiagonal_velocity_nm_ps': offdiagonal}

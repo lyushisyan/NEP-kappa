@@ -77,3 +77,7 @@ def phono3py_sampling(command):
             raise ValueError("Specify all of --tmin, --tmax and --tstep in kappa.command.")
         result["temps"] = [options[name][0] for name in ("tmin", "tmax", "tstep")]
     return result
+
+def expected_kappa_name(mesh):
+    """Return phono3py's conventional conductivity filename for a mesh."""
+    return "kappa-m" + "".join(str(value) for value in mesh) + ".hdf5"

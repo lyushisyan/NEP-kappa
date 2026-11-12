@@ -6,9 +6,14 @@ import json
 from pathlib import Path
 
 from ase.io import read, write
+from ase.io.jsonio import encode
 import numpy as np
 
 from nepkappa.output import print_detail
+from nepkappa.identity import canonical_data, data_sha256, file_sha256
+
+
+FORCE_CACHE_SCHEMA = 3
 
 
 class ForceArtifactStore:
@@ -54,24 +59,42 @@ class ForceArtifactStore:
 
     @staticmethod
     def matches_inputs(job_dir, input_digest):
-        """Return whether a job marker matches the current scientific inputs."""
-        marker = Path(job_dir) / "job-input.sha256"
-        if not marker.is_file():
+        """Verify inputs and output bytes; legacy records are cache misses."""
+        job_dir = Path(job_dir)
+        try:
+            marker = (job_dir / "job-input.sha256").read_text().strip()
+            record = json.loads((job_dir / "job-input.json").read_text())
+            if (record.get("schema_version") != FORCE_CACHE_SCHEMA
+                    or marker != input_digest or record["sha256"] != input_digest
+                    or data_sha256(record["inputs"]) != input_digest
+                    or not record["inputs"].get("cache_reusable", True)):
+                return False
+            artifact = record["artifact"]
+            if artifact["file"] not in {"forces.npy", "vasprun.xml"}:
+                return False
+            return file_sha256(job_dir / artifact["file"]) == artifact["sha256"]
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return False
-        return marker.read_text(encoding="utf-8").strip() == input_digest
 
     @staticmethod
-    def record_inputs(job_dir, input_digest, payload):
+    def record_inputs(job_dir, input_digest, payload, *, artifact="forces.npy"):
         """Publish the auditable payload first and the validity marker last."""
         job_dir = Path(job_dir)
         marker = job_dir / "job-input.sha256"
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.unlink(missing_ok=True)
+        if data_sha256(payload) != input_digest:
+            raise ValueError("Force-cache input digest differs from its payload")
+        if artifact not in {"forces.npy", "vasprun.xml"}:
+            raise ValueError("Unsupported force-cache artifact")
+        record = {"schema_version": FORCE_CACHE_SCHEMA, "sha256": input_digest,
+                  "inputs": payload,
+                  "artifact": {"file": artifact, "sha256": file_sha256(job_dir / artifact)}}
         payload_path = job_dir / "job-input.json"
         temporary = payload_path.with_suffix(".json.tmp")
         temporary.write_text(
             json.dumps(
-                {"sha256": input_digest, "inputs": payload},
+                record,
                 indent=2,
                 sort_keys=True,
             )
@@ -89,7 +112,12 @@ class ForceArtifactStore:
         job_dir.mkdir(parents=True, exist_ok=True)
         poscar = job_dir / "POSCAR"
         write(str(poscar), atoms, format="vasp", direct=True, vasp5=True)
-        return {"label": label.lower(), "index": index, "poscar": str(poscar)}
+        # POSCAR round trips lose precision and additional ASE arrays. Workers
+        # evaluate the exact staged state used by the collector's fingerprint.
+        state = job_dir / "atoms.json"
+        state.write_text(encode(atoms), encoding="utf-8")
+        return {"label": label.lower(), "index": index, "poscar": str(poscar),
+                "atoms_sha256": file_sha256(state)}
 
     def calculate_or_reuse(
         self,
@@ -173,11 +201,23 @@ class ForceArtifactStore:
             return cached, job_dir, None, None
 
         write(str(poscar), atoms, format="vasp", direct=True, vasp5=True)
-        input_digest, input_payload = fingerprint(poscar, backend)
+        input_digest, input_payload = self._fingerprint(atoms, poscar, backend, fingerprint)
         cached = self._load_matching_digest_cache(
             atoms, force_path, job_dir, input_digest, label, index
         )
         return cached, job_dir, input_digest, input_payload
+
+    @staticmethod
+    def _fingerprint(atoms, poscar, backend, fingerprint):
+        """Include exact ASE state that a POSCAR cannot represent."""
+        _, payload = fingerprint(poscar, backend)
+        payload = {**payload, "atom_state": canonical_data({
+            "arrays": atoms.arrays, "cell": atoms.cell.array, "pbc": atoms.pbc,
+        })}
+        # Arbitrary info/constraint objects may contain hidden calculator inputs.
+        if atoms.info or atoms.constraints:
+            payload["cache_reusable"] = False
+        return data_sha256(payload), payload
 
     def _publish_forces(self, job_dir, forces, input_digest, input_payload):
         """Replace force data only after withdrawing the previous validity marker."""
@@ -206,7 +246,7 @@ class ForceArtifactStore:
             return None
         try:
             cached_atoms = read(str(poscar), format="vasp")
-            cached_digest, _ = fingerprint(poscar, backend)
+            cached_digest, _ = self._fingerprint(atoms, poscar, backend, fingerprint)
             if self.structures_match(atoms, cached_atoms) and self.matches_inputs(
                 job_dir, cached_digest
             ):

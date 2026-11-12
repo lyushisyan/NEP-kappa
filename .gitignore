@@ -36,11 +36,15 @@ htmlcov/
 # ------------------------------
 # Generated calculation outputs and local scripts
 # ------------------------------
-# Keep the directory guide public; research runs stay local.
-/calculations/*
-!/calculations/README.md
+# Local research workspace, including its guide.
+/calculations/
+# Local scientific audit scripts.
+/tools/
+# Local dependency snapshots.
+/constraints/
+# Local compatibility link; public models live in examples/potentials/.
+/potentials
 /PAPER_ARCHIVE.md
-/RELEASE_2_0.md
 /output/
 /outputs/
 /NEP_kappa_Manual*/

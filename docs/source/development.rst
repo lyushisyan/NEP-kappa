@@ -5,13 +5,16 @@ Repository contents
 ---------------------
 
 Keep source code, documentation, public examples, and the input-assistant skill
-in version control. ``tests/public/`` is a small public test suite; two opt-in
+in version control. ``tests/public/`` contains self-contained regression and numerical tests; two opt-in
 GPU validation and benchmark scripts are published in ``tests/gpu/``. Other
 ``tests/`` contents and ``benchmarks/`` remain local and ignored by Git.
+``tools/`` contains optional local scientific audit scripts and is also ignored.
+Tests that compare against these scripts are skipped when the scripts are
+unavailable; the solver's self-contained public checks still run.
 
-``calculations/`` is the local research workspace. Its guide is public, while
-material runs, site-specific submission scripts, plots, force jobs, and archived
-inputs are ignored, along with local manuscript and release-worktree notes.
+The entire ``calculations/`` directory is a local research workspace ignored
+by Git, including its guide, material runs, site-specific submission scripts,
+plots, force jobs, and archived inputs, along with local manuscript and release-worktree notes.
 Generated artifacts in ``output/`` and ``outputs/``, local manual copies and
 archives, and the scratch ``texput.log`` are also ignored.
 
@@ -22,15 +25,32 @@ From the repository root, run the public tests and build the documentation:
 
 .. code-block:: bash
 
-   python -m pip install -e '.[dev,docs]'
+   python -m pip install -e '.[dev,docs,tdbte]'
    RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m pytest tests/public -q
    python -m sphinx -b html -W --keep-going docs/source docs/build/html
 
 ``.github/workflows/checks.yml`` runs the public tests and strict documentation
-build on GitHub pushes and pull requests using Python 3.11. The public tests
+build on GitHub pushes and pull requests using Python 3.10 and 3.12. The public tests
 use checked-in examples and synthetic temporary data. They require no private
 models/datasets, VASP executable, network service or Slurm cluster. Large
 scientific benchmarks remain separate from this CI job.
+
+
+Dependency requirements are declared in ``pyproject.toml``. CI resolves
+compatible versions for Python 3.10 and 3.12. Optional dependency snapshots in
+``constraints/`` remain local, are ignored by Git, and are not required by CI.
+
+To exercise both collision implementations explicitly:
+
+.. code-block:: bash
+
+   NEPKAPPA_TEST_COLLISION_BACKEND=numpy python -m pytest tests/public -q
+   NEPKAPPA_TEST_COLLISION_BACKEND=numba python -m pytest tests/public -q
+
+This test-only switch forces TD-BTE reductions through the selected backend.
+HiPhive's Numba dependency remains available. The compiled job fails if Numba
+is missing. Compiled-specific cases and the full convergence benchmark run in
+the compiled job; the reference job retains parity and small convergence checks.
 
 If the local ``tests/`` and ``benchmarks/`` directories are available, also run:
 
@@ -136,7 +156,10 @@ Source layout
 - ``tdbte.py``: population dynamics and audits; ``tdbte_builder.py`` builds native
   FC2/FC3 energy-shell chunks, ``tdbte_storage.py`` validates and streams them,
   and ``tdbte_quadrature.py`` owns the surface integration rule.
+- ``identity.py`` and ``force_identity.py``: shared hashes and force dependencies.
 - ``artifacts.py``, ``provenance.py``, ``run_state.py``: cache and result identity.
+- ``temperatures.py``: temperature grids and case names.
+- ``transport_data.py``: result interpretation and unit/geometry normalization.
 - ``scheduler.py`` and ``slurm.py``: scheduler interaction.
 - ``plot.py`` and ``report.py``: result analysis and reporting.
 
@@ -148,14 +171,14 @@ Maintaining examples and the skill
 ------------------------------------
 
 The public catalog intentionally contains nine 3C-SiC phonon/transport
-workflows and one TD-BTE input. Explain their method differences in
+workflows and two TD-BTE inputs (homogeneous and spatial). Explain their method differences in
 ``examples/README.md``. Use public input paths and placeholder executable
 paths. Site-specific Slurm settings belong in an external batch script or
 optional ``parallel`` settings.
 
 When keys or templates change, update the input reference and
 ``.agents/skills/nepkappa-input/`` together. The example-catalog test validates
-the nine phonon/transport inputs, six-section TD-BTE input, and their public assets.
+the nine phonon/transport inputs, both six-section TD-BTE inputs, and their public assets.
 Keep internal fixture inputs in ``tests/fixtures/`` aligned with the public
 six-section ``run`` inputs and reduced direct-command inputs. Test both
 acceptance of stage inputs and rejection of incomplete ``run`` inputs.
@@ -171,7 +194,7 @@ remain outside the numbered chapters.
 
 Downloadable chapter inputs live in ``docs/source/inputs/`` and are displayed
 with ``literalinclude`` so that the shown and downloaded YAML stay identical.
-They complement the repository's ten public workflow templates. Check a changed
+They complement the repository's eleven public workflow templates. Check a changed
 input with ``nepkappa info <file> --for <stage>`` for both its calculation stage
 and ``plot``; these checks do not start a calculation. Use portable executable
 placeholders and matching MPI/Slurm resource counts in cluster instructions.
@@ -188,3 +211,30 @@ The archived baseline scope and local check commands are documented below.
    :maxdepth: 1
 
    release_baseline
+   tdbte_validation
+
+Independent Chinese documentation
+---------------------------------
+
+English sources remain in ``docs/source/``. Independently authored Chinese
+pages live in ``docs/zh_CN/`` with matching chapter names. Both builds load
+``docs/conf_common.py`` and share YAML examples and static assets.
+
+Graphviz diagrams require the ``dot`` executable: install it with
+``brew install graphviz`` on macOS or
+``sudo apt-get install graphviz fonts-noto-cjk`` on Ubuntu. Check ``dot -V``
+before building pages containing ``.. graphviz::``. The shared Sphinx
+configuration renders diagrams as SVG. CI and Read the Docs install Graphviz
+and CJK fonts explicitly.
+
+Build a local bilingual preview from the repository root:
+
+.. code-block:: bash
+
+   python -m sphinx -b html -W --keep-going docs/source docs/build/en
+   python -m sphinx -b html -W --keep-going docs/zh_CN docs/build/zh_CN
+   python -m http.server 8765 --bind 127.0.0.1 --directory docs/build
+
+Open ``http://127.0.0.1:8765/zh_CN/`` for Chinese. Keep parameter keys, units,
+supported combinations and scientific limitations aligned across languages.
+Local preview does not publish a Read the Docs translation project.

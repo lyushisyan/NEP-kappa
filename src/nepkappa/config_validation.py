@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from nepkappa.config_schema import normalize_yaml_key
+from nepkappa.command_registry import calculation_steps
 
 
 def validate_temps(temps):
@@ -621,7 +622,14 @@ def validate_lbte_parallel(args):
 
 def validate_workflow_args(args, command, parser):
     """Validate and normalize the selected scientific operation in place."""
-    targets = set(args.workflow_steps) if command == "run" else {command}
+    targets = set(args.workflow_steps) if command == "run" else set(calculation_steps(command))
+    if command == "fc2fc3fc4" and (
+        args.qha_enabled or args.scph_enabled or "tdbte" in args.workflow_steps
+    ):
+        parser.error(
+            "fc2fc3fc4 generates ordinary FC2/FC3/FC4 only; use 'run' "
+            "for QHA, SSCHA or TD-BTE workflows."
+        )
     if args.kappa_force_constants is not None and (
         command in {None, "run", "qha-kappa", "qha-sscha", "scph", "kappa4"}
     ):

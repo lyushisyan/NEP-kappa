@@ -8,7 +8,7 @@ NEP-kappa connects NEP, VASP, MACE, and ASE calculators to force-constant genera
 Phonopy/phono3py, and FourPhonon. Describe a calculation in YAML and run it with
 `nepkappa run input.yaml`.
 
-Current version: **2.0.1**. See the [release notes](CHANGELOG.md).
+Current version: **2.0.1**. See the [GitHub Releases](https://github.com/lyushisyan/NEP-kappa/releases).
 [Quick start](docs/source/starting.rst) · [Examples](examples/README.md) ·
 [Input reference](docs/source/input_files.rst) · [中文上手](#中文上手)
 
@@ -56,7 +56,7 @@ structure:
   relaxation: true
 calculator:
   name: nep
-  model: potentials/3C-SiC/nep_3C-SiC.txt
+  model: examples/potentials/3C-SiC/nep_3C-SiC.txt
 force-constant:
   dim-fc2: [3, 3, 3]
   dim-fc3: [3, 3, 3]
@@ -121,9 +121,10 @@ it does not read a `kappa-m*.hdf5` result.
 | 3C-SiC 3ph LBTE + 4ph RTA | [nep-lbte-3ph-rta-4ph.yaml](examples/nep-lbte-3ph-rta-4ph.yaml) | FourPhonon iterative 3ph solver |
 | 3C-SiC 3ph LBTE + 4ph LBTE | [nep-lbte-3ph-lbte-4ph.yaml](examples/nep-lbte-3ph-lbte-4ph.yaml) | FourPhonon full iterative solver |
 | Time-dependent BTE | [tdbte.yaml](examples/tdbte.yaml) | NEP force calculations, then matching FC2/FC3 and dynamics |
+| Spatial nonlinear TD-BTE | [tdbte-spatial.yaml](examples/tdbte-spatial.yaml) | Periodic 1D spatial transport with the same nonlinear collisions and a 3D q mesh |
 
-The catalog contains nine phonon-property/thermal-transport calculations and one
-time-dependent BTE input.
+The catalog contains nine phonon-property/thermal-transport calculations and two
+time-dependent BTE inputs.
 The 3C-SiC files are teaching inputs. SiC is polar; quantitative dispersion
 and transport work should assess non-analytic long-range corrections using
 validated Born effective charges and dielectric data. These inputs do not
@@ -154,6 +155,7 @@ recorded in new summaries and displayed by `nepkappa report`.
 | `nepkappa relax input.yaml` | Relax the structure |
 | `nepkappa fc2 input.yaml` | Generate FC2, or run the QHA volume scan when QHA is enabled |
 | `nepkappa fc2fc3 input.yaml` | Generate FC2 and FC3 |
+| `nepkappa fc2fc3fc4 input.yaml` | Generate FC2, FC3 and FC4 without transport |
 | `nepkappa kappa input.yaml` | Compute conductivity using the input-selected route |
 | `nepkappa tdbte input.yaml` | Run nonequilibrium phonon dynamics from a TD-BTE input |
 | `nepkappa plot input.yaml` | Plot FC2 harmonic properties; add transport panels when available |
@@ -162,6 +164,9 @@ recorded in new summaries and displayed by `nepkappa report`.
 `fc2` runs only the QHA volume scan when QHA is enabled. `run` executes the
 complete sequence, including QHA+SSCHA and transport when their switches are
 enabled. `kappa` selects the configured transport backend and parameters.
+`fc2fc3fc4` reuses the FC2/FC3 stage followed by Fourthorder FC4 generation;
+it does not relax the structure or run transport. It accepts compact force-constant
+inputs or ordinary four-phonon inputs; QHA, SSCHA and TD-BTE use `run`.
 See `nepkappa --help` and the [workflow guide](docs/source/tutorial.rst).
 Slurm resources can be supplied through an external batch script or an optional
 top-level `parallel` section for stage-specific jobs.
@@ -195,7 +200,7 @@ The repository includes [nepkappa-input](.agents/skills/nepkappa-input/SKILL.md)
 In a compatible assistant opened in this checkout, ask:
 
 > Use $nepkappa-input to prepare bulk Si NEP RTA at 300 K, using
-> examples/structures/Si/POSCAR_bulk and potentials/Si/Si_Bulk_Fan.txt.
+> examples/structures/Si/POSCAR_bulk and examples/potentials/Si/Si_Bulk_Fan.txt.
 > Write input.yaml and validate it without starting the calculation.
 
 It checks the installed schema, model species and paths, and distinguishes
@@ -217,13 +222,13 @@ starts a calculation.
 | Directory | Contents |
 | --- | --- |
 | `src/nepkappa/` | Installable source code |
-| `examples/` | Reusable input templates and small structures |
-| `potentials/` | Models and provenance notes |
+| `examples/` | Reusable input templates, structures, and model files |
+| `examples/potentials/` | Models and provenance notes |
 | `docs/` | User and developer documentation |
 | `tests/public/` | Public parsing, execution and numerical checks run in CI |
 | Other `tests/` contents | Local scientific checks; ignored by Git |
 | `benchmarks/` | Local frozen reference data; ignored by Git |
-| `calculations/` | Local research inputs and results; ignored except its guide |
+| `calculations/` | Local research inputs and results; entirely ignored by Git |
 | `.agents/skills/` | Maintained input-assistant skill |
 
 Follow the [development guide](docs/source/development.rst) for local testing

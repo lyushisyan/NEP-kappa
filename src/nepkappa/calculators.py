@@ -11,7 +11,7 @@ import re
 import numpy as np
 from ase.calculators.calculator import Calculator
 
-from nepkappa.provenance import canonical_data, file_identity
+from nepkappa.identity import canonical_data, file_identity
 
 
 ENTRY_POINT_GROUP = "nepkappa.calculators"
@@ -250,8 +250,8 @@ class MACECalculatorBackend(ASECalculatorBackend):
             )
         except CalculatorLoadError as exc:
             raise CalculatorLoadError(
-                f"Could not initialize MACE. Install the optional dependency with "
-                f"'python -m pip install -e .[mace]'. Details: {exc}"
+                "Could not initialize MACE. Check the mace-torch installation "
+                f"and model configuration. Details: {exc}"
             ) from exc
         self.model = model
         self.foundation = foundation

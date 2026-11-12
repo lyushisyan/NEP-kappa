@@ -39,9 +39,12 @@ def force_input(tmp_path, monkeypatch):
     return path
 
 
-@pytest.mark.parametrize("command", ["fc2", "run"])
+@pytest.mark.parametrize("persistent", [False, True])
+@pytest.mark.parametrize("command", ["fc2", "run", "fc2fc3fc4"])
 @pytest.mark.parametrize("submit", [False, True])
-def test_local_and_slurm_collected_fc2_agree(force_input, tmp_path, monkeypatch, command, submit):
+def test_local_and_slurm_collected_fc2_agree(force_input, tmp_path, monkeypatch, command, submit, persistent):
+    if not persistent:
+        monkeypatch.setattr("nepkappa.force_identity.reusable_backend", lambda *args: False)
     from nepkappa import scheduler
     from nepkappa.transport import Phono3pyTransportWorkflow
 
@@ -68,8 +71,22 @@ def test_local_and_slurm_collected_fc2_agree(force_input, tmp_path, monkeypatch,
     force_input.write_text(yaml.safe_dump(data))
     selected, cfg = parse_selected_command(force_input, command)
     assert selected == command
-    assert cfg.workflow_steps == (["relax", "fc2fc3", "kappa"] if command == "run" else ["fc2"])
+    expected_steps = {
+        "run": ["relax", "fc2fc3", "kappa"],
+        "fc2": ["fc2"],
+        "fc2fc3fc4": ["fc2fc3", "fc4"],
+    }
+    assert cfg.workflow_steps == expected_steps[command]
     transport_calls = []
+    fourth_order_calls = []
+
+    def fourth_order_mock(self):
+        assert (self.host.output_dir / "fc2.hdf5").is_file()
+        assert (self.host.output_dir / "fc3.hdf5").is_file()
+        fourth_order_calls.append(self.host.output_dir)
+
+    # The external Fourthorder executable is outside this scheduler/cache test.
+    monkeypatch.setattr("nepkappa.stages.force_constants.FourthOrderStage.run", fourth_order_mock)
 
     def transport_mock(self):
         assert (self.output_dir / "fc2.hdf5").is_file()
@@ -87,6 +104,7 @@ def test_local_and_slurm_collected_fc2_agree(force_input, tmp_path, monkeypatch,
     monkeypatch.setattr("nepkappa.slurm.SlurmScheduler", lambda: scheduler.SlurmScheduler(run=submit_mock))
     assert main([command, str(force_input)]) == 0
     assert transport_calls == []
+    assert fourth_order_calls == []
     output = Path(cfg.result_dir)
     assert not (output / "fc2.hdf5").exists()
     work = output / "force-slurm"
@@ -138,8 +156,10 @@ def test_local_and_slurm_collected_fc2_agree(force_input, tmp_path, monkeypatch,
     monkeypatch.setenv("NEPKAPPA_FORCE_COLLECT", "1")
     assert main(tokens[4:]) == 0
     assert transport_calls == ([output] if command == "run" else [])
+    assert fourth_order_calls == ([output] if command == "fc2fc3fc4" else [])
     provenance = yaml.safe_load((output / "provenance.yaml").read_text())
     assert provenance["status"] == "complete"
+    assert provenance["inputs"]["external_calculator"]
     assert "Relax structure" not in provenance["stage_timings_seconds"]
     assert yaml.safe_load((work / "submission.yaml").read_text())["status"] == "complete"
     assert {path: path.read_bytes() for path in cached} == before
@@ -294,3 +314,31 @@ def test_interrupted_order_force_job_invalidates_old_xml_identity(force_input, m
     _calculate_order_forces(NEPPhononWorkflow(cfg), [pattern], backend=backend, label="test")
     assert marker.read_text() == old_digest
     assert paths[0].read_bytes() == old_xml
+
+
+@pytest.mark.parametrize('corrupt', [False, True])
+def test_worker_restores_exact_staged_ase_state(force_input, tmp_path, monkeypatch, corrupt):
+    config = parse_workflow_args(force_input, command='fc2')
+    core = NEPPhononWorkflow(config)
+    atoms = read(config.poscar)
+    atoms.positions[1, 0] = np.nextafter(4., 5.)
+    atoms.set_initial_charges([.2, -.2])
+    task = core._stage_force_job(atoms, 'fc2', 1)
+    task_file = tmp_path/'task.json'
+    task_file.write_text(json.dumps([task]))
+    captured = []
+
+    def capture(self, exact, *args):
+        captured.append(exact)
+
+    monkeypatch.setattr(NEPPhononWorkflow, '_calculate_forces_cached', capture)
+    if corrupt:
+        state = Path(task['poscar']).with_name('atoms.json')
+        state.write_text(state.read_text()+' ')
+        with pytest.raises(ValueError, match='checksum mismatch'):
+            run_task_file(force_input, task_file)
+        assert not captured
+    else:
+        run_task_file(force_input, task_file)
+        np.testing.assert_array_equal(captured[0].positions, atoms.positions)
+        np.testing.assert_array_equal(captured[0].get_initial_charges(), atoms.get_initial_charges())

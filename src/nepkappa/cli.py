@@ -81,7 +81,6 @@ def main(argv: list[str] | None = None) -> int:
         return info_command(args.config, command=args.workflow)
 
     parser.error("missing command")
-    return 2
 
 
 def build_parser() -> argparse.ArgumentParser:

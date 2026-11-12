@@ -18,8 +18,8 @@ from phonopy.interface.phonopy_yaml import PhonopyYaml
 from phonopy.phonon.grid import get_ir_grid_points
 import yaml
 
-from nepkappa.provenance import data_sha256, file_identity
-from nepkappa.sscha import temperature_directory_name, temperature_points
+from nepkappa.identity import data_sha256, file_identity
+from nepkappa.temperatures import temperature_directory_name, temperature_points
 
 
 SCHEMA_VERSION = 1

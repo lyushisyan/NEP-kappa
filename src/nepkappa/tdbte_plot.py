@@ -328,9 +328,80 @@ def _draw_energy_dispersion(ax, band, colours, snapshot, norm, cmap):
     ax.grid(axis='y', alpha=.25)
 
 
+def _plot_spatial(config):
+    """Plot saved spatial fields without loading full mode occupations."""
+    import h5py
+    cache = Path(tempfile.gettempdir()) / 'nepkappa-matplotlib'
+    cache.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault('MPLCONFIGDIR', str(cache))
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
+    from matplotlib.transforms import Bbox
+    root = Path(config.result_dir).resolve()
+    audit = json.loads((root/'tdbte'/'audit.json').read_text())
+    if not audit.get('numerical_checks_passed'):
+        raise ValueError('Spatial TD-BTE numerical audit did not pass')
+    with h5py.File(root/'tdbte'/'spatial.hdf5', 'r') as handle:
+        if not handle.attrs.get('complete'):
+            raise ValueError('Spatial TD-BTE output is incomplete')
+        times, x = handle['time_ps'][:], handle['x_nm'][:]
+        temperature = handle['temperature_K'][:]
+        flux = handle['heat_flux_eV_nm2_ps'][:] * handle.attrs['heat_flux_eV_nm2_ps_to_W_m2']
+        energy = handle['branch_energy_eV_nm3'][:].mean(axis=1)
+        harmonics = 2*handle['temperature_harmonics_real_K'][:]
+        valid = handle['temperature_harmonic_valid'][:]
+        labels = handle['branch_indices'][:]
+    output = root/'plots'
+    output.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
+    edges_x = np.linspace(0, audit['spatial_options']['length_nm'], len(x)+1)
+    edges_t = np.r_[times[0], (times[1:]+times[:-1])/2, times[-1]]
+    colorbars = []
+    for ax, field, title, unit in ((axes[0, 0], temperature, 'Energy-equivalent temperature', 'K'),
+                                   (axes[0, 1], flux, 'Physical heat flux', 'W/m²')):
+        style = ({'cmap': 'coolwarm', 'vmin': -max(float(abs(field).max()), 1e-30),
+                  'vmax': max(float(abs(field).max()), 1e-30)} if ax is axes[0, 1] else {})
+        im = ax.pcolormesh(edges_x, edges_t, field, shading='flat', **style)
+        ax.set(xlabel='x (nm)', ylabel='Time (ps)', title=title)
+        colorbars.append(fig.colorbar(im, ax=ax, label=unit))
+    for i, branch in enumerate(labels):
+        axes[1, 0].plot(times, energy[:, i]-energy[0, i], label=f'Branch {branch}')
+    axes[1, 0].set(xlabel='Time (ps)', ylabel='Mean energy change (eV/nm³)')
+    axes[1, 0].legend(fontsize='small')
+    for i in np.flatnonzero(valid):
+        axes[1, 1].plot(times, harmonics[:, i], label=f'Harmonic {i+1}')
+    axes[1, 1].set(xlabel='Time (ps)', ylabel='Temperature cosine amplitude (K)')
+    if np.any(valid):
+        axes[1, 1].legend()
+    for ax in axes[1]:
+        ax.xaxis.set_major_locator(MaxNLocator(5))
+    paths = []
+    if config.plot_layout in ('combined', 'both'):
+        path = output/'tdbte_spatial.png'
+        fig.savefig(path, dpi=config.plot_dpi)
+        paths.append(str(path))
+    if config.plot_layout in ('separate', 'both'):
+        fig.canvas.draw()
+        for index, (ax, name) in enumerate(zip(axes.ravel(), ('temperature', 'heat_flux', 'branch_energy', 'harmonics'))):
+            # Save the actual laid-out panel, including labels and ticks.
+            path = output/f'tdbte_spatial_{name}.png'
+            boxes = [ax.get_tightbbox(fig.canvas.get_renderer())]
+            if index < 2:
+                boxes.append(colorbars[index].ax.get_tightbbox(fig.canvas.get_renderer()))
+            bounds = Bbox.union(boxes).transformed(fig.dpi_scale_trans.inverted()).expanded(1.05, 1.05)
+            fig.savefig(path, dpi=config.plot_dpi, bbox_inches=bounds)
+            paths.append(str(path))
+    plt.close(fig)
+    return paths
+
+
 def plot_tdbte_results(config):
     """Plot three energy-coloured dispersions and branch energy/temperatures."""
     root = Path(config.result_dir).resolve()
+    if (root / 'tdbte' / 'spatial.hdf5').is_file():
+        return _plot_spatial(config)
     times, energies, csv_labels = _read_branch_energy(root / 'tdbte' / 'branch-energy.csv')
     if not (root / 'tdbte' / 'trajectories.npz').is_file():
         if getattr(config, 'plot_tdbte_times', None) is not None:

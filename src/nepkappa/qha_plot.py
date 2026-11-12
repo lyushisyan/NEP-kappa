@@ -232,7 +232,7 @@ def plot_qha_results(config):
                 fig = plt.figure(figsize=(6, 4))
                 fig.subplots_adjust(left=.16, right=.96, bottom=.16, top=.78 if i in (0, 3) else .94)
                 if i == 3:
-                    axes = _draw_phonons(fig, fig.add_gridspec(1, 1)[0], data, colors)
+                    _draw_phonons(fig, fig.add_gridspec(1, 1)[0], data, colors)
                 else:
                     ax = fig.add_subplot()
                     if i == 0:
@@ -242,7 +242,6 @@ def plot_qha_results(config):
                     else:
                         _draw_expansion(ax, data)
                     ax.grid(color="0.9", linewidth=.6)
-                    axes = [ax]
                 if i in (0, 3):
                     color_axis = fig.add_axes([.3, .91, .5, .025])
                     fig.colorbar(mapper, cax=color_axis, orientation="horizontal", label="Temperature (K)")

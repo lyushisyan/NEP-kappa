@@ -426,6 +426,12 @@ def _render_markdown(report):
                       f"- Equilibrium redistribution: {audit.get('max_equilibrium_redistribution_fraction')}"])
         if audit.get('error'):
             lines.append(f"- Failure: {audit['error']}")
+        if audit.get('spatial'):
+            lines.extend([f"- Spatial domain: {audit.get('spatial_options', {}).get('length_nm')} nm",
+                          f"- Cells: {audit.get('spatial_options', {}).get('cells')}",
+                          f"- Maximum CFL: {audit.get('max_cfl')}",
+                          f"- Branch continuity residual: {audit.get('max_continuity_residual_fraction')}",
+                          "- Spatial data: tdbte/spatial.hdf5"])
     if report["transport"]:
         lines.extend(
             [

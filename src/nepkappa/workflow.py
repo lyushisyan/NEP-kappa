@@ -30,16 +30,10 @@ from phono3py import Phono3py
 from phono3py.file_IO import write_fc2_to_hdf5, write_fc3_to_hdf5
 from phono3py.phonon3.fc3 import compact_fc3_to_full_fc3
 
-from nepkappa import __version__
 from nepkappa.coordinates import canonicalize_atoms
 from nepkappa.output import print_detail
 from nepkappa.calculators import calculator_backend_from_config
-from nepkappa.provenance import (
-    canonical_data,
-    data_sha256,
-    file_identity,
-    installed_versions,
-)
+from nepkappa.identity import data_sha256
 from nepkappa.runtime import (
     ase_to_phonopy,
     phonopy_to_ase,
@@ -81,7 +75,6 @@ class NEPPhononWorkflow:
         self._external_backend = None
         self._vasp_backend = None
         self._force_store = None
-        self._cache_software_versions = None
         self.prim = None 
 
 
@@ -334,13 +327,13 @@ class NEPPhononWorkflow:
         return self._force_store
 
 
-    def _run_vasp_fc4_job(self, atoms, job_dir, index):
+    def _run_vasp_fc4_job(self, atoms, job_dir):
         """Compatibility proxy for a Fourthorder VASP job."""
         return self._make_vasp_backend().run_order_job(
             atoms, job_dir, "fc4", consumer="Fourthorder reap"
         )
 
-    def _run_vasp_thirdorder_job(self, atoms, job_dir, index):
+    def _run_vasp_thirdorder_job(self, atoms, job_dir):
         """Compatibility proxy for a thirdorder VASP job."""
         return self._make_vasp_backend().run_order_job(
             atoms, job_dir, "fc3-thirdorder", consumer="thirdorder reap"
@@ -369,14 +362,14 @@ class NEPPhononWorkflow:
         ET.ElementTree(root).write(filename, encoding="utf-8", xml_declaration=True)
         return filename
 
-    def _run_nep_thirdorder_job(self, atoms, job_dir, index):
+    def _run_nep_thirdorder_job(self, atoms, job_dir):
         """Evaluate NEP forces and expose them through thirdorder's VASP parser."""
         atoms.calc = self._make_nep_calculator()
         forces = atoms.get_forces()
         vasprun_path = job_dir / "vasprun.xml"
         return self._write_vasp_force_xml(vasprun_path, forces)
 
-    def _run_nep_fc4_job(self, atoms, job_dir, index):
+    def _run_nep_fc4_job(self, atoms, job_dir):
         """Evaluate NEP forces and expose them through Fourthorder's parser."""
         atoms.calc = self._make_nep_calculator()
         forces = atoms.get_forces()
@@ -437,12 +430,16 @@ class NEPPhononWorkflow:
 
     def _stage_force_job(self, atoms, label, index):
         """Persist one displaced structure and return its Slurm task record."""
-        return self._make_force_store().stage_structure(
+        from nepkappa.force_identity import reuse_scope
+
+        task = self._make_force_store().stage_structure(
             atoms,
             label,
             index,
             calculator=self._calculator_name(),
         )
+        task['reuse_scope'] = reuse_scope(self)
+        return task
 
     def _prepare_force_slurm_jobs(self, include_fc3=True):
         """Generate all structures needed by a native FC or HiPhive route."""
@@ -499,7 +496,7 @@ class NEPPhononWorkflow:
         """Load the structure used by the force-constant stage."""
         if self.prim is not None:
             self.prim = canonicalize_atoms(self.prim)
-            print_detail(f"  - Using in-memory structure from the relax stage")
+            print_detail("  - Using in-memory structure from the relax stage")
             return
 
         if self.cfg.do_relax:
@@ -532,116 +529,12 @@ class NEPPhononWorkflow:
         """Return a stable fingerprint for one displaced structure."""
         return hashlib.sha256(Path(pattern).read_bytes()).hexdigest()
 
-    def _command_cache_identity(self, command):
-        """Describe a configured external command and its executable, if resolvable."""
-        tokens = list(command)
-        executable = None
-        for token in reversed(tokens):
-            candidate = Path(token).expanduser()
-            if candidate.is_file():
-                executable = candidate
-                break
-            resolved = shutil.which(token)
-            if resolved:
-                executable = Path(resolved)
-                break
-        return {
-            "tokens": tokens,
-            "executable": file_identity(executable) if executable else None,
-        }
-
-    def _potcar_cache_inputs(self, atoms):
-        """Return identities of the exact POTCAR sources selected for a VASP job."""
-        configured = getattr(self.cfg, "potcar_path", None)
-        symbols = list(dict.fromkeys(atoms.get_chemical_symbols()))
-        sources = []
-        if configured:
-            path = Path(configured).expanduser()
-            if path.is_file():
-                sources = [path]
-            elif path.is_dir():
-                sources = [self._make_vasp_backend().find_potcar(path, symbol) for symbol in symbols]
-        else:
-            detected = self._make_vasp_backend().detect_potcar(symbols)
-            if detected is not None:
-                _, detected_sources = detected
-                sources = list(detected_sources)
-        return [
-            file_identity(source) if source is not None else {"exists": False}
-            for source in sources
-        ] or [{"path": str(configured) if configured else None, "exists": False}]
-
     def _job_input_payload(self, pattern, backend):
-        """Build all scientifically relevant inputs used to calculate one force job."""
-        calculator = self._calculator_name()
-        payload = {
-            "schema_version": 2,
-            "code": {
-                "nepkappa_version": __version__,
-                "workflow_sha256": file_identity(__file__)["sha256"],
-            },
-            "backend": backend,
-            "displacement_sha256": self._pattern_digest(pattern),
-            "calculator": calculator,
-        }
-        if self._cache_software_versions is None:
-            self._cache_software_versions = installed_versions()
-        payload["software"] = self._cache_software_versions
-        if backend == "thirdorder":
-            payload["order_settings"] = {
-                "command": self._command_cache_identity(self._thirdorder_command()),
-                "dimension": list(self.cfg.dim_fc3),
-                "cutoff": float(self.cfg.cutoff_fc3),
-            }
-        elif backend == "fourthorder":
-            payload["order_settings"] = {
-                "command": self._command_cache_identity(self._fourthorder_command()),
-                "dimension": list(self.cfg.dim_fc4),
-                "cutoff": float(self.cfg.cutoff_fc4),
-            }
+        from nepkappa.force_identity import force_input_payload
 
-        if calculator == "nep":
-            model = getattr(self.cfg, "nep_model", None)
-            payload["calculator_inputs"] = {
-                "model": file_identity(model) if model else None,
-            }
-            if getattr(self.cfg, "nep_force_backend", "cpu") == "gpu-batch":
-                from nepkappa import nep_batch
-
-                if self._nep_batch_identity is None:
-                    executable = nep_batch.resolve_nep_executable(self.cfg.nep_command)
-                    self._nep_batch_identity = {
-                        "executable": file_identity(executable),
-                        "adapter": file_identity(nep_batch.__file__),
-                    }
-                payload["calculator_inputs"].update({
-                    "force_backend": "gpu-batch",
-                    "batch_size": self.cfg.nep_batch_size,
-                    **self._nep_batch_identity,
-                })
-        elif calculator == "vasp":
-            command = getattr(self.cfg, "vasp_command", None)
-            if command:
-                command = shlex.split(str(command))
-            elif getattr(self.cfg, "vasp_path", None):
-                command = [str(self.cfg.vasp_path)]
-            else:
-                detected = self._make_vasp_backend().detect_path()
-                command = [str(detected)] if detected else ["vasp_std"]
-            atoms = read(str(pattern), format="vasp")
-            payload["calculator_inputs"] = {
-                "command": self._command_cache_identity(command),
-                "incar": canonical_data(self._make_vasp_backend().combined_kwargs()),
-                "potcar_sources": self._potcar_cache_inputs(atoms),
-            }
-        else:
-            payload["calculator_inputs"] = (
-                self._make_external_backend().cache_inputs()
-            )
-        return canonical_data(payload)
+        return force_input_payload(self, pattern, backend)
 
     def _job_input_fingerprint(self, pattern, backend):
-        """Return the full cache digest and its auditable input payload."""
         payload = self._job_input_payload(pattern, backend)
         return data_sha256(payload), payload
 
@@ -651,7 +544,7 @@ class NEPPhononWorkflow:
     def _record_job_inputs(self, job_dir, input_digest, payload):
         """Record both a fast cache marker and the inputs used to derive it."""
         return self._make_force_store().record_inputs(
-            job_dir, input_digest, payload
+            job_dir, input_digest, payload, artifact="vasprun.xml"
         )
 
     def _thirdorder_pattern_paths(self):

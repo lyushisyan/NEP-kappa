@@ -42,11 +42,10 @@ def test_force_fingerprint_tracks_model_structure_and_source(tmp_path):
     model.write_text('model-a'); structure.write_text('displacement-a')
     cfg = SimpleNamespace(result_dir=str(tmp_path/'out'), calculator='nep', nep_model=str(model))
     core = workflow.NEPPhononWorkflow(cfg)
-    core._cache_software_versions = {'nepkappa': 'test'}
     first, payload = core._job_input_fingerprint(structure, 'fc2')
     assert first == data_sha256(payload)
-    assert payload['schema_version'] == 2
-    assert payload['code']['workflow_sha256'] == file_sha256(workflow.__file__)
+    assert payload['schema_version'] == 3
+    assert payload['code']['force_implementation']['workflow.force_methods']
     assert core._job_input_fingerprint(structure, 'fc2')[0] == first
     model.write_text('model-b')
     second = core._job_input_fingerprint(structure, 'fc2')[0]
@@ -67,6 +66,7 @@ def test_provenance_keeps_inputs_timings_and_artifact_hashes(tmp_path):
     artifact = output/'fc2.hdf5'; artifact.write_bytes(b'synthetic artifact')
     recorder.finish('complete', stage_timings=[('Finite displacement', 1.25)])
     record = yaml.safe_load(manifest.read_text())
+    assert record['software']['scipy']
     assert record['status'] == 'complete'
     assert record['configuration']['mesh'] == [3, 3, 3]
     assert record['stage_timings_seconds']['Finite displacement'] == 1.25

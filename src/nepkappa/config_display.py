@@ -104,10 +104,12 @@ def iter_display_args(args, command=None):
         command_fields = common | calculator_fields
     elif command == "fc2":
         command_fields = common | calculator_fields | fc2_fields | hiphive_only
-    elif command == "fc2fc3":
+    elif command in {"fc2fc3", "fc2fc3fc4"}:
         command_fields = (
             common | calculator_fields | fc2_fields | fc3_fields | hiphive_only
         )
+        if command == "fc2fc3fc4":
+            command_fields |= fc4_fields
     elif command == "fc4":
         command_fields = common | calculator_fields | fc4_fields
     elif command == "scph":

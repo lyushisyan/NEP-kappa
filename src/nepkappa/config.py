@@ -35,6 +35,20 @@ def initialise_parser() -> argparse.ArgumentParser:
         help="Internal ordered stages derived from input switches",
     )
 
+    _add_structure_arguments(parser)
+    _add_calculator_arguments(parser)
+    _add_force_constants_arguments(parser)
+    _add_kappa_arguments(parser)
+    _add_fourphonon_arguments(parser)
+    _add_plot_arguments(parser)
+    _add_qha_arguments(parser)
+    _add_sscha_arguments(parser)
+    _add_tdbte_arguments(parser)
+    _add_output_arguments(parser)
+    return parser
+
+
+def _add_structure_arguments(parser):
     parser.add_argument("--poscar", default="POSCAR", help="Input structure file")
     parser.add_argument(
         "--dimensionality",
@@ -75,6 +89,28 @@ def initialise_parser() -> argparse.ArgumentParser:
         default="z",
         help="[1D] Nanowire periodic axis used for effective-area correction",
     )
+    parser.add_argument(
+        "--vasp_relax_workdir",
+        default="vasp-relax",
+        help="Directory under result_dir for VASP structure relaxation",
+    )
+    parser.add_argument(
+        "--vasp_relax_stages",
+        type=json_dict,
+        default=None,
+        help="JSON object with coarse/fine VASP relaxation INCAR overrides",
+    )
+    parser.add_argument(
+        "--do_relax",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=False,
+        help="Relax structure",
+    )
+
+
+def _add_calculator_arguments(parser):
     parser.add_argument("--nep_model", default=None, help="Path to NEP model file")
     parser.add_argument("--nep_force_backend", choices=["cpu", "gpu-batch"], default="cpu")
     parser.add_argument("--nep_batch_size", type=int, default=128)
@@ -162,25 +198,9 @@ def initialise_parser() -> argparse.ArgumentParser:
         default={},
         help="JSON object with INCAR/KPOINTS options for VASP",
     )
-    parser.add_argument(
-        "--vasp_relax_workdir",
-        default="vasp-relax",
-        help="Directory under result_dir for VASP structure relaxation",
-    )
-    parser.add_argument(
-        "--vasp_relax_stages",
-        type=json_dict,
-        default=None,
-        help="JSON object with coarse/fine VASP relaxation INCAR overrides",
-    )
-    parser.add_argument(
-        "--do_relax",
-        type=str2bool,
-        nargs="?",
-        const=True,
-        default=False,
-        help="Relax structure",
-    )
+
+
+def _add_force_constants_arguments(parser):
     parser.add_argument(
         "--dim_fc2",
         "--dim-fc2",
@@ -260,7 +280,6 @@ def initialise_parser() -> argparse.ArgumentParser:
         default="fc4-runs",
         help="[FourPhonon] Directory under result_dir for FC4 calculations",
     )
-
     parser.add_argument(
         "--use_hiphive",
         type=str2bool,
@@ -306,6 +325,15 @@ def initialise_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="[HiPhive] Minimum atomic distance for rattling",
     )
+    parser.add_argument(
+        "--force_parallel",
+        type=json_dict,
+        default={},
+        help="[FC] Slurm array settings for displaced-structure forces",
+    )
+
+
+def _add_kappa_arguments(parser):
     parser.add_argument("--mesh", type=int, nargs=3, default=[21, 21, 1])
     parser.add_argument(
         "--temps",
@@ -326,10 +354,6 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--kappa_enabled", type=str2bool, nargs="?", const=True, default=True,
         help="Compute thermal conductivity after the enabled force-constant stages",
-    )
-    parser.add_argument(
-        "--qha_volumes", type=str2bool, nargs="?", const=True, default=False,
-        help="Recompute FC2/FC3 and 3ph conductivity at each QHA volume",
     )
     parser.add_argument(
         "--kappa_command",
@@ -366,12 +390,9 @@ def initialise_parser() -> argparse.ArgumentParser:
         default={},
         help="[Kappa] Slurm parallel RTA/LBTE calculation settings",
     )
-    parser.add_argument(
-        "--force_parallel",
-        type=json_dict,
-        default={},
-        help="[FC] Slurm array settings for displaced-structure forces",
-    )
+
+
+def _add_fourphonon_arguments(parser):
     parser.add_argument("--fp_enabled", type=str2bool, nargs="?", const=True, default=False)
     parser.add_argument("--fp_command", default="ShengBTE_cpu")
     parser.add_argument("--fp_workdir", default="fourphonon")
@@ -414,17 +435,9 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fp_omp_threads", type=int, default=1)
     parser.add_argument("--fp_omp_stacksize", default="1G")
     parser.add_argument("--fp_parallel", type=json_dict, default={})
-    parser.add_argument(
-        "--progress",
-        type=str2bool,
-        nargs="?",
-        const=True,
-        default=True,
-        help="Show progress bars and timing summaries",
-    )
-    parser.add_argument(
-        "--result_dir", default="result", help="Directory for outputs and run.log"
-    )
+
+
+def _add_plot_arguments(parser):
     parser.add_argument(
         "--plot_layout",
         choices=["separate", "combined", "both"],
@@ -472,6 +485,13 @@ def initialise_parser() -> argparse.ArgumentParser:
                         help="[Plot] Three TD-BTE snapshot times in ps; default: start, midpoint, end")
     parser.add_argument("--plot_scattering_rate_min", type=float, default=0.0,
                         help="[Plot] Omit scattering rates below this value in ps^-1 (display only)")
+
+
+def _add_qha_arguments(parser):
+    parser.add_argument(
+        "--qha_volumes", type=str2bool, nargs="?", const=True, default=False,
+        help="Recompute FC2/FC3 and 3ph conductivity at each QHA volume",
+    )
     parser.add_argument(
         "--qha_enabled",
         type=str2bool,
@@ -568,6 +588,28 @@ def initialise_parser() -> argparse.ArgumentParser:
         default={},
         help="VASP INCAR overrides for QHA static energies",
     )
+    parser.add_argument(
+        "--qha_sscha_enabled", type=str2bool, nargs="?", const=True, default=False
+    )
+    parser.add_argument(
+        "--qha_sscha_three_phonon",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=None,
+        help="Run phono3py three-phonon transport after QHA+SSCHA",
+    )
+    parser.add_argument(
+        "--qha_sscha_four_phonon",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=False,
+        help="Run FourPhonon three+four-phonon transport after QHA+SSCHA",
+    )
+
+
+def _add_sscha_arguments(parser):
     parser.add_argument("--scph_enabled", type=str2bool, nargs="?", const=True, default=False)
     parser.add_argument("--scph_workdir", default="phonopy-sscha")
     parser.add_argument("--scph_temps", type=float, nargs=3, default=[0, 1000, 50])
@@ -597,26 +639,9 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scph_bubble_mesh", type=int, nargs=3, default=[9, 9, 9])
     parser.add_argument("--scph_bubble_epsilons", type=float, nargs="+", default=[0.05, 0.1])
     parser.add_argument("--scph_bubble_grid_points", type=int, nargs="+", default=None)
-    parser.add_argument(
-        "--qha_sscha_enabled", type=str2bool, nargs="?", const=True, default=False
-    )
-    parser.add_argument(
-        "--qha_sscha_three_phonon",
-        type=str2bool,
-        nargs="?",
-        const=True,
-        default=None,
-        help="Run phono3py three-phonon transport after QHA+SSCHA",
-    )
-    parser.add_argument(
-        "--qha_sscha_four_phonon",
-        type=str2bool,
-        nargs="?",
-        const=True,
-        default=False,
-        help="Run FourPhonon three+four-phonon transport after QHA+SSCHA",
-    )
 
+
+def _add_tdbte_arguments(parser):
     parser.add_argument("--tdbte_kernel", default=None)
     parser.add_argument("--tdbte_force_constants", default=None)
     parser.add_argument("--tdbte_mesh", type=int, nargs=3, default=None)
@@ -626,7 +651,22 @@ def initialise_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tdbte_excitation", type=float, default=.01)
     parser.add_argument("--tdbte_branches", type=int, nargs="+", default=None)
     parser.add_argument("--tdbte_samples", type=int, default=201)
-    return parser
+    parser.add_argument("--tdbte_spatial", type=json_dict, default=None,
+                        help="Optional spatial TD-BTE grid, initial condition and solver options")
+
+
+def _add_output_arguments(parser):
+    parser.add_argument(
+        "--progress",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=True,
+        help="Show progress bars and timing summaries",
+    )
+    parser.add_argument(
+        "--result_dir", default="result", help="Directory for outputs and run.log"
+    )
 
 
 def read_input_file(filename, parser):

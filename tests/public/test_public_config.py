@@ -7,6 +7,7 @@ import yaml
 
 from nepkappa import config as inputs
 from nepkappa.config import parse_selected_command, parse_workflow_args
+from nepkappa.cli import main
 
 ROOT = Path(__file__).resolve().parents[2]
 PLANS = {
@@ -20,6 +21,7 @@ PLANS = {
     'nep-qha-rta-3ph.yaml': ['qha', 'qha-kappa'],
     'nep-qha-sscha-rta-3ph.yaml': ['qha', 'qha-sscha'],
     'tdbte.yaml': ['fc2fc3', 'tdbte'],
+    'tdbte-spatial.yaml': ['fc2fc3', 'tdbte'],
 }
 
 
@@ -53,6 +55,7 @@ def test_compact_commands_preserve_defaults_and_fresh_section_views(tmp_path):
 
 @pytest.mark.parametrize('name,command,selected', [
     ('nep-rta-wigner-3ph.yaml', 'fc2', 'fc2'),
+    ('nep-rta-3ph-4ph.yaml', 'fc2fc3fc4', 'fc2fc3fc4'),
     ('nep-qha-rta-3ph.yaml', 'fc2', 'qha'),
     ('nep-rta-wigner-3ph.yaml', 'kappa', 'kappa'),
     ('nep-rta-3ph-4ph.yaml', 'kappa', 'kappa4'),
@@ -106,3 +109,37 @@ def test_yaml_aliases_and_nested_values(tmp_path):
     }), command='fc2')
     assert cfg.dim_fc2 == [2, 1, 1]
     assert cfg.calculator_kwargs == {'epsilon': .01, 'sigma': 3.4}
+
+
+def test_fc2fc3fc4_accepts_compact_input_and_displays_all_force_settings(tmp_path, capsys):
+    path = write_input(tmp_path, {
+        'structure': {'relaxation': False},
+        'calculator': {'model': 'model.nep'},
+        'force-constant': {'dim-fc4': [2, 2, 2], 'cutoff-fc4': -3},
+    })
+    cfg = parse_workflow_args(path, command='fc2fc3fc4')
+    assert cfg.workflow_steps == ['fc2fc3', 'fc4']
+    assert cfg.dim_fc4 == [2, 2, 2]
+    assert main(['info', str(path), '--for', 'fc2fc3fc4']) == 0
+    output = capsys.readouterr().out
+    assert 'dim_fc2' in output and 'dim_fc3' in output and 'dim_fc4' in output
+    assert 'cutoff_fc4' in output
+    assert 'kappa_engine' not in output and 'temps' not in output
+
+
+@pytest.mark.parametrize('name', ['nep-qha-rta-3ph.yaml', 'nep-qha-sscha-rta-3ph.yaml', 'tdbte.yaml'])
+def test_fc2fc3fc4_rejects_coupled_or_dynamic_inputs(name, capsys):
+    with pytest.raises(SystemExit):
+        parse_selected_command(ROOT/'examples'/name, 'fc2fc3fc4')
+    assert "use 'run'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('options', [
+    {'force-constant': {'cutoff-fc4': 0}},
+    {'calculator': {'model': 'model.nep', 'nep-force-backend': 'gpu-batch'}},
+])
+def test_fc2fc3fc4_validates_fourthorder_before_execution(tmp_path, options):
+    data = {'structure': {}, 'calculator': {'model': 'model.nep'}, 'force-constant': {}}
+    data.update(options)
+    with pytest.raises(SystemExit):
+        parse_selected_command(write_input(tmp_path, data), 'fc2fc3fc4')

@@ -17,6 +17,7 @@ dependencies = [
   "h5py",
   "ase",
   "calorine>=3.5",
+  "mace-torch",
   "hiphive",
   "trainstation",
   "phonopy>=4.1",
@@ -30,9 +31,6 @@ dependencies = [
 [project.optional-dependencies]
 tdbte = [
   "numba"
-]
-mace = [
-  "mace-torch"
 ]
 dev = [
   "pytest>=8.0"

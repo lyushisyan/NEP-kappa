@@ -13,7 +13,7 @@ class CommandSpec:
     help: str
 
 
-CALCULATION_COMMANDS = ("relax", "fc2", "fc2fc3", "kappa", "tdbte")
+CALCULATION_COMMANDS = ("relax", "fc2", "fc2fc3", "fc2fc3fc4", "kappa", "tdbte")
 
 
 COMMAND_SPECS = (
@@ -22,6 +22,7 @@ COMMAND_SPECS = (
     CommandSpec("relax", "Relax the input structure."),
     CommandSpec("fc2", "Generate FC2, or perform the QHA volume scan when enabled."),
     CommandSpec("fc2fc3", "Generate second- and third-order force constants."),
+    CommandSpec("fc2fc3fc4", "Generate second-, third- and fourth-order force constants."),
     CommandSpec("kappa", "Compute conductivity using the input-selected route."),
     CommandSpec("tdbte", "Run nonequilibrium phonon dynamics from a TD-BTE input."),
     CommandSpec("plot", "Plot completed results."),
@@ -31,6 +32,11 @@ COMMAND_SPECS = (
 PUBLIC_COMMANDS = tuple(spec.name for spec in COMMAND_SPECS)
 EXECUTION_COMMANDS = frozenset({"run", *CALCULATION_COMMANDS, "plot"})
 VALIDATION_TARGETS = ("run", *CALCULATION_COMMANDS, "plot", "report")
+
+
+def calculation_steps(command: str) -> tuple[str, ...]:
+    """Expand a public calculation command into its existing scientific stages."""
+    return ("fc2fc3", "fc4") if command == "fc2fc3fc4" else (command,)
 
 
 def canonical_command(name: str) -> str:

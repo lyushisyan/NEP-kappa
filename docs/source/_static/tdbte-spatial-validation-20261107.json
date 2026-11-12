@@ -1,0 +1,1429 @@
+{
+  "synthetic": {
+    "scope": "Nonlinear algebraic collision model; arbitrary rates; not a material benchmark",
+    "ballistic": [
+      {
+        "cells": 32,
+        "rms_mode_error": 0.060937928143467185
+      },
+      {
+        "cells": 64,
+        "rms_mode_error": 0.03094638976423389
+      },
+      {
+        "cells": 128,
+        "rms_mode_error": 0.015598019356875345
+      }
+    ],
+    "diffusive_limit": [
+      {
+        "cells": 128,
+        "analytic_alpha_nm2_ps": 0.5070741340751106,
+        "measured_decay_rate_per_ps": 0.0069332643730999,
+        "fourier_decay_rate_per_ps": 0.004887325298189733,
+        "relative_decay_rate_error": 0.4186214238016821,
+        "final_amplitude_K": 0.008705193534424331,
+        "fourier_final_amplitude_K": 0.009068787629766949,
+        "audit": {
+          "steps": 401,
+          "collision_rhs_evaluations": 12832,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.1,
+          "max_energy_drift_fraction": 1.0105404120672996e-14,
+          "max_continuity_residual_fraction": 1.3208040604536411e-15,
+          "max_collision_energy_residual_fraction": 7.452732602953064e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6234347974634515,
+          "numerical_checks_passed": true
+        }
+      },
+      {
+        "cells": 256,
+        "analytic_alpha_nm2_ps": 0.5070741340751106,
+        "measured_decay_rate_per_ps": 0.005730980098570399,
+        "fourier_decay_rate_per_ps": 0.004887325298189733,
+        "relative_decay_rate_error": 0.17262096318678766,
+        "final_amplitude_K": 0.00891705282330849,
+        "fourier_final_amplitude_K": 0.009068787629766949,
+        "audit": {
+          "steps": 401,
+          "collision_rhs_evaluations": 12832,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.2,
+          "max_energy_drift_fraction": 2.189504226145816e-14,
+          "max_continuity_residual_fraction": 2.4228988418977506e-15,
+          "max_collision_energy_residual_fraction": 8.776113069554179e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6234347820723611,
+          "numerical_checks_passed": true
+        }
+      },
+      {
+        "cells": 512,
+        "analytic_alpha_nm2_ps": 0.5070741340751106,
+        "measured_decay_rate_per_ps": 0.005129023072433825,
+        "fourier_decay_rate_per_ps": 0.004887325298189733,
+        "relative_decay_rate_error": 0.049453997738521105,
+        "final_amplitude_K": 0.00902505529929019,
+        "fourier_final_amplitude_K": 0.009068787629766949,
+        "audit": {
+          "steps": 401,
+          "collision_rhs_evaluations": 12832,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.4,
+          "max_energy_drift_fraction": 2.1052925251402075e-16,
+          "max_continuity_residual_fraction": 5.757499236065897e-16,
+          "max_collision_energy_residual_fraction": 9.7512356709534e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6234347782244078,
+          "numerical_checks_passed": true
+        }
+      }
+    ],
+    "time_convergence": [
+      {
+        "maximum_step_ps": 0.04,
+        "audit": {
+          "steps": 8,
+          "collision_rhs_evaluations": 256,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.08,
+          "max_energy_drift_fraction": 2.0127903602381027e-16,
+          "max_continuity_residual_fraction": 9.59436367643679e-17,
+          "max_collision_energy_residual_fraction": 1.0416737705845658e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.623502918398789,
+          "numerical_checks_passed": true
+        },
+        "l2_error_to_fine_time_step": 0.010887306782187205
+      },
+      {
+        "maximum_step_ps": 0.02,
+        "audit": {
+          "steps": 12,
+          "collision_rhs_evaluations": 384,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 2.0127903602381027e-16,
+          "max_continuity_residual_fraction": 9.281222085782195e-17,
+          "max_collision_energy_residual_fraction": 1.2689385990816668e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029185262315,
+          "numerical_checks_passed": true
+        },
+        "l2_error_to_fine_time_step": 0.0055139653931691275
+      },
+      {
+        "maximum_step_ps": 0.01,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.02,
+          "max_energy_drift_fraction": 2.0127903602381027e-16,
+          "max_continuity_residual_fraction": 1.159140073606501e-16,
+          "max_collision_energy_residual_fraction": 1.1026588578666362e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029186009529,
+          "numerical_checks_passed": true
+        },
+        "l2_error_to_fine_time_step": 0.0028712354953105298
+      },
+      {
+        "maximum_step_ps": 0.00125,
+        "audit": {
+          "steps": 160,
+          "collision_rhs_evaluations": 5120,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.0025,
+          "max_energy_drift_fraction": 9.057556621071462e-15,
+          "max_continuity_residual_fraction": 9.638999962180077e-16,
+          "max_collision_energy_residual_fraction": 4.130999983791462e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.623502918660861,
+          "numerical_checks_passed": true
+        }
+      }
+    ],
+    "thermal_profile_convergence": [
+      {
+        "kind": "ttg",
+        "cells": [
+          16,
+          32,
+          64
+        ],
+        "occupation_rms_errors_to_128_cells": [
+          0.01450972662709116,
+          0.007184602027492641,
+          0.002555194777541745
+        ],
+        "nonlinear_audits": [
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.008,
+            "max_energy_drift_fraction": 2.1051705632453945e-16,
+            "max_continuity_residual_fraction": 2.513300127936497e-16,
+            "max_collision_energy_residual_fraction": 1.6280975463499213e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.4234343284832225,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.016,
+            "max_energy_drift_fraction": 8.420682252981576e-16,
+            "max_continuity_residual_fraction": 2.561637008728024e-16,
+            "max_collision_energy_residual_fraction": 2.1868161578906287e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.4205038842080464,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.032,
+            "max_energy_drift_fraction": 1.2631023379472367e-15,
+            "max_continuity_residual_fraction": 2.5483973538179873e-16,
+            "max_collision_energy_residual_fraction": 2.8109113166400825e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.4197690959731113,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.064,
+            "max_energy_drift_fraction": 2.5262046758944735e-15,
+            "max_continuity_residual_fraction": 3.6425469179143216e-16,
+            "max_collision_energy_residual_fraction": 2.871004819457164e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.4195852626846501,
+            "numerical_checks_passed": true
+          }
+        ],
+        "ballistic": [
+          {
+            "cells": 16,
+            "analytic_occupation_rms_error": 0.02179302981205456,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.008,
+              "max_energy_drift_fraction": 4.210341126490789e-16,
+              "max_continuity_residual_fraction": 1.960088943616938e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4234343284832225,
+              "numerical_checks_passed": true
+            }
+          },
+          {
+            "cells": 32,
+            "analytic_occupation_rms_error": 0.01092526102887314,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.016,
+              "max_energy_drift_fraction": 6.315511689736182e-16,
+              "max_continuity_residual_fraction": 1.7734833587906145e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4205038842080464,
+              "numerical_checks_passed": true
+            }
+          },
+          {
+            "cells": 64,
+            "analytic_occupation_rms_error": 0.005400117157209747,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.032,
+              "max_energy_drift_fraction": 1.2631023379472367e-15,
+              "max_continuity_residual_fraction": 3.545848939501644e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4197690959731113,
+              "numerical_checks_passed": true
+            }
+          }
+        ],
+        "time_convergence": [
+          {
+            "maximum_step_ps": 0.04,
+            "audit": {
+              "steps": 8,
+              "collision_rhs_evaluations": 256,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.08,
+              "max_energy_drift_fraction": 4.210341126490789e-16,
+              "max_continuity_residual_fraction": 9.032565793505122e-17,
+              "max_collision_energy_residual_fraction": 8.140610798883308e-17,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4234343284832225,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.005324182634872383
+          },
+          {
+            "maximum_step_ps": 0.02,
+            "audit": {
+              "steps": 12,
+              "collision_rhs_evaluations": 384,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.04,
+              "max_energy_drift_fraction": 2.1051705632453945e-16,
+              "max_continuity_residual_fraction": 1.3928362434380928e-16,
+              "max_collision_energy_residual_fraction": 1.126077767664015e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4234343284832225,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.002750078687789428
+          },
+          {
+            "maximum_step_ps": 0.01,
+            "audit": {
+              "steps": 21,
+              "collision_rhs_evaluations": 672,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.02,
+              "max_energy_drift_fraction": 4.210341126490789e-16,
+              "max_continuity_residual_fraction": 1.2131565148760413e-16,
+              "max_collision_energy_residual_fraction": 1.1283381237735092e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4234343284832225,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.0014436793985937058
+          },
+          {
+            "maximum_step_ps": 0.00125,
+            "audit": {
+              "steps": 160,
+              "collision_rhs_evaluations": 5120,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.0025,
+              "max_energy_drift_fraction": 8.420682252981578e-15,
+              "max_continuity_residual_fraction": 9.529009932174005e-16,
+              "max_collision_energy_residual_fraction": 3.510546239225374e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.4234343284832225,
+              "numerical_checks_passed": true
+            }
+          }
+        ]
+      },
+      {
+        "kind": "gaussian",
+        "cells": [
+          16,
+          32,
+          64
+        ],
+        "occupation_rms_errors_to_128_cells": [
+          0.022678575876922756,
+          0.012485775984768317,
+          0.004687286565507206
+        ],
+        "nonlinear_audits": [
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.008,
+            "max_energy_drift_fraction": 2.0601451960442293e-16,
+            "max_continuity_residual_fraction": 1.3610016209352256e-16,
+            "max_collision_energy_residual_fraction": 2.2710545248440292e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.623502915061726,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.016,
+            "max_energy_drift_fraction": 4.1202903922769274e-16,
+            "max_continuity_residual_fraction": 1.9825264625754965e-16,
+            "max_collision_energy_residual_fraction": 2.3854815879754493e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.6235029145761637,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.032,
+            "max_energy_drift_fraction": 1.4421016372969243e-15,
+            "max_continuity_residual_fraction": 2.465780638623295e-16,
+            "max_collision_energy_residual_fraction": 2.6974164626878255e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.6235029144994628,
+            "numerical_checks_passed": true
+          },
+          {
+            "steps": 52,
+            "collision_rhs_evaluations": 1664,
+            "collision_positivity_retries": 0,
+            "max_cfl": 0.064,
+            "max_energy_drift_fraction": 2.4721742353661566e-15,
+            "max_continuity_residual_fraction": 3.6726357024021695e-16,
+            "max_collision_energy_residual_fraction": 2.82511408262226e-16,
+            "max_entropy_decrease": 0.0,
+            "minimum_active_occupation": 1.623502914482592,
+            "numerical_checks_passed": true
+          }
+        ],
+        "ballistic": [
+          {
+            "cells": 16,
+            "analytic_occupation_rms_error": 0.037520468182417076,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.008,
+              "max_energy_drift_fraction": 6.180435588132688e-16,
+              "max_continuity_residual_fraction": 1.7842208185145326e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.623502915061726,
+              "numerical_checks_passed": true
+            }
+          },
+          {
+            "cells": 32,
+            "analytic_occupation_rms_error": 0.020308857283384003,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.016,
+              "max_energy_drift_fraction": 4.1202903922769274e-16,
+              "max_continuity_residual_fraction": 1.9218647712632018e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.6235029145761637,
+              "numerical_checks_passed": true
+            }
+          },
+          {
+            "cells": 64,
+            "analytic_occupation_rms_error": 0.010453220386637098,
+            "audit": {
+              "steps": 52,
+              "collision_rhs_evaluations": 0,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.032,
+              "max_energy_drift_fraction": 1.4421016372969243e-15,
+              "max_continuity_residual_fraction": 2.5115365531599133e-16,
+              "max_collision_energy_residual_fraction": 0.0,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.6235029144994628,
+              "numerical_checks_passed": true
+            }
+          }
+        ],
+        "time_convergence": [
+          {
+            "maximum_step_ps": 0.04,
+            "audit": {
+              "steps": 8,
+              "collision_rhs_evaluations": 256,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.08,
+              "max_energy_drift_fraction": 2.0601451960442293e-16,
+              "max_continuity_residual_fraction": 7.747414548005892e-17,
+              "max_collision_energy_residual_fraction": 7.60972293010136e-17,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.623502915061726,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.00710760445030537
+          },
+          {
+            "maximum_step_ps": 0.02,
+            "audit": {
+              "steps": 12,
+              "collision_rhs_evaluations": 384,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.04,
+              "max_energy_drift_fraction": 4.1202903920884586e-16,
+              "max_continuity_residual_fraction": 1.1547335985202495e-16,
+              "max_collision_energy_residual_fraction": 1.1354992287631824e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.623502915061726,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.003602404583690523
+          },
+          {
+            "maximum_step_ps": 0.01,
+            "audit": {
+              "steps": 21,
+              "collision_rhs_evaluations": 672,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.02,
+              "max_energy_drift_fraction": 2.0601451960442293e-16,
+              "max_continuity_residual_fraction": 1.346743502637524e-16,
+              "max_collision_energy_residual_fraction": 1.1415445045138335e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.623502915061726,
+              "numerical_checks_passed": true
+            },
+            "l2_error_to_fine_time_step": 0.0018782458909058044
+          },
+          {
+            "maximum_step_ps": 0.00125,
+            "audit": {
+              "steps": 160,
+              "collision_rhs_evaluations": 5120,
+              "collision_positivity_retries": 0,
+              "max_cfl": 0.0025,
+              "max_energy_drift_fraction": 8.44659530378134e-15,
+              "max_continuity_residual_fraction": 9.274549445673753e-16,
+              "max_collision_energy_residual_fraction": 3.107620359077445e-16,
+              "max_entropy_decrease": 0.0,
+              "minimum_active_occupation": 1.623502915061726,
+              "numerical_checks_passed": true
+            }
+          }
+        ]
+      }
+    ],
+    "finite_amplitude_and_pulses": [
+      {
+        "initial": {
+          "kind": "gaussian",
+          "sigma-nm": 0.6,
+          "delta-temperature-K": 30
+        },
+        "collisions": false,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.1202903922769274e-16,
+          "max_continuity_residual_fraction": 1.5617611459083482e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029145761637,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": -10.094420853379155,
+        "final_cosine_amplitude_K": -9.825916249803065,
+        "final_departure_from_local_BE_max": 0.018137589636020794,
+        "initial_harmonics_K": [
+          -10.094420853379155,
+          7.234662653188724,
+          -4.152532895676115,
+          1.9088236032660078
+        ],
+        "final_harmonics_K": [
+          -9.825916249803065,
+          6.503786729182127,
+          -3.2864625511009704,
+          1.277995927796431
+        ]
+      },
+      {
+        "initial": {
+          "kind": "gaussian",
+          "sigma-nm": 0.6,
+          "delta-temperature-K": 30
+        },
+        "collisions": true,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.1202903922769274e-16,
+          "max_continuity_residual_fraction": 1.4954045221381502e-16,
+          "max_collision_energy_residual_fraction": 1.5065791987981472e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029145761637,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": -10.094420853379155,
+        "final_cosine_amplitude_K": -9.842242277797746,
+        "final_departure_from_local_BE_max": 0.014532785846026405,
+        "initial_harmonics_K": [
+          -10.094420853379155,
+          7.234662653188724,
+          -4.152532895676115,
+          1.9088236032660078
+        ],
+        "final_harmonics_K": [
+          -9.842242277797746,
+          6.547104639678799,
+          -3.335750534458784,
+          1.3121076394309268
+        ]
+      },
+      {
+        "initial": {
+          "kind": "selective",
+          "sigma-nm": 0.6,
+          "amplitude": 0.5
+        },
+        "collisions": false,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 2.0465101311350555e-16,
+          "max_continuity_residual_fraction": 1.6864621212486899e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029151416231,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": -13.227628853379764,
+        "final_cosine_amplitude_K": -12.875962771435276,
+        "final_departure_from_local_BE_max": 0.1595040812737133,
+        "initial_harmonics_K": [
+          -13.227628853379764,
+          9.478787259614917,
+          -5.438902163675131,
+          2.4986285404557624
+        ],
+        "final_harmonics_K": [
+          -12.875962771435276,
+          8.521267812953834,
+          -4.304509052703273,
+          1.6728089955997447
+        ]
+      },
+      {
+        "initial": {
+          "kind": "selective",
+          "sigma-nm": 0.6,
+          "amplitude": 0.5
+        },
+        "collisions": true,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.093020262270111e-16,
+          "max_continuity_residual_fraction": 1.6205970533448232e-16,
+          "max_collision_energy_residual_fraction": 1.214708832702667e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6235029151276077,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": -13.227628853379764,
+        "final_cosine_amplitude_K": -12.894728419187356,
+        "final_departure_from_local_BE_max": 0.08971363534010791,
+        "initial_harmonics_K": [
+          -13.227628853379764,
+          9.478787259614917,
+          -5.438902163675131,
+          2.4986285404557624
+        ],
+        "final_harmonics_K": [
+          -12.894728419187356,
+          8.570835853416286,
+          -4.360335401770424,
+          1.7106640892029756
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 1.0
+        },
+        "collisions": false,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.2105847812432603e-16,
+          "max_continuity_residual_fraction": 1.7302107180267933e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6167224072102346,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 0.9999999999999821,
+        "final_cosine_amplitude_K": 0.9733463994674916,
+        "final_departure_from_local_BE_max": 0.000592533936870546,
+        "initial_harmonics_K": [
+          0.9999999999999821,
+          5.342948306008566e-16,
+          -4.85722573273506e-15,
+          -1.8630930131990908e-14
+        ],
+        "final_harmonics_K": [
+          0.9733463994674916,
+          -7.974479936112555e-07,
+          3.567726926390069e-09,
+          -1.0328585209329333e-11
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 1.0
+        },
+        "collisions": true,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.2105847812432603e-16,
+          "max_continuity_residual_fraction": 2.0162848583957464e-16,
+          "max_collision_energy_residual_fraction": 1.5959442717942962e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.6167224072102346,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 0.9999999999999821,
+        "final_cosine_amplitude_K": 0.9749178870849389,
+        "final_departure_from_local_BE_max": 0.00048022056946564516,
+        "initial_harmonics_K": [
+          0.9999999999999821,
+          5.342948306008566e-16,
+          -4.85722573273506e-15,
+          -1.8630930131990908e-14
+        ],
+        "final_harmonics_K": [
+          0.9749178870849389,
+          3.6477897142825344e-06,
+          2.2577720734662243e-09,
+          -9.819860202764374e-12
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 30.0
+        },
+        "collisions": false,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 6.315511689736182e-16,
+          "max_continuity_residual_fraction": 1.814673970322246e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.4205038842080464,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 29.999999999999986,
+        "final_cosine_amplitude_K": 29.20027708357886,
+        "final_departure_from_local_BE_max": 0.017965610303372993,
+        "initial_harmonics_K": [
+          29.999999999999986,
+          1.0658141036401503e-14,
+          1.0658141036401503e-14,
+          1.2878587085651816e-14
+        ],
+        "final_harmonics_K": [
+          29.20027708357886,
+          -0.000717413603164907,
+          9.707561958482991e-05,
+          -8.456771876996783e-06
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 30.0
+        },
+        "collisions": true,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 6.315511689736182e-16,
+          "max_continuity_residual_fraction": 1.4739698951105448e-16,
+          "max_collision_energy_residual_fraction": 1.813094835894228e-16,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.4205038842080464,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 29.999999999999986,
+        "final_cosine_amplitude_K": 29.24741454871506,
+        "final_departure_from_local_BE_max": 0.014587316056899988,
+        "initial_harmonics_K": [
+          29.999999999999986,
+          1.0658141036401503e-14,
+          1.0658141036401503e-14,
+          1.2878587085651816e-14
+        ],
+        "final_harmonics_K": [
+          29.24741454871506,
+          0.0032835314071348876,
+          6.168754094537654e-05,
+          -8.02666910981742e-06
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 90.0
+        },
+        "collisions": false,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 4.2082525749996144e-16,
+          "max_continuity_residual_fraction": 1.555378162780172e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.018149600480133,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 90.00000000000001,
+        "final_cosine_amplitude_K": 87.59762470680108,
+        "final_departure_from_local_BE_max": 0.0567550876905639,
+        "initial_harmonics_K": [
+          90.00000000000001,
+          -2.842170943040401e-14,
+          -3.197442310920451e-14,
+          -3.2862601528904634e-14
+        ],
+        "final_harmonics_K": [
+          87.59762470680108,
+          -0.006384389419599401,
+          0.00278842115296829,
+          -0.0007539074499547382
+        ]
+      },
+      {
+        "initial": {
+          "kind": "ttg",
+          "delta-temperature-K": 90.0
+        },
+        "collisions": true,
+        "audit": {
+          "steps": 21,
+          "collision_rhs_evaluations": 672,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.04,
+          "max_energy_drift_fraction": 6.312378862499421e-16,
+          "max_continuity_residual_fraction": 1.5893711250184968e-16,
+          "max_collision_energy_residual_fraction": 9.877258391631502e-17,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 1.018149600480133,
+          "numerical_checks_passed": true
+        },
+        "initial_cosine_amplitude_K": 90.00000000000001,
+        "final_cosine_amplitude_K": 87.73887536774183,
+        "final_departure_from_local_BE_max": 0.04678883956692247,
+        "initial_harmonics_K": [
+          90.00000000000001,
+          -2.842170943040401e-14,
+          -3.197442310920451e-14,
+          -3.2862601528904634e-14
+        ],
+        "final_harmonics_K": [
+          87.73887536774183,
+          0.029639855828346384,
+          0.0018285107151232438,
+          -0.0007178264935152612
+        ]
+      }
+    ],
+    "checks_passed": true
+  },
+  "material": {
+    "runs": [
+      {
+        "name": "ttg-small-nonlinear",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": true,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "ttg",
+              "delta_temperature_K": 1,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 64,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 0.0,
+          "max_continuity_residual_fraction": 1.2622975671445776e-16,
+          "max_collision_energy_residual_fraction": 1.0391749488093833e-17,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.015799998466752542,
+          "spatial_hdf5_sha256": "6651278cc4545be3859aebf900a629924c1397d2fc4f7552ec429a1470fe4a94"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          1.1199374760906267e-11,
+          1.0498768521216562e-11,
+          3.2866653842944515e-11,
+          -1.2001233340441786e-11,
+          -1.4709261586531852e-11,
+          -2.7854163420215627e-11
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 9.456133110863779e-07,
+        "maximum_departure_from_local_BE": 1.717982284157325e-05
+      },
+      {
+        "name": "ttg-small-ballistic",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": false,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "ttg",
+              "delta_temperature_K": 1,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 0.0,
+          "max_continuity_residual_fraction": 9.50633617441745e-17,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.015799998466752542,
+          "spatial_hdf5_sha256": "185de11bcba712e29b6c468dc8431ee05881614ab873380ad7b473cdc20672e5"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          1.1102230246251565e-16,
+          5.551115123125783e-17,
+          -5.551115123125783e-17,
+          2.7755575615628914e-17,
+          0.0,
+          0.0
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.0,
+        "maximum_departure_from_local_BE": 1.7193079031946643e-05
+      },
+      {
+        "name": "ttg-large-nonlinear",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": true,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "ttg",
+              "delta_temperature_K": 90,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 64,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.3020967653777294e-16,
+          "max_continuity_residual_fraction": 9.489376022572102e-17,
+          "max_collision_energy_residual_fraction": 5.132711605438166e-18,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.003218336177903646,
+          "spatial_hdf5_sha256": "accad6f349aa0b9175d88be178ccc8ede070a124c8ccb494a21f0f1943758485"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          8.817566654606424e-08,
+          8.260923661795871e-08,
+          2.584521237025683e-07,
+          -9.460699532115591e-08,
+          -1.1597818988517972e-07,
+          -2.186518418129113e-07
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.00014316781833993052,
+        "maximum_departure_from_local_BE": 0.0019998783628097437
+      },
+      {
+        "name": "ttg-large-ballistic",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": false,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "ttg",
+              "delta_temperature_K": 90,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.3020967653777294e-16,
+          "max_continuity_residual_fraction": 7.941743521458942e-17,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.003218336177903646,
+          "spatial_hdf5_sha256": "3c71fc2f062470570bd60f4eba827d2f23e6f18d362237ddc39a019e1fa291b9"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          0.0,
+          -5.551115123125783e-17,
+          -5.551115123125783e-17,
+          2.7755575615628914e-17,
+          -2.7755575615628914e-17,
+          1.3877787807814457e-17
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.0,
+        "maximum_departure_from_local_BE": 0.002001145424931741
+      },
+      {
+        "name": "gaussian-nonlinear",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": true,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "gaussian",
+              "delta_temperature_K": 30,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01,
+              "sigma_nm": 8
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 64,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.271916516256558e-16,
+          "max_continuity_residual_fraction": 1.466622379881471e-16,
+          "max_collision_energy_residual_fraction": 1.396120634861826e-17,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.01602218917824042,
+          "spatial_hdf5_sha256": "4a235c9aac60dcf5d4cc89bf94ce138e3ec4facd09b4b843f6940b9916cde749"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          3.469411424816826e-09,
+          3.2391890281147084e-09,
+          1.0249679105456266e-08,
+          -3.702077283618266e-09,
+          -4.5419818184289085e-09,
+          -8.714220137151507e-09
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 3.511950508159874e-05,
+        "maximum_departure_from_local_BE": 0.0003300833706813314
+      },
+      {
+        "name": "gaussian-ballistic",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": false,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "gaussian",
+              "delta_temperature_K": 30,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.01,
+              "sigma_nm": 8
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.271916516256558e-16,
+          "max_continuity_residual_fraction": 1.1347934264285427e-16,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.01602218917824042,
+          "spatial_hdf5_sha256": "66d48bc9b0f576fc412eb0b0e33a5ef64c08648fc3817682b0761eb641a0b4e9"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          0.0,
+          5.551115123125783e-17,
+          0.0,
+          2.7755575615628914e-17,
+          5.551115123125783e-17,
+          1.3877787807814457e-17
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.0,
+        "maximum_departure_from_local_BE": 0.000330382260354777
+      },
+      {
+        "name": "selective-nonlinear",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": true,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "selective",
+              "delta_temperature_K": 1.0,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.2,
+              "branches": [
+                3,
+                4,
+                5
+              ],
+              "sigma_nm": 8
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 64,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.3549035879219404e-16,
+          "max_continuity_residual_fraction": 1.695169652834059e-16,
+          "max_collision_energy_residual_fraction": 8.452637123808361e-18,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.016014235955695708,
+          "spatial_hdf5_sha256": "3d77edc6a0e32d2cef02694a57ed64de0254f8239dc2ff51c5b326a855082f2f"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          2.788034873080214e-05,
+          3.819150236522573e-05,
+          6.464327518551638e-05,
+          -3.2959766612356e-05,
+          -4.229485749551731e-05,
+          -5.546050217408727e-05
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.009163009220619802,
+        "maximum_departure_from_local_BE": 0.04818482588100573
+      },
+      {
+        "name": "selective-ballistic",
+        "audit": {
+          "spatial": true,
+          "numerical_checks_passed": true,
+          "validated_for_physical_dynamics": false,
+          "kernel_path": "/Users/sxliu/Documents/GitHub/NEP-kappa/calculations/3C-SiC/tdbte-validation-20261107-final/mesh-3/tdbte-kernel/manifest.json",
+          "kernel_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "metadata_sha256": "42607e712ce6f725494f86dad3f90be113599e045379f9ec8dd1848716e8fa5f",
+          "mesh": [
+            3,
+            3,
+            3
+          ],
+          "input_sha256": {
+            "phono3py_disp.yaml": "9b14f2aaabf8eb8ed964683d01c571190321395b1668e6da937e4d85ba17e5ba",
+            "fc2.hdf5": "e6b89c8395e6d87a88998071f3976f16becca7258784a18bd7f1d0a0d7530f17",
+            "fc3.hdf5": "3ec35cadd98d33d9f7e8db80fcbe78893a3746c65d3d97210b47771257f345a6"
+          },
+          "spatial_options": {
+            "direction": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "boundary": "periodic",
+            "cfl": 0.8,
+            "batch_size": 16,
+            "collisions": false,
+            "rtol": 1e-11,
+            "atol": 1e-14,
+            "length_nm": 64.0,
+            "cells": 8,
+            "initial": {
+              "kind": "selective",
+              "delta_temperature_K": 1.0,
+              "profile": "gaussian",
+              "center_nm": 32.0,
+              "amplitude": 0.2,
+              "branches": [
+                3,
+                4,
+                5
+              ],
+              "sigma_nm": 8
+            }
+          },
+          "collision_backend": "numba",
+          "velocity_basis": "diagonal analytic dynamical-matrix derivative in native collision eigenvectors; degenerate coherences neglected",
+          "max_degenerate_offdiagonal_velocity_nm_ps": 0.5267757100771778,
+          "integration": "Strang: half nonlinear DOP853 collision, full upwind streaming, half collision",
+          "maximum_split_step_ps": 0.01,
+          "limitations": "Fixed-frequency population model; first-order spatial numerical diffusion; absolute collision rates and physical Fourier limit require independent convergence; degenerate coherences neglected",
+          "steps": 2,
+          "collision_rhs_evaluations": 0,
+          "collision_positivity_retries": 0,
+          "max_cfl": 0.009608913402320009,
+          "max_energy_drift_fraction": 1.3549035879219404e-16,
+          "max_continuity_residual_fraction": 6.617630762098436e-17,
+          "max_collision_energy_residual_fraction": 0.0,
+          "max_entropy_decrease": 0.0,
+          "minimum_active_occupation": 0.016014280094657104,
+          "spatial_hdf5_sha256": "dfd45a63254887c976668995fa44e8d182a9d8dd8d8db91a7e0930400f2afe6c"
+        },
+        "mean_branch_energy_change_eV_nm3": [
+          -2.220446049250313e-16,
+          -5.551115123125783e-17,
+          0.0,
+          0.0,
+          -2.7755575615628914e-17,
+          1.3877787807814457e-17
+        ],
+        "maximum_branch_collision_power_eV_nm3_ps": 0.0,
+        "maximum_departure_from_local_BE": 0.04818482588100573
+      }
+    ],
+    "material_absolute_rates_validated": false,
+    "material_Fourier_limit_validated": false,
+    "note": "Short coarse-grid numerical demonstrations; no converged SiC absolute rates or Fourier benchmark"
+  },
+  "numerical_checks_passed": true,
+  "validated_for_physical_dynamics": false
+}

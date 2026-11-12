@@ -16,6 +16,7 @@ See :doc:`installation` for environment setup.
 - trainstation
 - seekpath
 - calorine>=3.5 (CPU and GPU)
+- mace-torch
 - tqdm
 - PyYAML
 
@@ -32,8 +33,8 @@ Additional requirements
 - Slurm RTA/LBTE mode requires ``sbatch`` and a result directory on a shared filesystem
 - generic ASE/plugin calculators require their provider package to be installed
   separately; those optional machine-learning frameworks are not core dependencies
-- native MACE force evaluation requires the ``mace`` optional dependency:
-  ``python -m pip install -e '.[mace]'``
+- native MACE force evaluation uses mace-torch, included in the standard
+  installation; supply a matching checkpoint or configure a foundation model
 - Phonopy SSCHA requires an ASE calculator that supplies both total energy and
   forces; the NEP backend through Calorine satisfies this requirement
 

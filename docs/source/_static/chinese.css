@@ -1,0 +1,11 @@
+/* 中文长段落与参数表的阅读样式，不改变代码字体。 */
+body, h1, h2, h3, h4, h5, h6, .wy-menu {
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.rst-content p, .rst-content li { line-height: 1.85; }
+.wy-nav-content { max-width: 1100px; }
+.wy-table-responsive table td, .wy-table-responsive table th {
+  white-space: normal;
+}
+.rst-content code, .rst-content pre { font-family: monospace; }
+.graphviz object, img.graphviz { max-width: 100%; height: auto; }

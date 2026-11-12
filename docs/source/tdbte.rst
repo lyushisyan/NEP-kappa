@@ -4,7 +4,21 @@ Time-dependent phonon BTE and nonequilibrium relaxation
 TD-BTE evolves spatially homogeneous phonon occupations at fixed frequencies
 using three-phonon scattering. This chapter selectively excites the optical
 branches of 3C-SiC and follows energy transfer to the acoustic branches.
-The model has no spatial transport, external heat bath or continuing excitation.
+This homogeneous route has no spatial transport, external heat bath or continuing excitation.
+The optional :doc:`tdbte_spatial` route adds periodic one-dimensional real-space
+transport while retaining the three-dimensional q mesh and nonlinear collisions.
+
+An independent kernel audit on 2026-11-07 reproduced an unresolved off-shell
+small-q acoustic-endpoint discrepancy. Numerical invariants pass, but this does
+not establish validated absolute relaxation rates. The off-shell check is an
+optional diagnostic and does not gate the spatial implementation.
+See :doc:`tdbte_validation` for the reproducible benchmark, conventions and
+development gate.
+
+.. toctree::
+   :maxdepth: 1
+
+   tdbte_spatial
 
 Workflow and preparation
 ----------------------------

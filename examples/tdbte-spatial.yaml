@@ -1,0 +1,31 @@
+# Demonstration settings, not converged. Run from the repository root.
+structure:
+  poscar: examples/structures/3C-SiC/POSCAR_primitive
+  relaxation: false
+calculator:
+  name: nep
+  model: examples/potentials/3C-SiC/nep_3C-SiC.txt
+force-constant:
+  dim-fc2: [3, 3, 3]
+  dim-fc3: [3, 3, 3]
+tdbte:
+  mesh: [3, 3, 3]
+  temperature: 300
+  duration-ps: 0.1
+  max-step-ps: 0.01
+  samples: 6
+  spatial:
+    length-nm: 64
+    cells: 16
+    direction: [1, 0, 0]  # Cartesian direction, normalized internally.
+    boundary: periodic
+    cfl: 0.8
+    batch-size: 8
+    initial:
+      kind: ttg
+      delta-temperature-K: 10
+plot:
+  layout: both
+  dpi: 150
+output:
+  result-dir: calculations/3C-SiC/tdbte-spatial

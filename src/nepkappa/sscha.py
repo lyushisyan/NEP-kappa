@@ -30,7 +30,8 @@ import yaml
 
 from nepkappa.approximations import sscha_approximation
 from nepkappa.config_validation import expand_transport_temperatures, validate_scph
-from nepkappa.provenance import canonical_data, data_sha256, file_identity
+from nepkappa.identity import canonical_data, data_sha256, file_identity
+from nepkappa.temperatures import temperature_directory_name, temperature_points
 from nepkappa.runtime import ase_to_phonopy, phonopy_to_ase, progress_iter
 
 
@@ -606,21 +607,6 @@ def maximum_kept_departure(trace, transient):
         departure = np.abs((energies[kept] - mean) / errors[kept])
     finite = departure[np.isfinite(departure)]
     return float(np.max(finite)) if finite.size else None
-
-
-def temperature_points(values):
-    """Expand inclusive [minimum, maximum, step] temperatures robustly."""
-    minimum, maximum, step = (float(value) for value in values)
-    count = int(np.floor((maximum - minimum) / step + 1.0e-10))
-    return [minimum + index * step for index in range(count + 1)]
-
-
-def temperature_directory_name(temperature):
-    """Return a sortable, filesystem-safe temperature directory name."""
-    if float(temperature).is_integer():
-        return f"T{int(temperature):04d}K"
-    value = f"{temperature:.6f}".rstrip("0").rstrip(".").replace(".", "p")
-    return f"T{value}K"
 
 
 def iteration_seed(random_seed, iteration):

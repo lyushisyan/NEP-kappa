@@ -98,9 +98,9 @@ ASE/plugin calculators, pass model-loading options through `kwargs`.
 
 Model identity is not established by its filename or directory. For readable
 NEP models inspect the header and ensure the structure's species are covered.
-`potentials/3C-SiC/nep_3C-SiC.txt` is material-specific;
-`potentials/nep89_20250409.txt` is the general 89-element model. Confirm origin
-or hashes when selecting among copies; use `potentials/README.md` and adjacent
+`examples/potentials/3C-SiC/nep_3C-SiC.txt` is material-specific;
+`examples/potentials/nep89_20250409.txt` is the general 89-element model. Confirm origin
+or hashes when selecting among copies; use `examples/potentials/README.md` and adjacent
 model notes. Species compatibility alone does not establish phase accuracy.
 Do not replace a missing model with a renamed or unrelated potential.
 

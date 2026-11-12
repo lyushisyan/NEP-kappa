@@ -20,7 +20,7 @@ In Codex, open this repository and ask, for example:
 .. code-block:: text
 
    Use $nepkappa-input to prepare a three-phonon RTA input for bulk Si.
-   Use examples/structures/Si/POSCAR_bulk and potentials/Si/Si_Bulk_Fan.txt, at 300 K.
+   Use examples/structures/Si/POSCAR_bulk and examples/potentials/Si/Si_Bulk_Fan.txt, at 300 K.
    Write si-rta.yaml and validate it. Do not start the calculation.
 
 For 3C-SiC:
@@ -28,7 +28,7 @@ For 3C-SiC:
 .. code-block:: text
 
    Use $nepkappa-input to prepare a three-phonon NEP input for 3C-SiC.
-   Use calculations/3C-SiC/POSCAR and potentials/3C-SiC/nep_3C-SiC.txt.
+   Use calculations/3C-SiC/POSCAR and examples/potentials/3C-SiC/nep_3C-SiC.txt.
    Calculate 300–1000 K in 100 K steps. Check the files and validate the input.
    Do not start the calculation.
 

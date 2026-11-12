@@ -32,7 +32,7 @@ def run_force_slurm(config, output_dir, force_jobs):
             json.dumps(chunk, indent=2) + "\n", encoding="utf-8"
         )
 
-    scripts = write_force_slurm_scripts(config, settings, output_dir, work_dir, chunks)
+    scripts = write_force_slurm_scripts(config, settings, work_dir, chunks)
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "workflow": "force-constants",
@@ -40,6 +40,7 @@ def run_force_slurm(config, output_dir, force_jobs):
         "status": "prepared",
         "submitted": False,
         "force_job_count": len(force_jobs),
+        "reuse_scope": force_jobs[0].get("reuse_scope"),
         "array_tasks": len(chunks),
         "scripts": {key: str(value) for key, value in scripts.items()},
     }
@@ -107,7 +108,7 @@ def split_items(items, jobs):
     return chunks
 
 
-def write_force_slurm_scripts(config, settings, output_dir, work_dir, chunks):
+def write_force_slurm_scripts(config, settings, work_dir, chunks):
     """Write the force worker array and dependent FC fitting scripts."""
     array_range = f"0-{len(chunks) - 1}"
     if settings["max_concurrent"] is not None:
@@ -123,17 +124,11 @@ def write_force_slurm_scripts(config, settings, output_dir, work_dir, chunks):
     ]
 
     invoked = getattr(config, "invoked_command", "fc2fc3")
-    fit_command = "fc2" if invoked == "fc2" else "fc2fc3"
-    if invoked == "run":
-        collect_lines = [
-            "NEPKAPPA_FORCE_COLLECT=1 "
-            + shlex.join([python, "-m", "nepkappa", "run", config_path])
-        ]
-    else:
-        collect_lines = [
-            "NEPKAPPA_FORCE_COLLECT=1 "
-            + shlex.join([python, "-m", "nepkappa", fit_command, config_path])
-        ]
+    fit_command = invoked if invoked in {"run", "fc2", "fc2fc3fc4"} else "fc2fc3"
+    collect_lines = [
+        "NEPKAPPA_FORCE_COLLECT=1 "
+        + shlex.join([python, "-m", "nepkappa", fit_command, config_path])
+    ]
 
     scripts = {
         "array": work_dir / "array.sh",
@@ -466,7 +461,7 @@ def write_slurm_scripts(
     ]
     collect_lines = [shlex.join(collect_command)]
     if method == "rta":
-        from nepkappa.transport import expected_kappa_name
+        from nepkappa.command_sampling import expected_kappa_name
 
         filename = expected_kappa_name(config.mesh)
         collect_lines.append(shlex.join([
