@@ -238,8 +238,8 @@ Additional local tests and reference data are not included in a fresh GitHub che
 
 Read the Docs hosts English and Simplified Chinese as separate projects linked
 as translations. Both use `.readthedocs.yaml`; set the project language to `en`
-or `zh-cn` to select the source directory. The sidebar language buttons keep
-the current chapter and version. Local builds are in `docs/build/en/` and
+or `zh-cn` to select the source directory. Language and version switching use
+the official Read the Docs menu. Local builds are in `docs/build/en/` and
 `docs/build/zh_CN/`.
 To serve the same documentation from `stable` and `latest`, configure a forced
 Exact Redirect from `/<language>/stable/*` to `/<language>/latest/:splat` in

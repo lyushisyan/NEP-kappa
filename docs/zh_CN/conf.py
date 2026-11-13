@@ -9,4 +9,4 @@ language = "zh_CN"
 html_title = "NEP-kappa 中文文档"
 html_static_path = ["../source/_static"]
 html_logo = "../source/_static/NEP-kappa-logo-1200x750.png"
-html_css_files = html_css_files + ["chinese.css"]
+html_css_files = ["chinese.css"]
