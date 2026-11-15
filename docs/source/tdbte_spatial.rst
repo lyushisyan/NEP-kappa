@@ -102,8 +102,10 @@ Create ``tdbte-spatial.yaml``:
        batch-size: 8
 
        initial:
-         kind: ttg
-         delta-temperature-K: 10
+         profile: ttg
+         modes: all
+         excitation: temperature
+         delta: 10
 
    plot:
      layout: both
@@ -141,6 +143,8 @@ Main spatial parameters
      - Spatial boundary condition; currently ``periodic``.
    * - ``cfl``
      - CFL number controlling drift-integration stability.
+   * - ``threads``
+     - CPU threads for cell-parallel collisions (default 1; requires Numba above 1).
    * - ``batch-size``
      - Number of spatial cells per collision-integral batch.
    * - ``initial``
@@ -163,6 +167,37 @@ The program reads force constants and group velocities, builds the collision
 kernel and initializes the temperature profile. It then propagates phonons
 between cells while evaluating nonlinear collisions inside each cell.
 Results are saved in ``results/tdbte-spatial``.
+
+Multicore collision evaluation
+-------------------------------
+
+Spatial collisions can run on multiple CPU threads. Set these keys under
+``tdbte.spatial``:
+
+.. code-block:: yaml
+
+   threads: 8
+   batch-size: 16
+
+Each worker processes independent spatial cells with the same shared event
+chunk. Event accumulation within a cell retains its serial order, avoiding
+concurrent deposition into the same mode. The default ``threads: 1`` keeps
+the serial backend. More than one thread requires Numba; unavailable backends
+or requests above the Numba thread limit raise an error. The requested thread
+count is recorded in ``audit.json`` under ``spatial_options``.
+
+For a single-node Slurm job, request ``--ntasks=1 --cpus-per-task=8`` and set
+``NUMBA_NUM_THREADS=8`` before Python starts. Keep BLAS threads at one to avoid
+nested threading; ``OMP_NUM_THREADS`` alone does not enable this feature.
+``batch-size`` limits the cells processed concurrently: with 16 cells,
+``threads: 8`` and ``batch-size: 16`` is a useful configuration to benchmark.
+More threads than cells per batch cannot provide additional cell parallelism.
+
+Time integration, drift and event-chunk loading remain serial. Scaling depends
+on collision cost, memory bandwidth and storage; an eight-thread job is not
+guaranteed to run eight times faster. Homogeneous TD-BTE still uses serial
+single-state collision evaluation. This option does not implement MPI or
+multi-node execution.
 
 Time integration
 ------------------------
@@ -252,62 +287,112 @@ In the diffusive limit with constant thermal diffusivity:
 Here, :math:`\alpha` is the thermal diffusivity. This provides a diffusive
 reference, while spatial TD-BTE can examine departures from simple diffusion.
 
-Other initial conditions
-------------------------
+Independent initial-condition choices
+--------------------------------------
 
-Spatial TD-BTE also supports thermal Gaussian pulses, selective phonon
-excitation and uniform-temperature initial states.
+``spatial.initial`` separates three independent choices:
 
-.. list-table:: Initial conditions
+.. list-table:: Initial-condition options
    :header-rows: 1
-   :widths: 25 75
+   :widths: 25 35 40
 
-   * - Type
-     - Physical meaning
-   * - ``ttg``
-     - Spatially periodic temperature perturbation.
-   * - ``gaussian``
-     - Localized Gaussian temperature pulse.
-   * - ``selective``
-     - Spatially selective population excitation of specified branches.
-   * - ``uniform``
-     - Spatially uniform Bose distribution for numerical comparisons.
+   * - Key
+     - Values
+     - Meaning
+   * - ``profile``
+     - ``ttg``, ``gaussian``, ``uniform``
+     - Spatial envelope; default ``ttg``.
+   * - ``modes``
+     - ``all``, ``branches``, ``frequency-window``
+     - Mode selection; default ``all``.
+   * - ``excitation``
+     - ``temperature``, ``relative``
+     - Occupation prescription; default ``temperature``.
 
-Thermal Gaussian pulses
-~~~~~~~~~~~~~~~~~~~~~~~~
+All 18 combinations are supported. ``uniform`` means spatially uniform;
+``all`` means all active modes. Branch and frequency selections apply at
+every q point represented in the kernel; zero-frequency rigid modes stay fixed.
+
+Let :math:`p(x)` be the spatial envelope and :math:`S` the selected modes.
+For ``ttg``, :math:`p(x)=\cos(2\pi x/L)`; for ``uniform``, :math:`p(x)=1`.
+For ``gaussian``, the periodic Gaussian has width ``sigma-nm`` (required)
+and center ``center-nm`` (default :math:`L/2`), normalized to one at its center.
+The two prescriptions, for :math:`\lambda\in S`, are:
+
+.. math::
+
+   n_\lambda(x,0)=
+   \begin{cases}
+   n_{\mathrm{BE}}(\omega_\lambda,T_0+\Delta T p(x)),
+      &\text{temperature},\\
+   n_{\mathrm{BE}}(\omega_\lambda,T_0)[1+A p(x)],
+      &\text{relative}.
+   \end{cases}
+
+Unselected modes remain at the background Bose occupation at :math:`T_0`.
+With selected modes, ``temperature`` specifies the temperature of their
+initial Bose occupations, not the energy-equivalent temperature of the whole
+cell. Even ``relative`` applied to all modes generally creates a nonthermal
+frequency distribution.
+
+Both excitation prescriptions use ``delta``. With ``excitation: temperature``,
+``delta`` is in K (default 1 K); with ``excitation: relative``, it is a
+dimensionless fractional occupation change (default ``tdbte.excitation``, 0.01).
+For example, ``delta: 0.2`` means 0.2 K or 20%, respectively.
+TTG requires :math:`|\Delta T|<T_0` or :math:`|A|<1`; the negative cosine
+half-period decreases occupations relative to the background. Gaussian and
+uniform profiles require :math:`T_0+\min(\Delta T,0)>0` or :math:`A>-1`.
+
+Selective TTG with temperature excitation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Replace ``spatial.initial`` with:
 
 .. code-block:: yaml
 
    initial:
-     kind: gaussian
-     delta-temperature-K: 30
-     sigma-nm: 8
-     center-nm: 32
+     profile: ttg
+     modes: branches
+     branches: [3, 4, 5]  # Zero-based IDs; verify for the material/kernel.
+     excitation: temperature
+     delta: 10
 
-This sets a pulse centered at 32 nm in a periodic 64 nm domain, allowing
-temperature and heat-flux propagation to be studied.
+Set ``modes: all`` and omit ``branches`` for the full-mode thermal TTG.
 
-Selective phonon excitation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Excite only selected branches, such as the three optical branches of 3C-SiC:
+Gaussian excitation of a frequency window
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
 
    initial:
-     kind: selective
-     branches: [3, 4, 5]
-     amplitude: 0.2
+     profile: gaussian
      sigma-nm: 8
      center-nm: 32
+     modes: frequency-window
+     frequency-range-THz: [10, 15]
+     excitation: relative
+     delta: 0.2
 
-``amplitude: 0.2`` increases the selected reference populations by up to 20%
-according to the spatial envelope; it is not a 20 K temperature increase.
-The calculation includes both nonequilibrium energy exchange and real-space
-transport. Compared with homogeneous selective excitation, it also shows how
-energy spreads from a localized region.
+The frequency window includes both endpoints, with :math:`0\le f_{min}<f_{max}`.
+Only active modes in that interval are changed, by up to 20% at the pulse center.
+An empty selection or a branch absent from the kernel is rejected.
+Use ``profile: uniform`` and omit the Gaussian parameters for spatially
+uniform excitation. Different windows with the same relative amplitude do
+not generally receive the same injected energy.
+
+Legacy inputs
+~~~~~~~~~~~~~~
+
+Existing ``kind: ttg``, ``gaussian`` and ``uniform`` inputs retain their thermal,
+full-mode behavior. ``kind: selective`` retains relative excitation of the
+specified branches, with a Gaussian or uniform spatial ``profile``.
+Legacy ``delta-temperature-K`` (thermal kind) and ``amplitude`` (selective kind)
+are translated to ``delta``. Supplying both ``delta`` and its legacy equivalent
+is rejected. New combinations use ``delta`` and the independent keys above,
+and omit ``kind``.
+Combining legacy ``kind`` with ``modes`` or ``excitation`` is rejected.
+Previously ignored ``branches``/``profile`` under a legacy thermal ``kind``
+now raise an error rather than silently exciting all modes.
 
 Main outputs
 ------------------------

@@ -2,7 +2,7 @@
 import numpy as np
 
 try:
-    from numba import njit
+    from numba import njit, prange, get_num_threads, set_num_threads, config
 except ImportError:
     njit = None
 
@@ -43,7 +43,40 @@ def _accumulate_batch(n, eta, parent, first, second, weights, coefficients, rhs)
 accumulate_batch = njit(cache=False)(_accumulate_batch) if njit is not None else None
 
 
-def collision_batch(kernel, occupation, batch_size=16):
+def _accumulate_batch_parallel(n, eta, parent, first, second, weights, coefficients, rhs):
+    # Each worker owns one RHS row; event deposition within that row stays serial.
+    for cell in prange(len(n)):
+        accumulate(n[cell], eta[cell], parent, first, second, weights, coefficients, rhs[cell])
+
+
+accumulate_batch_parallel = njit(parallel=True, cache=False)(_accumulate_batch_parallel) if njit is not None else None
+
+
+def validate_collision_threads(threads, kernel):
+    if isinstance(threads, bool) or not isinstance(threads, (int, np.integer)) or threads < 1:
+        raise ValueError('Collision threads must be a positive integer')
+    if threads > 1:
+        if njit is None or getattr(kernel, 'accumulate', accumulate) is None:
+            raise ValueError('Multicore collisions require the Numba backend')
+        if threads > config.NUMBA_NUM_THREADS:
+            raise ValueError(f'Collision threads exceed Numba limit {config.NUMBA_NUM_THREADS}; '
+                             'set NUMBA_NUM_THREADS before launching Python')
+
+
+def collision_batch(kernel, occupation, batch_size=16, threads=1):
+    """Use independent cell workers, restoring the caller's Numba thread count."""
+    validate_collision_threads(threads, kernel)
+    if threads == 1:
+        return _collision_batch(kernel, occupation, batch_size, parallel=False)
+    previous = get_num_threads()
+    try:
+        set_num_threads(threads)
+        return _collision_batch(kernel, occupation, batch_size, parallel=True)
+    finally:
+        set_num_threads(previous)
+
+
+def _collision_batch(kernel, occupation, batch_size, parallel):
     """Evaluate the unchanged event flux on cells, opening each chunk once.
 
     Only a cell batch's entropy variables and one event chunk are temporary.
@@ -68,7 +101,8 @@ def collision_batch(kernel, occupation, batch_size=16):
                 if compiled:
                     eta = np.zeros_like(state)
                     eta[:, ~kernel.zero] = np.log1p(state[:, ~kernel.zero]) - np.log(state[:, ~kernel.zero])
-                    accumulate_batch(state, eta, part.parent, part.daughter1, part.daughter2,
+                    reducer = accumulate_batch_parallel if parallel and len(state) > 1 else accumulate_batch
+                    reducer(state, eta, part.parent, part.daughter1, part.daughter2,
                                      part.weights, part.coefficients, target)
                 else:
                     for cell in range(len(state)):

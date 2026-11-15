@@ -379,3 +379,205 @@ def test_interpolated_batch_and_invalid_occupations():
     n[1, 2] = 0
     with pytest.raises(ValueError, match='positive'):
         k.collision_batch(n)
+
+
+@pytest.mark.parametrize('profile', ['ttg', 'gaussian', 'uniform'])
+@pytest.mark.parametrize('modes', ['all', 'branches', 'frequency-window'])
+@pytest.mark.parametrize('excitation', ['temperature', 'relative'])
+def test_independent_initial_choices(profile, modes, excitation):
+    initial = {'profile': profile, 'modes': modes, 'excitation': excitation}
+    if profile == 'gaussian':
+        initial.update({'sigma-nm': .6, 'center-nm': 4.})
+    if modes == 'branches':
+        initial['branches'] = [2]
+    elif modes == 'frequency-window':
+        initial['frequency-range-THz'] = [1., 2.]
+    initial['delta'] = (
+        30. if excitation == 'temperature' else .2)
+    k, v, obs, options, x = setup(initial=initial)
+    n = initial_occupation(obs, x, 8, 300, options['initial'])
+    baseline = obs.bose(np.full(len(x), 300.))
+    envelope = (np.cos(2*np.pi*x/8) if profile == 'ttg' else
+                periodic_gaussian(x, 8, 4., .6) if profile == 'gaussian' else np.ones(len(x)))
+    selected = (np.ones(6, bool) if modes == 'all' else
+                obs.branches == 2 if modes == 'branches' else k.frequency <= 2.)
+    # Verify physical occupation values, exact unselected populations and TTG symmetry.
+    expected = np.array([k.bose(300 + 30*p) for p in envelope]) if excitation == 'temperature' else baseline*(1+.2*envelope[:, None])
+    np.testing.assert_allclose(n[:, selected], expected[:, selected], rtol=1e-14)
+    np.testing.assert_array_equal(n[:, ~selected], baseline[:, ~selected])
+    assert np.min(n) > 0
+    if profile == 'ttg' and excitation == 'relative':
+        np.testing.assert_allclose(n.sum(axis=0), baseline.sum(axis=0), rtol=1e-14)
+
+
+@pytest.mark.parametrize('kind,profile,modes,excitation', [
+    ('ttg', 'ttg', 'all', 'temperature'),
+    ('gaussian', 'gaussian', 'all', 'temperature'),
+    ('uniform', 'uniform', 'all', 'temperature'),
+    ('selective', 'gaussian', 'branches', 'relative'),
+    ('selective', 'uniform', 'branches', 'relative'),
+])
+def test_legacy_initial_matches_independent_choices(kind, profile, modes, excitation):
+    legacy = {'kind': kind, 'sigma-nm': .6}
+    modern = {'profile': profile, 'modes': modes, 'excitation': excitation}
+    if profile == 'gaussian':
+        modern['sigma-nm'] = .6
+    if kind == 'selective':
+        legacy['profile'] = profile
+        modern['branches'] = [2]
+    k, v, obs, old, x = setup(initial=legacy)
+    _, _, _, new, _ = setup(initial=modern)
+    np.testing.assert_array_equal(initial_occupation(obs, x, 8, 300, old['initial']),
+                                  initial_occupation(obs, x, 8, 300, new['initial']))
+
+
+@pytest.mark.parametrize('initial', [
+    {'profile': 'unknown'}, {'modes': 'selective'}, {'excitation': 'unknown'},
+    {'kind': 'ttg', 'branches': [2]}, {'kind': 'ttg', 'modes': 'all'},
+    {'modes': 'branches'}, {'modes': 'branches', 'branches': [True]},
+    {'modes': 'all', 'branches': [2]},
+    {'modes': 'frequency-window', 'frequency-range-THz': [2, 1]},
+    {'modes': 'frequency-window', 'frequency-range-THz': [1, float('nan')]},
+    {'modes': 'frequency-window', 'frequency-range-THz': [-1, 2]},
+    {'modes': 'frequency-window', 'frequency-range-THz': [False, 2]},
+    {'frequency-range-THz': [1, 2]},
+    {'excitation': 'temperature', 'amplitude': .2},
+    {'excitation': 'relative', 'delta-temperature-K': 3},
+    {'excitation': 'relative', 'delta': 1},
+    {'excitation': 'temperature', 'delta': True},
+    {'excitation': 'relative', 'delta': float('nan')},
+    {'excitation': 'temperature', 'delta': 3, 'delta-temperature-K': 3},
+    {'excitation': 'relative', 'delta': .2, 'amplitude': .2},
+    {'kind': 'ttg', 'delta': 3, 'delta-temperature-K': 3},
+    {'kind': 'selective', 'profile': 'uniform', 'delta': .2, 'amplitude': .2},
+    {'profile': 'uniform', 'excitation': 'relative', 'delta': -1},
+    {'profile': 'gaussian', 'sigma-nm': .6, 'delta': -300},
+])
+def test_invalid_independent_initial_choices(initial):
+    with pytest.raises(ValueError):
+        setup(initial=initial)
+
+
+@pytest.mark.parametrize('initial', [
+    {'modes': 'branches', 'branches': [99]},
+    {'modes': 'frequency-window', 'frequency-range-THz': [9, 10]},
+])
+def test_mode_selection_must_match_kernel(initial):
+    k, v, obs, options, x = setup(initial=initial)
+    with pytest.raises(ValueError, match='absent|no active modes'):
+        initial_occupation(obs, x, 8, 300, options['initial'])
+
+
+@pytest.mark.parametrize('excitation', ['temperature', 'relative'])
+def test_selective_ttg_evolution_preserves_energy_and_positivity(excitation):
+    k, v, obs, options, x = setup(initial={
+        'profile': 'ttg', 'modes': 'branches', 'branches': [2], 'excitation': excitation})
+    n = initial_occupation(obs, x, 8, 300, options['initial'])
+    stats = evolve_spatial(k, n, v, .5, [0., .01], .01, options, obs, lambda *args: None)
+    assert stats['numerical_checks_passed']
+
+
+def test_independent_initial_yaml_roundtrip(tmp_path):
+    from nepkappa.config import parse_workflow_args
+    from nepkappa.tdbte import validate_options
+    path = tmp_path/'input.yaml'
+    path.write_text('''tdbte:
+  kernel: existing/manifest.json
+  spatial:
+    length-nm: 64
+    cells: 16
+    initial:
+      profile: ttg
+      modes: frequency-window
+      frequency-range-THz: [10, 15]
+      excitation: relative
+      delta: 0.2
+output: {result-dir: output}
+''')
+    cfg = parse_workflow_args(path, command='tdbte')
+    validate_options(cfg)
+    initial = spatial_options(cfg)['initial']
+    assert initial['frequency_range_THz'] == [10, 15]
+    assert initial['delta'] == .2
+
+
+@pytest.fixture
+def parallel_numba():
+    from nepkappa.tdbte_accumulate import accumulate
+    numba = pytest.importorskip('numba')
+    if accumulate is None or numba.config.NUMBA_NUM_THREADS < 2:
+        pytest.skip('Compiled collision backend and two Numba threads required')
+    return numba
+
+
+@pytest.mark.parametrize('batch', [1, 3, 16])
+def test_parallel_collision_matches_serial_and_opens_chunks_once(tmp_path, batch, parallel_numba):
+    numba = parallel_numba
+    k = toy_kernel()
+    writer = ChunkWriter(tmp_path/'parallel-kernel', k.frequency, k.zero, {})
+    for start, stop in ((0, 7), (7, 16)):
+        writer.append(ShellKernel(k.frequency, k.parent[start:stop], k.daughter1[start:stop],
+            k.daughter2[start:stop], k.weights[start:stop], k.coefficients[start:stop], k.zero))
+    chunked = ChunkedKernel(writer.finish())
+    n = k.bose(300)*np.exp(np.random.default_rng(21).uniform(-.3, .3, (7, 6)))
+    previous = numba.get_num_threads()
+    for kernel in (k, chunked):
+        serial = kernel.collision_batch(n, batch, threads=1)
+        np.testing.assert_array_equal(kernel.collision_batch(n, batch, threads=2), serial)
+        assert numba.get_num_threads() == previous
+    reads = []
+    original = chunked._read
+    @contextmanager
+    def read(entry):
+        reads.append(entry)
+        with original(entry) as part:
+            yield part
+    chunked._read = read
+    chunked.collision_batch(n, batch, threads=2)
+    assert len(reads) == len(chunked.chunks)
+
+
+def test_parallel_trajectory_matches_serial(parallel_numba):
+    k, v, obs, options, x = setup(initial={
+        'profile': 'ttg', 'modes': 'branches', 'branches': [2], 'excitation': 'relative', 'delta': .2})
+    initial = initial_occupation(obs, x, 8, 300, options['initial'])
+    trajectories = []
+    for threads in (1, 2):
+        saved = []
+        stats = evolve_spatial(k, initial, v, .5, [0., .01, .02], .01,
+                               {**options, 'threads': threads}, obs,
+                               lambda i, t, n, f: saved.append(n.copy()))
+        assert stats['numerical_checks_passed']
+        trajectories.append(saved)
+    np.testing.assert_array_equal(*trajectories)
+
+
+def test_parallel_restores_thread_count_on_error(monkeypatch, parallel_numba):
+    numba = parallel_numba
+    import nepkappa.tdbte_accumulate as reduction
+    before = numba.get_num_threads()
+    def fail(*args, **kwargs):
+        assert numba.get_num_threads() == 2
+        raise RuntimeError('test failure')
+    monkeypatch.setattr(reduction, '_collision_batch', fail)
+    with pytest.raises(RuntimeError, match='test failure'):
+        reduction.collision_batch(toy_kernel(), np.ones((2, 6)), threads=2)
+    assert numba.get_num_threads() == before
+
+
+def test_parallel_requires_compiled_backend_and_valid_threads(monkeypatch):
+    import nepkappa.tdbte_accumulate as reduction
+    k = toy_kernel()
+    for threads in (True, 0, -1, 1.5):
+        with pytest.raises(ValueError, match='positive integer'):
+            k.collision_batch(np.ones((2, 6)), threads=threads)
+    if reduction.accumulate is not None:
+        with pytest.raises(ValueError, match='Numba limit'):
+            k.collision_batch(np.ones((2, 6)), threads=reduction.config.NUMBA_NUM_THREADS + 1)
+    monkeypatch.setattr(reduction, 'accumulate', None)
+    with pytest.raises(ValueError, match='Numba backend'):
+        k.collision_batch(np.ones((2, 6)), threads=2)
+    for threads in (True, 0, -1, 1.5):
+        cfg = SimpleNamespace(tdbte_spatial={'length-nm': 8, 'cells': 16, 'threads': threads})
+        with pytest.raises(ValueError, match='positive integer'):
+            spatial_options(cfg)

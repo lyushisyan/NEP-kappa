@@ -1,6 +1,7 @@
 """Periodic spatial nonlinear phonon TD-BTE: Strang collisions/upwind streaming."""
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import time
 
 import h5py
@@ -26,13 +27,13 @@ def _mapping(value, allowed, name):
 def spatial_options(config):
     s = _mapping(config.tdbte_spatial, {
         'length_nm', 'cells', 'direction', 'boundary', 'cfl', 'batch_size',
-        'collisions', 'rtol', 'atol', 'snapshot_times_ps', 'initial', 'phonons'}, 'tdbte.spatial')
+        'collisions', 'threads', 'rtol', 'atol', 'snapshot_times_ps', 'initial', 'phonons'}, 'tdbte.spatial')
     for key in ('length_nm', 'cells'):
         if key not in s:
             raise ValueError(f'tdbte.spatial.{key.replace("_", "-")} is required')
     s = {'direction': [1., 0., 0.], 'boundary': 'periodic', 'cfl': .8,
-         'batch_size': 16, 'collisions': True, 'rtol': 1e-11, 'atol': 1e-14, **s}
-    for key in ('cells', 'batch_size'):
+         'batch_size': 16, 'threads': 1, 'collisions': True, 'rtol': 1e-11, 'atol': 1e-14, **s}
+    for key in ('cells', 'batch_size', 'threads'):
         if isinstance(s[key], bool) or not isinstance(s[key], int) or s[key] < 1:
             raise ValueError(f'tdbte.spatial.{key} must be a positive integer')
     for key in ('length_nm', 'cfl', 'rtol', 'atol'):
@@ -46,34 +47,7 @@ def spatial_options(config):
     if direction.shape != (3,) or not np.isfinite(direction).all() or np.linalg.norm(direction) == 0:
         raise ValueError('tdbte.spatial.direction must be a nonzero Cartesian three-vector')
     s['direction'] = (direction / np.linalg.norm(direction)).tolist()
-    initial = _mapping(s.get('initial', {}), {'kind', 'delta_temperature_K', 'sigma_nm', 'center_nm',
-                                             'profile', 'branches', 'amplitude'}, 'tdbte.spatial.initial')
-    initial = {'kind': 'ttg', 'delta_temperature_K': 1., 'profile': 'gaussian',
-               'center_nm': s['length_nm']/2, 'amplitude': config.tdbte_excitation, **initial}
-    if initial['kind'] not in ('ttg', 'gaussian', 'uniform', 'selective'):
-        raise ValueError('Spatial initial.kind must be ttg, gaussian, uniform or selective')
-    if initial['kind'] == 'ttg' and s['cells'] < 4:
-        raise ValueError('TTG requires at least four spatial cells')
-    for key in ('delta_temperature_K', 'center_nm', 'amplitude'):
-        if isinstance(initial[key], bool) or not isinstance(initial[key], (int, float)) or not np.isfinite(initial[key]):
-            raise ValueError(f'Spatial initial.{key} must be finite')
-    if initial['profile'] not in ('gaussian', 'uniform'):
-        raise ValueError('Spatial selective profile must be gaussian or uniform')
-    if initial['kind'] == 'gaussian' or (initial['kind'] == 'selective' and initial['profile'] == 'gaussian'):
-        sigma = initial.get('sigma_nm')
-        if isinstance(sigma, bool) or not isinstance(sigma, (int, float)) or not np.isfinite(sigma) or sigma <= 0:
-            raise ValueError('Gaussian initial profiles require positive initial.sigma-nm')
-    if initial['kind'] == 'ttg' and abs(initial['delta_temperature_K']) >= config.tdbte_temperature:
-        raise ValueError('TTG temperature must remain positive throughout the domain')
-    if initial['kind'] in ('gaussian', 'uniform') and config.tdbte_temperature + min(initial['delta_temperature_K'], 0) <= 0:
-        raise ValueError('Spatial initial temperatures must be positive')
-    if initial['kind'] == 'selective':
-        initial['branches'] = initial.get('branches', config.tdbte_branches)
-        branches = initial['branches']
-        if (not isinstance(branches, list) or not branches or any(isinstance(b, bool) or not isinstance(b, int) or b < 0 for b in branches)
-                or len(set(branches)) != len(branches) or initial['amplitude'] <= 0):
-            raise ValueError('Selective excitation requires unique nonnegative branches and positive amplitude')
-    s['initial'] = initial
+    s['initial'] = initial_options(config, s)
     if 'phonons' in s and (not isinstance(s['phonons'], str) or not s['phonons'].strip()):
         raise ValueError('tdbte.spatial.phonons must be a nonempty matching force-constant directory path')
     times = s.get('snapshot_times_ps')
@@ -100,21 +74,122 @@ def periodic_gaussian(x, length, center, sigma):
     return profile / normalization
 
 
+def initial_options(config, spatial):
+    """Normalize independent spatial, mode and excitation choices, including legacy inputs."""
+    initial = _mapping(spatial.get('initial', {}), {
+        'kind', 'profile', 'modes', 'excitation', 'delta', 'delta_temperature_K',
+        'amplitude', 'branches', 'frequency_range_THz', 'sigma_nm', 'center_nm'},
+        'tdbte.spatial.initial')
+    legacy = 'kind' in initial
+    if legacy:
+        kind = initial.pop('kind')
+        if kind not in ('ttg', 'gaussian', 'uniform', 'selective'):
+            raise ValueError('Spatial initial.kind must be ttg, gaussian, uniform or selective')
+        if any(key in initial for key in ('modes', 'excitation', 'frequency_range_THz')):
+            raise ValueError('Do not mix legacy initial.kind with modes/excitation/frequency-range-THz')
+        if kind == 'selective':
+            if initial.get('profile', 'gaussian') not in ('gaussian', 'uniform'):
+                raise ValueError('Legacy selective profile must be gaussian or uniform; omit kind for TTG')
+            initial.setdefault('profile', 'gaussian')
+            initial.update(modes='branches', excitation='relative')
+            initial.setdefault('branches', config.tdbte_branches)
+            if 'delta' in initial and 'amplitude' in initial:
+                raise ValueError('Specify only initial.delta, not delta and amplitude together')
+            initial.setdefault('delta', initial.pop('amplitude', config.tdbte_excitation))
+            initial.pop('delta_temperature_K', None)
+        else:
+            if 'branches' in initial or 'profile' in initial:
+                raise ValueError('Legacy thermal kind ignores branches/profile; use profile, modes and excitation')
+            initial.update(profile=kind, modes='all', excitation='temperature')
+            initial.pop('amplitude', None)
+            if 'delta' in initial and 'delta_temperature_K' in initial:
+                raise ValueError('Specify only initial.delta, not delta and delta-temperature-K together')
+            initial.setdefault('delta', initial.pop('delta_temperature_K', 1.))
+    elif any(key in initial for key in ('delta_temperature_K', 'amplitude')):
+        raise ValueError('Use initial.delta; its units are determined by initial.excitation')
+    initial = {'profile': 'ttg', 'modes': 'all', 'excitation': 'temperature', **initial}
+    profile, modes, excitation = (initial[key] for key in ('profile', 'modes', 'excitation'))
+    if profile not in ('ttg', 'gaussian', 'uniform'):
+        raise ValueError('initial.profile must be ttg, gaussian or uniform')
+    if modes not in ('all', 'branches', 'frequency-window'):
+        raise ValueError('initial.modes must be all, branches or frequency-window')
+    if excitation not in ('temperature', 'relative'):
+        raise ValueError('initial.excitation must be temperature or relative')
+    if profile == 'ttg' and spatial['cells'] < 4:
+        raise ValueError('TTG requires at least four spatial cells')
+    def finite(value):
+        return not isinstance(value, bool) and isinstance(value, (int, float)) and np.isfinite(value)
+    if profile == 'gaussian':
+        initial.setdefault('center_nm', spatial['length_nm']/2)
+        if not finite(initial.get('sigma_nm')) or initial['sigma_nm'] <= 0:
+            raise ValueError('Gaussian initial profiles require positive initial.sigma-nm')
+        if not finite(initial['center_nm']):
+            raise ValueError('initial.center-nm must be finite')
+    else:
+        if not legacy and any(key in initial for key in ('sigma_nm', 'center_nm')):
+            raise ValueError('initial.sigma-nm/center-nm require profile: gaussian')
+        # Old inputs may contain unused Gaussian options; normalize them away.
+        initial.pop('sigma_nm', None)
+        initial.pop('center_nm', None)
+    if modes == 'branches':
+        branches = initial.get('branches')
+        if (not isinstance(branches, list) or not branches
+                or any(isinstance(b, bool) or not isinstance(b, int) or b < 0 for b in branches)
+                or len(set(branches)) != len(branches)):
+            raise ValueError('initial.branches requires unique nonnegative branch indices')
+    elif 'branches' in initial:
+        raise ValueError('initial.branches requires modes: branches')
+    if modes == 'frequency-window':
+        bounds = initial.get('frequency_range_THz')
+        if (not isinstance(bounds, (list, tuple)) or len(bounds) != 2
+                or not all(finite(v) for v in bounds) or not 0 <= bounds[0] < bounds[1]):
+            raise ValueError('initial.frequency-range-THz requires [min, max] with 0 <= min < max')
+    elif 'frequency_range_THz' in initial:
+        raise ValueError('initial.frequency-range-THz requires modes: frequency-window')
+    initial.setdefault('delta', 1. if excitation == 'temperature' else config.tdbte_excitation)
+    delta = initial['delta']
+    if not finite(delta):
+        raise ValueError('initial.delta must be finite')
+    if excitation == 'temperature':
+        minimum = config.tdbte_temperature - abs(delta) if profile == 'ttg' else config.tdbte_temperature + min(delta, 0)
+        if minimum <= 0:
+            raise ValueError('Spatial initial temperatures must remain positive throughout the domain')
+    elif (abs(delta) >= 1 if profile == 'ttg' else delta <= -1):
+        raise ValueError('Relative delta must keep 1 + delta * profile strictly positive')
+    return initial
+
+
 def initial_occupation(obs, x, length, temperature, options):
-    kind = options['kind']
-    if kind == 'ttg':
-        return obs.bose(temperature + options['delta_temperature_K'] * np.cos(2*np.pi*x/length))
-    if kind == 'uniform':
-        return obs.bose(np.full(len(x), temperature + options['delta_temperature_K']))
-    profile = (np.ones(len(x)) if kind == 'selective' and options['profile'] == 'uniform'
-               else periodic_gaussian(x, length, options['center_nm'], options['sigma_nm']))
-    if kind == 'gaussian':
-        return obs.bose(temperature + options['delta_temperature_K'] * profile)
-    selected = np.asarray(options['branches'])
-    if not set(selected) <= set(obs.labels):
-        raise ValueError('Selective excited branch is absent from the collision kernel')
+    if 'kind' in options:
+        # Local audit tools also call this helper with unnormalized legacy options.
+        config = SimpleNamespace(tdbte_temperature=temperature, tdbte_excitation=.01,
+                                 tdbte_branches=options.get('branches'))
+        options = initial_options(config, {'initial': options, 'length_nm': length, 'cells': len(x)})
+    profile_kind = options['profile']
+    if profile_kind == 'ttg':
+        profile = np.cos(2*np.pi*np.asarray(x)/length)
+    elif profile_kind == 'uniform':
+        profile = np.ones(len(x))
+    else:
+        profile = periodic_gaussian(x, length, options['center_nm'], options['sigma_nm'])
+    selected = ~obs.kernel.zero.copy()
+    if options['modes'] == 'branches':
+        if not set(options['branches']) <= set(obs.labels):
+            raise ValueError('Selected branch is absent from the collision kernel')
+        selected &= np.isin(obs.branches, options['branches'])
+    elif options['modes'] == 'frequency-window':
+        lower, upper = options['frequency_range_THz']
+        selected &= (obs.kernel.frequency >= lower) & (obs.kernel.frequency <= upper)
+    if not selected.any():
+        raise ValueError('Initial mode selection contains no active modes in the collision kernel')
     n = obs.bose(np.full(len(x), temperature))
-    n[:, np.isin(obs.branches, selected)] *= 1 + options['amplitude'] * profile[:, None]
+    if options['excitation'] == 'temperature':
+        perturbed = obs.bose(temperature + options['delta'] * profile)
+        n[:, selected] = perturbed[:, selected]
+    else:
+        n[:, selected] *= 1 + options['delta'] * profile[:, None]
+    if not np.isfinite(n).all() or np.any(n[:, ~obs.kernel.zero] <= 0):
+        raise ValueError('Initial occupations must be finite and positive on active modes')
     return n
 
 
@@ -126,7 +201,7 @@ def collision_step(kernel, state, duration, options, stats):
 
     def rhs(t, flat):
         stats['collision_rhs_evaluations'] += 1
-        return kernel.collision_batch(flat.reshape(shape), options['batch_size']).ravel()
+        return kernel.collision_batch(flat.reshape(shape), options['batch_size'], options.get('threads', 1)).ravel()
 
     maximum = duration
     for attempt in range(9):
@@ -189,7 +264,7 @@ def evolve_spatial(kernel, initial, velocity, dx, times, maximum_step, options, 
             if time.monotonic() - progress >= 30:
                 print(f'Spatial TD-BTE: t={t:.6g}/{times[-1]:.6g} ps; {stats["steps"]} split steps', flush=True)
                 progress = time.monotonic()
-        collision = (kernel.collision_batch(n, options['batch_size']) if options['collisions'] else np.zeros_like(n))
+        collision = (kernel.collision_batch(n, options['batch_size'], options.get('threads', 1)) if options['collisions'] else np.zeros_like(n))
         fields = obs.fields(n, collision)
         residual = fields['branch_energy_eV_nm3'] - previous_energy + divergence(integrated_flux, dx) - integrated_collision
         scale = max(float(abs(fields['energy_eV_nm3']).max()), 1e-300)
@@ -223,6 +298,10 @@ def run_spatial_tdbte(config):
     if out.exists():
         raise FileExistsError(f'Refusing to overwrite TD-BTE results: {out}')
     kernel, metadata, source, metadata_path, branches, weight = load_tdbte_kernel(config)
+    if options['collisions']:
+        from .tdbte_accumulate import validate_collision_threads
+        validate_collision_threads(options['threads'], kernel)
+    print(f"Spatial TD-BTE collision threads: {options['threads']}; cell batch size: {options['batch_size']}", flush=True)
     modes = prepare_spatial_modes(metadata, kernel, options['direction'], options.get('phonons'))
     velocity = modes['velocity_nm_ps'] @ options['direction']
     obs = Observables(kernel, branches, weight, modes['primitive_volume_nm3'], velocity)

@@ -139,9 +139,9 @@ class ChunkedKernel:
     def bose(self, temperature):
         return ShellKernel.bose(self, temperature)
 
-    def collision_batch(self, occupation, batch_size=16):
+    def collision_batch(self, occupation, batch_size=16, threads=1):
         from .tdbte_accumulate import collision_batch
-        return collision_batch(self, occupation, batch_size)
+        return collision_batch(self, occupation, batch_size, threads)
 
     def _check_compiled(self, kernel):
         # Verify the installed compiler against NumPy on each block before use.

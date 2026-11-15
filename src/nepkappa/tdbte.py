@@ -103,9 +103,9 @@ class ShellKernel:
             raise ValueError('Nonfinite accumulated collision derivative')
         return rhs, flux
 
-    def collision_batch(self, occupation, batch_size=16):
+    def collision_batch(self, occupation, batch_size=16, threads=1):
         from .tdbte_accumulate import collision_batch
-        return collision_batch(self, occupation, batch_size)
+        return collision_batch(self, occupation, batch_size, threads)
 
 
 def validate_options(config):
