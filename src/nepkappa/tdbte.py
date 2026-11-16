@@ -108,6 +108,19 @@ class ShellKernel:
         return collision_batch(self, occupation, batch_size, threads)
 
 
+def excitation_options(config):
+    """Resolve excitation type and delta, including legacy numeric configurations."""
+    kind = getattr(config, 'tdbte_excitation', 'relative')
+    delta = getattr(config, 'tdbte_delta', None)
+    if isinstance(kind, (int, float)) and not isinstance(kind, bool):
+        if delta is not None:
+            raise ValueError('Numeric tdbte.excitation cannot be combined with tdbte.delta')
+        return 'relative', kind
+    if kind not in ('relative', 'temperature'):
+        raise ValueError('tdbte.excitation must be relative or temperature')
+    return kind, (1. if kind == 'temperature' else .01) if delta is None else delta
+
+
 def validate_options(config):
     source = getattr(config, 'tdbte_force_constants', None)
     kernel = getattr(config, 'tdbte_kernel', None)
@@ -119,10 +132,13 @@ def validate_options(config):
         validate_mesh(mesh)
     elif mesh is not None:
         raise ValueError('tdbte.mesh is only used with force-constants; a reused kernel fixes the mesh')
-    for key in ('temperature','duration_ps','max_step_ps','excitation'):
+    for key in ('temperature','duration_ps','max_step_ps'):
         value = getattr(config,'tdbte_'+key)
         if not np.isfinite(value) or value <= 0:
             raise ValueError(f'tdbte.{key} must be finite and positive')
+    _, delta = excitation_options(config)
+    if isinstance(delta, bool) or not isinstance(delta, (int, float)) or not np.isfinite(delta) or delta <= 0:
+        raise ValueError('tdbte.delta must be finite and positive')
     if not 2 <= config.tdbte_samples <= 100001:
         raise ValueError('tdbte.samples must be between 2 and 100001')
     spatial = getattr(config, 'tdbte_spatial', None)
@@ -147,7 +163,12 @@ def run_tdbte(config):
     kernel, metadata, source, metadata_path, branch_ids, weight = load_tdbte_kernel(config)
     n0 = kernel.bose(config.tdbte_temperature)
     initial = n0.copy()
-    initial[np.isin(branch_ids,config.tdbte_branches)] *= 1+config.tdbte_excitation
+    excitation, delta = excitation_options(config)
+    selected = np.isin(branch_ids, config.tdbte_branches)
+    if excitation == 'relative':
+        initial[selected] *= 1 + delta
+    else:
+        initial[selected] = kernel.bose(config.tdbte_temperature + delta)[selected]
     energy = kernel.frequency*H_THz*weight
     injected = float(energy@(initial-n0))
     if injected <= 0:
@@ -208,7 +229,8 @@ def run_tdbte(config):
               **provenance,
               'max_energy_drift_fraction':drift,'max_equilibrium_redistribution_fraction':equilibrium,
               'max_entropy_decrease':entropy_drop,'temperature_K':config.tdbte_temperature,
-              'excitation_relative_occupation':config.tdbte_excitation,
+              'excitation': excitation, 'delta': delta,
+              'excitation_relative_occupation': delta if excitation == 'relative' else None,
               'excited_branch_indices':config.tdbte_branches,
               'injected_energy_eV_per_primitive_cell':injected,
               'uniform_mode_weight':weight,

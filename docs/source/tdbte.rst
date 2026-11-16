@@ -69,7 +69,8 @@ Create ``tdbte.yaml`` in the working directory:
      mesh: [6, 6, 6]
      temperature: 300
      branches: [3, 4, 5]
-     excitation: 0.01
+     excitation: relative
+     delta: 0.01
      duration-ps: 20
      max-step-ps: 0.5
      samples: 201
@@ -86,7 +87,7 @@ Create ``tdbte.yaml`` in the working directory:
 The three-dimensional 6×6×6 q mesh contains 216 q points. It is used to build
 the collision integral independently of the steady-state transport mesh.
 ``branches`` selects branches indexed from zero and sorted by frequency at
-each q point. ``excitation: 0.01`` multiplies the initial populations by 1.01;
+each q point. ``excitation: relative`` with ``delta: 0.01`` multiplies the initial populations by 1.01;
 it does not increase the temperature by 1 K.
 
 Initial nonequilibrium distribution
@@ -107,12 +108,12 @@ Selective excitation produces:
 
    n_\lambda(0)=
    \begin{cases}
-   (1+A)n_\lambda^0(T_0), & \lambda\in\mathcal S,\\
+   (1+\delta)n_\lambda^0(T_0), & \lambda\in\mathcal S,\\
    n_\lambda^0(T_0), & \lambda\notin\mathcal S,
    \end{cases}
 
 Here, :math:`\mathcal S` is the selected set of optical modes and
-:math:`A=0.01` is the relative excitation amplitude. Other modes retain their
+:math:`\delta=0.01` is the relative excitation amplitude. Other modes retain their
 initial equilibrium populations. There is no subsequent external energy input;
 energy is exchanged through three-phonon collisions alone.
 
@@ -244,7 +245,8 @@ excitation from 1% to 2% by creating ``tdbte-reuse.yaml``:
      kernel: results/tdbte-optical/tdbte-kernel/manifest.json
      temperature: 300
      branches: [3, 4, 5]
-     excitation: 0.02
+     excitation: relative
+     delta: 0.02
      duration-ps: 20
      max-step-ps: 0.5
      samples: 201

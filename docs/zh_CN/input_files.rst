@@ -450,7 +450,9 @@ Wigner 并非独立的 BTE 求解方法，其支持范围取决于计算引擎�
    * - ``branches``
      - 指定激发的声子分支，索引从零开始。
    * - ``excitation``
-     - 选定模式占据数的相对增加幅度。
+     - 激发方式：``relative`` 为相对占据变化，``temperature`` 为温度扰动。
+   * - ``delta``
+     - 激发强度：相对变化比例或温度变化（K）。
    * - ``duration-ps``
      - 总演化时间，单位 ps。
    * - ``max-step-ps``
@@ -460,8 +462,9 @@ Wigner 并非独立的 BTE 求解方法，其支持范围取决于计算引擎�
    * - ``spatial``
      - 一维空间输运的长度、网格、边界及初始条件设置。
 
-均匀 TD-BTE 中，``excitation`` 将指定分支的初始占据数乘以
-``1 + excitation``，不是温升或激光能流密度。
+均匀 TD-BTE 中，``excitation: relative`` 将指定分支的初始占据数乘以
+``1 + delta``；``excitation: temperature`` 使用 ``temperature + delta``
+对应的 Bose 占据。未选中的分支保持背景分布。
 
 .. note::
 

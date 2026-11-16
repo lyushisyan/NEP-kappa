@@ -217,7 +217,8 @@ class TDBTEConfig:
     temperature: float
     duration_ps: float
     max_step_ps: float
-    excitation: float
+    excitation: str
+    delta: float
     branches: Tuple[int, ...]
     samples: int
     spatial: Optional[Mapping[str, Any]] = None
@@ -251,6 +252,7 @@ class WorkflowSections:
                 duration_ps=cfg.tdbte_duration_ps,
                 max_step_ps=cfg.tdbte_max_step_ps,
                 excitation=cfg.tdbte_excitation,
+                delta=cfg.tdbte_delta,
                 branches=tuple(cfg.tdbte_branches or []),
                 samples=cfg.tdbte_samples,
                 spatial=getattr(cfg, 'tdbte_spatial', None),

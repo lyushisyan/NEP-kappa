@@ -230,7 +230,7 @@ def yaml_input_sections():
             "three_phonon",
             "four_phonon",
         },
-        "tdbte": {"kernel", "force_constants", "mesh", "temperature", "duration_ps", "max_step_ps", "excitation", "branches", "samples", "spatial"},
+        "tdbte": {"kernel", "force_constants", "mesh", "temperature", "duration_ps", "max_step_ps", "excitation", "delta", "branches", "samples", "spatial"},
         "output": {"progress", "result_dir"},
     }
 

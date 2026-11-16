@@ -328,8 +328,22 @@ def _draw_energy_dispersion(ax, band, colours, snapshot, norm, cmap):
     ax.grid(axis='y', alpha=.25)
 
 
+def _draw_branch_temperature(ax, times, temperatures, labels, title, reference=None, ncol=1):
+    """Shared temperature-curve style for homogeneous and spatial TD-BTE."""
+    import matplotlib.pyplot as plt
+    colours = plt.get_cmap('tab10')
+    for label, row in zip(labels, temperatures):
+        ax.plot(times, row, color=colours(int(label) % 10), label=f'Branch {label}')
+    if reference is not None:
+        ax.axhline(reference, color='0.5', linestyle='--', linewidth=1.,
+                   label=f'{reference:g} K reference')
+    ax.set(xlabel='Time (ps)', ylabel='Equivalent temperature (K)', title=title)
+    ax.legend(fontsize='small', ncol=ncol)
+    ax.grid(alpha=.3)
+
+
 def _plot_spatial(config):
-    """Plot saved spatial fields without loading full mode occupations."""
+    """Four temperature panels from saved fields and two local occupation slices."""
     import h5py
     cache = Path(tempfile.gettempdir()) / 'nepkappa-matplotlib'
     cache.mkdir(parents=True, exist_ok=True)
@@ -337,9 +351,10 @@ def _plot_spatial(config):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    from matplotlib.ticker import MaxNLocator
-    from matplotlib.transforms import Bbox
     root = Path(config.result_dir).resolve()
+    dpi = int(config.plot_dpi)
+    if dpi <= 0:
+        raise ValueError('plot.dpi must be a positive integer')
     audit = json.loads((root/'tdbte'/'audit.json').read_text())
     if not audit.get('numerical_checks_passed'):
         raise ValueError('Spatial TD-BTE numerical audit did not pass')
@@ -348,52 +363,103 @@ def _plot_spatial(config):
             raise ValueError('Spatial TD-BTE output is incomplete')
         times, x = handle['time_ps'][:], handle['x_nm'][:]
         temperature = handle['temperature_K'][:]
-        flux = handle['heat_flux_eV_nm2_ps'][:] * handle.attrs['heat_flux_eV_nm2_ps_to_W_m2']
-        energy = handle['branch_energy_eV_nm3'][:].mean(axis=1)
-        harmonics = 2*handle['temperature_harmonics_real_K'][:]
-        valid = handle['temperature_harmonic_valid'][:]
+        if (times.ndim != 1 or len(times) < 2 or x.ndim != 1 or not len(x)
+                or temperature.shape != (len(times), len(x))
+                or not all(np.isfinite(v).all() for v in (times, x, temperature))
+                or np.any(np.diff(times) <= 0) or np.any(np.diff(x) <= 0)):
+            raise ValueError('Malformed spatial temperature fields')
+        hot, cold = int(np.argmax(temperature[0])), int(np.argmin(temperature[0]))
+        middle = int(np.argmin(abs(x - (x[hot] + x[cold])/2)))
         labels = handle['branch_indices'][:]
+        branch_ids = handle['mode_branch_indices'][:]
+        if not np.array_equal(labels, np.unique(branch_ids)):
+            raise ValueError('Spatial branch labels differ from occupation mode ordering')
+        frequency = handle['frequency_THz'][:]
+        weight = float(handle.attrs['uniform_mode_weight'])
+        branch_temperature = [branch_temperatures(
+            frequency, handle['occupation'][:, probe, :].T, branch_ids, weight)
+            for probe in (hot, cold)]
+    requested = getattr(config, 'plot_tdbte_times', None)
+    snapshots = (_snapshot_indices(times, requested) if requested is not None else
+                 np.unique(np.rint(np.linspace(0, len(times)-1, min(6, len(times)))).astype(int)))
+    reference = audit.get('temperature_K')
+    colours = plt.get_cmap('tab10')
+
+    def draw_profiles(ax):
+        for index, saved in enumerate(snapshots):
+            ax.plot(x, temperature[saved], color=colours(index % 10), label=f'{times[saved]:g} ps')
+        ax.set(xlabel='Position x (nm)', ylabel='Temperature (K)', title='Spatial temperature profiles')
+        ax.legend(fontsize='small', ncol=3)
+        ax.grid(alpha=.3)
+        ax.margins(y=.18)
+
+    def draw_positions(ax):
+        for probe, name, colour in ((hot, 'Initially hottest', 3),
+                                     (middle, 'Intermediate', 1), (cold, 'Initially coldest', 0)):
+            ax.plot(times, temperature[:, probe], color=colours(colour),
+                    label=f'{name}: x = {x[probe]:g} nm')
+        ax.set(xlabel='Time (ps)', ylabel='Temperature (K)',
+               title='Temperature at fixed positions', xlim=(times[0], times[-1]))
+        ax.legend(fontsize='small')
+        ax.grid(alpha=.3)
+        ax.margins(y=.18)
+
+    def draw_branches(ax, index):
+        probe = (hot, cold)[index]
+        name = ('Initially hottest', 'Initially coldest')[index]
+        _draw_branch_temperature(ax, times, branch_temperature[index], labels,
+                                 f'{name} position: x = {x[probe]:g} nm', reference, ncol=2)
+        ax.set_xlim(times[0], times[-1])
+        ax.margins(y=.15)
+
+    def draw_panel(index, ax):
+        if index == 0:
+            draw_profiles(ax)
+        elif index == 1:
+            draw_positions(ax)
+        else:
+            draw_branches(ax, index-2)
+        ax.ticklabel_format(axis='y', style='plain', useOffset=False)
+
     output = root/'plots'
     output.mkdir(parents=True, exist_ok=True)
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
-    edges_x = np.linspace(0, audit['spatial_options']['length_nm'], len(x)+1)
-    edges_t = np.r_[times[0], (times[1:]+times[:-1])/2, times[-1]]
-    colorbars = []
-    for ax, field, title, unit in ((axes[0, 0], temperature, 'Energy-equivalent temperature', 'K'),
-                                   (axes[0, 1], flux, 'Physical heat flux', 'W/m²')):
-        style = ({'cmap': 'coolwarm', 'vmin': -max(float(abs(field).max()), 1e-30),
-                  'vmax': max(float(abs(field).max()), 1e-30)} if ax is axes[0, 1] else {})
-        im = ax.pcolormesh(edges_x, edges_t, field, shading='flat', **style)
-        ax.set(xlabel='x (nm)', ylabel='Time (ps)', title=title)
-        colorbars.append(fig.colorbar(im, ax=ax, label=unit))
-    for i, branch in enumerate(labels):
-        axes[1, 0].plot(times, energy[:, i]-energy[0, i], label=f'Branch {branch}')
-    axes[1, 0].set(xlabel='Time (ps)', ylabel='Mean energy change (eV/nm³)')
-    axes[1, 0].legend(fontsize='small')
-    for i in np.flatnonzero(valid):
-        axes[1, 1].plot(times, harmonics[:, i], label=f'Harmonic {i+1}')
-    axes[1, 1].set(xlabel='Time (ps)', ylabel='Temperature cosine amplitude (K)')
-    if np.any(valid):
-        axes[1, 1].legend()
-    for ax in axes[1]:
-        ax.xaxis.set_major_locator(MaxNLocator(5))
     paths = []
     if config.plot_layout in ('combined', 'both'):
-        path = output/'tdbte_spatial.png'
-        fig.savefig(path, dpi=config.plot_dpi)
-        paths.append(str(path))
+        fig, axes = plt.subplots(2, 2, figsize=(12, 9), constrained_layout=True)
+        try:
+            for index, ax in enumerate(axes.ravel()):
+                draw_panel(index, ax)
+            for suffix in ('png', 'pdf'):
+                path = output/f'tdbte_spatial.{suffix}'
+                fig.savefig(path, dpi=dpi)
+                paths.append(str(path))
+        finally:
+            plt.close(fig)
     if config.plot_layout in ('separate', 'both'):
-        fig.canvas.draw()
-        for index, (ax, name) in enumerate(zip(axes.ravel(), ('temperature', 'heat_flux', 'branch_energy', 'harmonics'))):
-            # Save the actual laid-out panel, including labels and ticks.
-            path = output/f'tdbte_spatial_{name}.png'
-            boxes = [ax.get_tightbbox(fig.canvas.get_renderer())]
-            if index < 2:
-                boxes.append(colorbars[index].ax.get_tightbbox(fig.canvas.get_renderer()))
-            bounds = Bbox.union(boxes).transformed(fig.dpi_scale_trans.inverted()).expanded(1.05, 1.05)
-            fig.savefig(path, dpi=config.plot_dpi, bbox_inches=bounds)
-            paths.append(str(path))
-    plt.close(fig)
+        names = ('temperature_profiles', 'temperature_time', 'hot_branch_temperature', 'cold_branch_temperature')
+        for index, name in enumerate(names):
+            fig, ax = plt.subplots(figsize=(6.2, 4.6), constrained_layout=True)
+            try:
+                draw_panel(index, ax)
+                path = output/f'tdbte_spatial_{name}.png'
+                fig.savefig(path, dpi=dpi)
+                paths.append(str(path))
+            finally:
+                plt.close(fig)
+    for name, values in zip(('hot', 'cold'), branch_temperature):
+        np.savetxt(output/f'tdbte_spatial_{name}_branch_temperature.csv',
+                   np.column_stack((times, values.T)), delimiter=',', comments='',
+                   header='time_ps,' + ','.join(f'branch_{b}_temperature_K' for b in labels))
+    (output/'tdbte_spatial_plot_metadata.json').write_text(json.dumps({
+        'snapshot_times_ps': times[snapshots].tolist(),
+        'probe_positions_nm': {'hot': float(x[hot]), 'intermediate': float(x[middle]), 'cold': float(x[cold])},
+        'probe_selection': 'Fixed cells selected from initial temperature extrema and their spatial midpoint',
+        'branch_temperature': 'Bose energy-equivalent temperature; fixed zero modes excluded',
+        'panel_order': ['temperature_profiles', 'temperature_time', 'hot_branch_temperature', 'cold_branch_temperature'],
+    }, indent=2) + '\n')
+    print('  - Spatial TD-BTE temperature plots:')
+    for path in paths:
+        print(f'    {path}')
     return paths
 
 
@@ -440,13 +506,7 @@ def plot_tdbte_results(config):
         ax.grid(alpha=.3)
 
     def draw_temperature(ax, branches, title):
-        for branch in branches:
-            ax.plot(times, dynamics['temperatures'][branch], color=branch_colours(branch),
-                    label=f'Branch {branch}')
-        ax.axhline(reference, color='0.5', linestyle='--', linewidth=1., label=f'{reference:g} K reference')
-        ax.set(xlabel='Time (ps)', ylabel='Equivalent temperature (K)', title=title)
-        ax.legend(fontsize='small')
-        ax.grid(alpha=.3)
+        _draw_branch_temperature(ax, times, dynamics['temperatures'][branches], branches, title, reference)
 
     def draw_panel(index, ax):
         if index < 3:

@@ -416,7 +416,9 @@ Common parameters
    * - ``branches``
      - Excited phonon branches, indexed from zero.
    * - ``excitation``
-     - Relative increase in the selected modes' populations.
+     - Excitation type: ``relative`` or ``temperature``.
+   * - ``delta``
+     - Fractional occupation change or temperature perturbation in K.
    * - ``duration-ps``
      - Total evolution time, in ps.
    * - ``max-step-ps``
@@ -426,8 +428,9 @@ Common parameters
    * - ``spatial``
      - Length, mesh, boundary and initial conditions for one-dimensional spatial transport.
 
-In homogeneous TD-BTE, ``excitation`` multiplies the selected branches' initial
-populations by ``1 + excitation``. It is not a temperature increase or laser fluence.
+In homogeneous TD-BTE, ``excitation: relative`` multiplies selected populations
+by ``1 + delta``. ``excitation: temperature`` uses Bose populations at
+``temperature + delta``. Unselected branches retain the background distribution.
 
 .. note::
 

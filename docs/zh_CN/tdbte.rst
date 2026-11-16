@@ -78,7 +78,8 @@ FC2 提供声子频率与振动模式，FC3 用于计算三声子相互作用，
      mesh: [6, 6, 6]                # 碰撞积分 q 网格
      temperature: 300               # 初始参考温度（K）
      branches: [3, 4, 5]           # 激发光学支
-     excitation: 0.01               # 占据数增加 1%
+     excitation: relative
+     delta: 0.01
      duration-ps: 20                # 总演化时间（ps）
      max-step-ps: 0.5               # 最大积分步长（ps）
      samples: 201                   # 保存时刻数量
@@ -100,7 +101,7 @@ FC2 提供声子频率与振动模式，FC3 用于计算三声子相互作用，
 ``branches`` 指定需要激发的声子分支，编号从零开始，
 在各 q 点按频率排序。
 
-``excitation: 0.01`` 表示将所选模式的初始占据数乘以 1.01，
+``excitation: relative`` 配合 ``delta: 0.01`` 表示将所选模式的初始占据数乘以 1.01，
 而不是增加 1 K 温度。
 
 
@@ -122,12 +123,12 @@ FC2 提供声子频率与振动模式，FC3 用于计算三声子相互作用，
 
    n_\lambda(0)=
    \begin{cases}
-   (1+A)n_\lambda^0(T_0), & \lambda\in\mathcal S,\\
+   (1+\delta)n_\lambda^0(T_0), & \lambda\in\mathcal S,\\
    n_\lambda^0(T_0), & \lambda\notin\mathcal S,
    \end{cases}
 
 其中，:math:`\mathcal S` 为选定的光学声子模式，
-:math:`A=0.01` 为相对激发幅度。
+:math:`\delta=0.01` 为相对激发幅度。
 
 未被激发的模式保持初始平衡分布。
 随后系统不再接受外部能量输入，仅通过三声子碰撞进行能量交换。
@@ -286,7 +287,8 @@ Bose-Einstein 分布温度，并不意味着该分支内部已达到热平衡。
      kernel: results/tdbte-optical/tdbte-kernel/manifest.json
      temperature: 300
      branches: [3, 4, 5]
-     excitation: 0.02
+     excitation: relative
+     delta: 0.02
      duration-ps: 20
      max-step-ps: 0.5
      samples: 201

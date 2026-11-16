@@ -35,8 +35,7 @@ The added drift term describes energy carried by phonons between spatial positio
 .. note::
 
    One-dimensional refers to the real-space transport coordinate. Phonons
-   still use the full three-dimensional q mesh. This differs from the
-   ``mesh: [N, 1, 1]`` collision model for one-dimensional nanowires.
+   still use the full three-dimensional q mesh.
 
 Transient thermal gratings
 --------------------------
@@ -89,23 +88,23 @@ Create ``tdbte-spatial.yaml``:
      force-constants: results
      mesh: [3, 3, 3]
      temperature: 300
-     duration-ps: 0.1
+     duration-ps: 20.0
      max-step-ps: 0.01
-     samples: 6
+     samples: 201
 
      spatial:
-       length-nm: 64
-       cells: 16
+       length-nm: 100
+       cells: 20
        direction: [1, 0, 0]
        boundary: periodic
        cfl: 0.8
-       batch-size: 8
+       batch-size: 20
 
        initial:
          profile: ttg
          modes: all
          excitation: temperature
-         delta: 10
+         delta: 1
 
    plot:
      layout: both
@@ -114,15 +113,16 @@ Create ``tdbte-spatial.yaml``:
    output:
      result-dir: results/tdbte-spatial
 
-The example uses a three-dimensional 3×3×3 q mesh and a periodic 64 nm
-real-space domain along x. Sixteen cells give a grid spacing of:
+The example uses a three-dimensional 3×3×3 q mesh and a periodic 100 nm
+real-space domain along x. Twenty cells give a grid spacing of:
 
 .. math::
 
-   \Delta x=\frac{L}{N_x}=4\ \mathrm{nm}.
+   \Delta x=\frac{L}{N_x}=5\ \mathrm{nm}.
 
-The initial temperature is a cosine modulation of amplitude 10 K around 300 K.
-The small q mesh and short evolution time demonstrate the spatial workflow.
+The initial temperature is a cosine modulation of amplitude 1 K around 300 K.
+The simulation lasts 20 ps, saving 201 time points at 0.1 ps intervals.
+The figure below uses the same TTG parameters.
 
 Main spatial parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -177,48 +177,12 @@ Spatial collisions can run on multiple CPU threads. Set these keys under
 .. code-block:: yaml
 
    threads: 8
-   batch-size: 16
+   batch-size: 20
 
 Each worker processes independent spatial cells with the same shared event
 chunk. Event accumulation within a cell retains its serial order, avoiding
-concurrent deposition into the same mode. The default ``threads: 1`` keeps
-the serial backend. More than one thread requires Numba; unavailable backends
-or requests above the Numba thread limit raise an error. The requested thread
-count is recorded in ``audit.json`` under ``spatial_options``.
-
-For a single-node Slurm job, request ``--ntasks=1 --cpus-per-task=8`` and set
-``NUMBA_NUM_THREADS=8`` before Python starts. Keep BLAS threads at one to avoid
-nested threading; ``OMP_NUM_THREADS`` alone does not enable this feature.
-``batch-size`` limits the cells processed concurrently: with 16 cells,
-``threads: 8`` and ``batch-size: 16`` is a useful configuration to benchmark.
-More threads than cells per batch cannot provide additional cell parallelism.
-
-Time integration, drift and event-chunk loading remain serial. Scaling depends
-on collision cost, memory bandwidth and storage; an eight-thread job is not
-guaranteed to run eight times faster. Homogeneous TD-BTE still uses serial
-single-state collision evaluation. This option does not implement MPI or
-multi-node execution.
-
-Time integration
-------------------------
-
-Spatial TD-BTE splits collision and drift processes. Each time step contains:
-
-1. A half step of nonlinear three-phonon collisions.
-2. A full step of spatial drift.
-3. A half step of nonlinear three-phonon collisions.
-
-Collisions use DOP853; drift uses a conservative first-order upwind scheme.
-The step is limited by both ``max-step-ps`` and the CFL condition:
-
-.. math::
-
-   \max_\lambda |v_{\lambda,x}|
-   \frac{\Delta t}{\Delta x}
-   \leq \mathrm{cfl}\leq1.
-
-Because drift is first-order upwind, the overall method is first-order in
-time and space. Check numerical diffusion caused by the mesh and CFL settings.
+concurrent deposition into the same mode. The default ``threads: 1`` uses
+the serial implementation; multiple threads require Numba.
 
 Results and analysis
 ------------------------
@@ -231,6 +195,36 @@ After completion, generate plots and a report:
    nepkappa report results/tdbte-spatial
 
 Plots are saved in ``results/tdbte-spatial/plots``.
+
+.. figure:: _static/tdbte_spatial.png
+   :width: 70%
+   :align: center
+   :alt: 3C-SiC TTG temperature dynamics over 20 ps, 100 nm period and 20 cells
+
+   TTG temperature evolution in 3C-SiC at a background temperature of 300 K
+   and an initial modulation amplitude of 1 K, with a 100 nm period,
+   20 spatial cells and a 20 ps trajectory. The top row shows spatial profiles
+   and total temperatures at three fixed positions. The bottom row shows
+   branch temperatures at the initially hottest (x = 2.5 nm) and coldest
+   (x = 47.5 nm) positions.
+
+The combined figure is a 2-by-2 temperature plot, using the same line and branch-colour conventions as
+homogeneous TD-BTE, without panel-letter annotations:
+
+1. Spatial temperature profiles at six saved times spanning the trajectory.
+2. Total temperature versus time at three fixed positions.
+3. Branch energy-equivalent temperatures at the initially hottest cell.
+4. Branch energy-equivalent temperatures at the initially coldest cell.
+
+The three fixed positions are the initial hottest cell, the cell nearest the
+spatial midpoint between the two extrema, and the initial coldest cell.
+These cells remain fixed throughout the trajectory. Branch temperatures
+are obtained from the saved occupations at the two extrema.
+
+``plot.layout: combined`` writes ``tdbte_spatial.png`` and
+``tdbte_spatial.pdf``. ``separate`` writes the four panels individually, and
+``both`` writes both layouts. By default the spatial profiles use up to six
+evenly spaced saved times; ``plot.tdbte-times`` selects three explicit times.
 
 Temperature evolution in space and time
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,152 +241,6 @@ energy-equivalent temperature:
 local equilibrium within a cell. For TTG initial conditions, follow the
 periodic temperature perturbation over time. Its decay depends on propagation,
 collisions and spatial length scales.
-
-Heat flux and energy transport
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Spatial TD-BTE also calculates the heat-flux distribution. Modes contribute
-according to their frequencies, group velocities and populations.
-Temperature and heat-flux profiles reveal differences between nonequilibrium
-transport and ordinary diffusion. Branch-resolved energy densities and heat
-fluxes distinguish the contributions of individual branches.
-
-TTG temperature harmonics
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The initial TTG is a single cosine perturbation. Fourier analysis tracks
-the evolution of spatial harmonics. For the fundamental:
-
-.. math::
-
-   A_1(t)
-   =
-   \frac{2}{L}
-   \int_0^L
-   [T(x,t)-\overline T(t)]
-   \cos\left(\frac{2\pi x}{L}\right)\,dx.
-
-Analyze :math:`A_1(t)` to compare modulation decay at different spatial periods.
-In the diffusive limit with constant thermal diffusivity:
-
-.. math::
-
-   A_1(t)
-   =
-   A_1(0)
-   \exp\left[
-   -\alpha\left(\frac{2\pi}{L}\right)^2t
-   \right].
-
-Here, :math:`\alpha` is the thermal diffusivity. This provides a diffusive
-reference, while spatial TD-BTE can examine departures from simple diffusion.
-
-Independent initial-condition choices
---------------------------------------
-
-``spatial.initial`` separates three independent choices:
-
-.. list-table:: Initial-condition options
-   :header-rows: 1
-   :widths: 25 35 40
-
-   * - Key
-     - Values
-     - Meaning
-   * - ``profile``
-     - ``ttg``, ``gaussian``, ``uniform``
-     - Spatial envelope; default ``ttg``.
-   * - ``modes``
-     - ``all``, ``branches``, ``frequency-window``
-     - Mode selection; default ``all``.
-   * - ``excitation``
-     - ``temperature``, ``relative``
-     - Occupation prescription; default ``temperature``.
-
-All 18 combinations are supported. ``uniform`` means spatially uniform;
-``all`` means all active modes. Branch and frequency selections apply at
-every q point represented in the kernel; zero-frequency rigid modes stay fixed.
-
-Let :math:`p(x)` be the spatial envelope and :math:`S` the selected modes.
-For ``ttg``, :math:`p(x)=\cos(2\pi x/L)`; for ``uniform``, :math:`p(x)=1`.
-For ``gaussian``, the periodic Gaussian has width ``sigma-nm`` (required)
-and center ``center-nm`` (default :math:`L/2`), normalized to one at its center.
-The two prescriptions, for :math:`\lambda\in S`, are:
-
-.. math::
-
-   n_\lambda(x,0)=
-   \begin{cases}
-   n_{\mathrm{BE}}(\omega_\lambda,T_0+\Delta T p(x)),
-      &\text{temperature},\\
-   n_{\mathrm{BE}}(\omega_\lambda,T_0)[1+A p(x)],
-      &\text{relative}.
-   \end{cases}
-
-Unselected modes remain at the background Bose occupation at :math:`T_0`.
-With selected modes, ``temperature`` specifies the temperature of their
-initial Bose occupations, not the energy-equivalent temperature of the whole
-cell. Even ``relative`` applied to all modes generally creates a nonthermal
-frequency distribution.
-
-Both excitation prescriptions use ``delta``. With ``excitation: temperature``,
-``delta`` is in K (default 1 K); with ``excitation: relative``, it is a
-dimensionless fractional occupation change (default ``tdbte.excitation``, 0.01).
-For example, ``delta: 0.2`` means 0.2 K or 20%, respectively.
-TTG requires :math:`|\Delta T|<T_0` or :math:`|A|<1`; the negative cosine
-half-period decreases occupations relative to the background. Gaussian and
-uniform profiles require :math:`T_0+\min(\Delta T,0)>0` or :math:`A>-1`.
-
-Selective TTG with temperature excitation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Replace ``spatial.initial`` with:
-
-.. code-block:: yaml
-
-   initial:
-     profile: ttg
-     modes: branches
-     branches: [3, 4, 5]  # Zero-based IDs; verify for the material/kernel.
-     excitation: temperature
-     delta: 10
-
-Set ``modes: all`` and omit ``branches`` for the full-mode thermal TTG.
-
-Gaussian excitation of a frequency window
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   initial:
-     profile: gaussian
-     sigma-nm: 8
-     center-nm: 32
-     modes: frequency-window
-     frequency-range-THz: [10, 15]
-     excitation: relative
-     delta: 0.2
-
-The frequency window includes both endpoints, with :math:`0\le f_{min}<f_{max}`.
-Only active modes in that interval are changed, by up to 20% at the pulse center.
-An empty selection or a branch absent from the kernel is rejected.
-Use ``profile: uniform`` and omit the Gaussian parameters for spatially
-uniform excitation. Different windows with the same relative amplitude do
-not generally receive the same injected energy.
-
-Legacy inputs
-~~~~~~~~~~~~~~
-
-Existing ``kind: ttg``, ``gaussian`` and ``uniform`` inputs retain their thermal,
-full-mode behavior. ``kind: selective`` retains relative excitation of the
-specified branches, with a Gaussian or uniform spatial ``profile``.
-Legacy ``delta-temperature-K`` (thermal kind) and ``amplitude`` (selective kind)
-are translated to ``delta``. Supplying both ``delta`` and its legacy equivalent
-is rejected. New combinations use ``delta`` and the independent keys above,
-and omit ``kind``.
-Combining legacy ``kind`` with ``modes`` or ``excitation`` is rejected.
-Previously ignored ``branches``/``profile`` under a legacy thermal ``kind``
-now raise an error rather than silently exciting all modes.
 
 Main outputs
 ------------------------
@@ -426,7 +274,91 @@ Space- and time-resolved results are saved to:
    * - ``departure_from_local_BE``
      - Departure from the local equal-energy Bose distribution.
 
-``audit.json`` records checks of energy conservation, branch energy balances,
-entropy, population positivity and CFL. The program plots temperature, heat
-flux, branch energies and temperature harmonics to analyze spatial
-nonequilibrium transport.
+
+.. _spatial-initial-conditions:
+
+Independent initial-condition choices
+--------------------------------------
+
+``spatial.initial`` separates three independent choices:
+
+.. list-table:: Initial-condition options
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Key
+     - Values
+     - Meaning
+   * - ``profile``
+     - ``ttg``, ``gaussian``, ``uniform``
+     - Spatial envelope; default ``ttg``.
+   * - ``modes``
+     - ``all``, ``branches``, ``frequency-window``
+     - Mode selection; default ``all``.
+   * - ``excitation``
+     - ``temperature``, ``relative``
+     - Occupation prescription; default ``temperature``.
+
+All 18 combinations are supported. ``uniform`` means spatially uniform;
+``all`` means all active modes. Branch and frequency selections apply at
+the q points represented in the kernel.
+
+Spatial envelopes and occupations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``profile`` defines the spatial envelope :math:`p(x)`:
+
+- ``ttg``: cosine profile, :math:`p(x)=\cos(2\pi x/L)`.
+- ``gaussian``: periodic Gaussian with width ``sigma-nm``, centered at :math:`L/2` by default.
+- ``uniform``: spatially uniform, :math:`p(x)=1`.
+
+Temperature excitation sets the selected modes to Bose occupations at
+:math:`T_0+\delta p(x)`. Relative excitation multiplies their background
+occupations by :math:`1+\delta p(x)`. Unselected modes retain their Bose
+occupations at the background temperature :math:`T_0`.
+
+Excitation strength
+~~~~~~~~~~~~~~~~~~~~
+
+``excitation`` determines the meaning of ``delta``:
+
+- ``temperature``: temperature perturbation in K, default 1 K.
+- ``relative``: dimensionless fractional occupation change, default 0.01 (1%).
+
+For example, ``delta: 0.2`` means 0.2 K or 20%, respectively.
+
+Selective TTG with temperature excitation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Replace ``spatial.initial`` with:
+
+.. code-block:: yaml
+
+   initial:
+     profile: ttg
+     modes: branches
+     branches: [3, 4, 5]  # Zero-based IDs; verify for the material/kernel.
+     excitation: temperature
+     delta: 10
+
+Set ``modes: all`` and omit ``branches`` for the full-mode thermal TTG.
+
+Gaussian excitation of a frequency window
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   initial:
+     profile: gaussian
+     sigma-nm: 8
+     center-nm: 50
+     modes: frequency-window
+     frequency-range-THz: [10, 15]
+     excitation: relative
+     delta: 0.2
+
+The frequency window includes both endpoints, with :math:`0\le f_{min}<f_{max}`.
+Only active modes in that interval are changed, by up to 20% at the pulse center.
+Use ``profile: uniform`` and omit the Gaussian parameters for spatially
+uniform excitation. Different windows with the same relative amplitude do
+not generally receive the same injected energy.

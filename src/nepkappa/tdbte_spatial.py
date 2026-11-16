@@ -95,7 +95,8 @@ def initial_options(config, spatial):
             initial.setdefault('branches', config.tdbte_branches)
             if 'delta' in initial and 'amplitude' in initial:
                 raise ValueError('Specify only initial.delta, not delta and amplitude together')
-            initial.setdefault('delta', initial.pop('amplitude', config.tdbte_excitation))
+            from .tdbte import excitation_options
+            initial.setdefault('delta', initial.pop('amplitude', excitation_options(config)[1]))
             initial.pop('delta_temperature_K', None)
         else:
             if 'branches' in initial or 'profile' in initial:
@@ -146,7 +147,7 @@ def initial_options(config, spatial):
             raise ValueError('initial.frequency-range-THz requires [min, max] with 0 <= min < max')
     elif 'frequency_range_THz' in initial:
         raise ValueError('initial.frequency-range-THz requires modes: frequency-window')
-    initial.setdefault('delta', 1. if excitation == 'temperature' else config.tdbte_excitation)
+    initial.setdefault('delta', 1. if excitation == 'temperature' else .01)
     delta = initial['delta']
     if not finite(delta):
         raise ValueError('initial.delta must be finite')

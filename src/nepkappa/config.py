@@ -648,7 +648,8 @@ def _add_tdbte_arguments(parser):
     parser.add_argument("--tdbte_temperature", type=float, default=300.)
     parser.add_argument("--tdbte_duration_ps", type=float, default=20.)
     parser.add_argument("--tdbte_max_step_ps", type=float, default=.5)
-    parser.add_argument("--tdbte_excitation", type=float, default=.01)
+    parser.add_argument("--tdbte_excitation", choices=["relative", "temperature"], default="relative")
+    parser.add_argument("--tdbte_delta", type=float, default=None)
     parser.add_argument("--tdbte_branches", type=int, nargs="+", default=None)
     parser.add_argument("--tdbte_samples", type=int, default=201)
     parser.add_argument("--tdbte_spatial", type=json_dict, default=None,
@@ -830,6 +831,12 @@ def yaml_to_tokens(data, command=None):
                 flat[f"plot_{normalized_key}"] = value
                 continue
             if section == "tdbte":
+                if normalized_key == "excitation" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    if any(normalize_yaml_key(k) == "delta" for k in section_data):
+                        raise ValueError("Specify excitation: relative and delta; do not combine numeric excitation with delta")
+                    flat["tdbte_excitation"] = "relative"
+                    flat["tdbte_delta"] = value
+                    continue
                 flat[f"tdbte_{normalized_key}"] = value
                 continue
             if section == "qha":
@@ -927,6 +934,8 @@ def _read_config(config_path, command):
     tokens = yaml_to_tokens(data, command=command)
     args = parser.parse_args(tokens, namespace=WorkflowConfig())
     args.config_path = str(Path(config_path).resolve())
+    if args.tdbte_delta is None:
+        args.tdbte_delta = 1. if args.tdbte_excitation == "temperature" else .01
     sampling = phono3py_sampling(args.kappa_command) if args.kappa_command else {}
     for field, values in sampling.items():
         if field == "temps":

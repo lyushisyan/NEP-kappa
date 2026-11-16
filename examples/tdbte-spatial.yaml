@@ -11,22 +11,22 @@ force-constant:
 tdbte:
   mesh: [3, 3, 3]
   temperature: 300
-  duration-ps: 0.1
+  duration-ps: 20.0
   max-step-ps: 0.01
-  samples: 6
+  samples: 201
   spatial:
-    length-nm: 64
-    cells: 16
+    length-nm: 100
+    cells: 20
     direction: [1, 0, 0]  # Cartesian direction, normalized internally.
     boundary: periodic
     cfl: 0.8
     threads: 1          # Increase with allocated CPU cores; requires Numba.
-    batch-size: 8       # Use at least as many cells per batch as threads.
+    batch-size: 20       # Use at least as many cells per batch as threads.
     initial:
       profile: ttg
       modes: all
       excitation: temperature
-      delta: 10
+      delta: 1
 plot:
   layout: both
   dpi: 150

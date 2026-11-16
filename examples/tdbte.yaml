@@ -13,7 +13,8 @@ tdbte:
   mesh: [5, 5, 5]
   temperature: 300
   branches: [3, 4, 5]  # Zero-based optical branches for a two-atom primitive cell.
-  excitation: 0.01    # Relative occupation increase, NOT kelvin or energy.
+  excitation: relative
+  delta: 0.01
   duration-ps: 20
   max-step-ps: 0.5
   samples: 201
