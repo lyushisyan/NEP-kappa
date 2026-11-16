@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 project = "NEP-kappa"
 copyright = "2026, Shixian Liu, Fei Yin"
 author = "Shixian Liu, Fei Yin"
-release = "2.0.1"
+release = "2.0.2"
 
 # -- General configuration ---------------------------------------------------
 
